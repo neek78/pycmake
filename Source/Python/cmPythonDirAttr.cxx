@@ -305,4 +305,8 @@ py::object cmPythonDirAttr::GetPolicyStatus(const pybind11::object& policy) cons
                 "requires that the policy be set to NEW before it is checked."_pys;
             throw py::value_error(err);
     }
+
+    // not reached
+    assert(false);
+    return py::none();
 }
