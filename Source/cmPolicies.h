@@ -541,6 +541,9 @@ public:
   //! convert a string policy ID into a number
   static bool GetPolicyID(const char* id, /* out */ cmPolicies::PolicyID& pid);
 
+  //! convert a long to policy ID
+  static bool GetPolicyID(long id, /* out */ cmPolicies::PolicyID& pid);
+
   //! Get the default status for a policy
   static cmPolicies::PolicyStatus GetPolicyStatus(cmPolicies::PolicyID id);
 

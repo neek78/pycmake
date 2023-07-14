@@ -142,6 +142,13 @@
 #  include <sys/time.h>
 #endif
 
+#ifdef CMake_ENABLE_PYTHON 
+#include "Python/cmPythonCore.h"
+#endif
+
+// always include so we can detect python files even when not configured
+#include "Python/cmPythonConstants.h"
+
 namespace {
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -1777,13 +1784,14 @@ bool cmake::SetDirectoriesFromFile(const std::string& arg)
     cmSystemTools::ConvertToUnixSlashes(path);
     std::string cacheFile = cmStrCat(path, "/CMakeCache.txt");
     std::string listFile = cmStrCat(path, "/CMakeLists.txt");
+    std::string pyFile = cmStrCat(path, "/", PYTHON_SCRIPT_NAME);
 
     is_empty_directory = true;
     if (cmSystemTools::FileExists(cacheFile)) {
       cachePath = path;
       is_empty_directory = false;
     }
-    if (cmSystemTools::FileExists(listFile)) {
+    if (cmSystemTools::FileExists(listFile) || cmSystemTools::FileExists(pyFile)) {
       listPath = path;
       is_empty_directory = false;
       is_source_dir = true;
@@ -2173,13 +2181,20 @@ void cmake::SetGlobalGenerator(std::unique_ptr<cmGlobalGenerator> gg)
 
 int cmake::DoPreConfigureChecks()
 {
+  static std::string fnList = "/CMakeLists.txt";
+  static std::string fnPy = "/" + PYTHON_SCRIPT_NAME;
+
   // Make sure the Source directory contains a CMakeLists.txt file.
-  std::string srcList = cmStrCat(this->GetHomeDirectory(), "/CMakeLists.txt");
-  if (!cmSystemTools::FileExists(srcList)) {
+  std::string srcDir = this->GetHomeDirectory();
+  std::string srcList = cmStrCat(srcDir, fnList);
+  std::string srcPy = cmStrCat(srcDir, fnPy);
+
+  if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
     std::ostringstream err;
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not appear to contain CMakeLists.txt.\n";
+          << "\" does not appear to contain CMakeLists.txt or "
+          << PYTHON_SCRIPT_NAME << ".\n";
     } else if (cmSystemTools::FileExists(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
           << "\" is a file, not a directory.\n";
@@ -2193,15 +2208,18 @@ int cmake::DoPreConfigureChecks()
     return -2;
   }
 
+  //FIXME: do this property§
   // do a sanity check on some values
   if (this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY")) {
-    std::string cacheStart =
-      cmStrCat(*this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY"),
-               "/CMakeLists.txt");
-    if (!cmSystemTools::SameFile(cacheStart, srcList)) {
+    std::string cacheDir = *this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY");
+    std::string cacheList = cmStrCat(cacheDir, fnList);
+    std::string cachePy = cmStrCat(cacheDir, fnPy);
+    
+    if (!cmSystemTools::SameFile(cacheList, srcList) &&
+        !cmSystemTools::SameFile(cachePy, srcPy)) {
       std::string message =
-        cmStrCat("The source \"", srcList, "\" does not match the source \"",
-                 cacheStart,
+        cmStrCat("The source \"", cacheDir, "\" does not match the source \"",
+                 cacheList, "\" or \"", cachePy,
                  "\" used to generate cache.  Re-run cmake with a different "
                  "source directory.");
       cmSystemTools::Error(message);
@@ -2830,6 +2848,15 @@ int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
   }
 #endif
 
+#ifdef CMake_ENABLE_PYTHON 
+  BuildPythonCore();
+  if(IsPythonAvailable()) {
+      State->SetPythonAvailable(true);
+  } else {
+      cmSystemTools::Error("Python failed to init - Python scripting will be unavailable");
+  }
+#endif
+
   int ret = this->Configure();
   if (ret) {
 #if defined(CMAKE_HAVE_VS_GENERATORS)
@@ -2849,6 +2876,11 @@ int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
 #endif
     return ret;
   }
+
+#ifdef CMake_ENABLE_PYTHON 
+  TeardownPythonCore();
+#endif
+
   ret = this->Generate();
   if (ret) {
     cmSystemTools::Message("CMake Generate step failed.  "
@@ -4239,5 +4271,37 @@ cmMakefileProfilingData& cmake::GetProfilingOutput()
 bool cmake::IsProfilingEnabled() const
 {
   return static_cast<bool>(this->ProfilingOutput);
+}
+#endif
+
+bool cmake::IsPythonAvailable() const 
+{
+#ifdef CMake_ENABLE_PYTHON 
+  return PythonCore != nullptr;
+#else
+  return false;
+#endif
+}
+
+#ifdef CMake_ENABLE_PYTHON 
+cmPythonCore* cmake::GetPythonCore()
+{
+  return this->PythonCore.get();
+}
+
+void cmake::BuildPythonCore()
+{
+  // don't build twice.
+  assert(!PythonCore);
+
+  this->PythonCore = std::make_unique<cmPythonCore>();
+  if(!this->PythonCore->init()) {
+     TeardownPythonCore();
+  }
+}
+
+void cmake::TeardownPythonCore()
+{
+    this->PythonCore.reset();
 }
 #endif

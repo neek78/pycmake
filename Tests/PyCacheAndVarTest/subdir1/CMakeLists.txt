@@ -1,0 +1,6 @@
+
+set(CACHE_STRING_VALUE1 "test_value1" CACHE STRING "docs" FORCE)
+set(CACHE_BOOL_VALUE_T "TRUE" CACHE BOOL "docs" FORCE)
+set(CACHE_BOOL_VALUE_F "FALSE" CACHE BOOL "docs" FORCE)
+set(CACHE_PATH_VALUE  "/path/to/dir/somewhere" CACHE PATH "docs" FORCE)
+set(CACHE_FILEPATH_VALUE  "/path/to/some/file" CACHE FILEPATH "docs" FORCE)

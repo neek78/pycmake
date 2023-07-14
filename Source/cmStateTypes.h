@@ -59,6 +59,15 @@ enum ArtifactType
   RuntimeBinaryArtifact,
   ImportLibraryArtifact
 };
+
+enum class ScriptedCommandType
+{
+  Macro,
+  Function,
+  Python,
+  Command // "from load_command" - probably never used but need it for api completeness
+};
+
 }
 
 namespace cmTraceEnums {

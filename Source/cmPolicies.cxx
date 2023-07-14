@@ -18,6 +18,16 @@
 #include "cmValue.h"
 #include "cmVersion.h"
 
+static bool longToId(int id, cmPolicies::PolicyID& pid)
+{
+  if (id >= cmPolicies::CMPCOUNT) {
+    return false;
+  }
+
+  pid = static_cast<cmPolicies::PolicyID>(id);
+  return true;
+}
+
 static bool stringToId(const char* input, cmPolicies::PolicyID& pid)
 {
   assert(input);
@@ -40,11 +50,7 @@ static bool stringToId(const char* input, cmPolicies::PolicyID& pid)
   if (!cmStrToLong(input + 3, &id)) {
     return false;
   }
-  if (id >= cmPolicies::CMPCOUNT) {
-    return false;
-  }
-  pid = static_cast<cmPolicies::PolicyID>(id);
-  return true;
+  return longToId(id, pid);
 }
 
 #define CM_SELECT_ID_VERSION(F, A1, A2, A3, A4, A5, A6) F(A1, A3, A4, A5)
@@ -318,6 +324,11 @@ bool cmPolicies::ApplyPolicyVersion(cmMakefile* mf, unsigned int majorVer,
   }
 
   return true;
+}
+
+bool cmPolicies::GetPolicyID(long id, /* out */ cmPolicies::PolicyID& pid)
+{
+  return longToId(id, pid);
 }
 
 bool cmPolicies::GetPolicyID(const char* id, cmPolicies::PolicyID& pid)

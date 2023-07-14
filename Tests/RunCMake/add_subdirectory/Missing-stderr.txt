@@ -3,6 +3,6 @@
 
     .*/Tests/RunCMake/add_subdirectory/Missing
 
-  does not contain a CMakeLists.txt file.
+  does not contain a CMakeLists.txt or cmake_build.py file.
 Call Stack \(most recent call first\):
   CMakeLists\.txt:[0-9]+ \(include\)$

@@ -273,7 +273,8 @@ bool cmLoadCommandCommand(std::vector<std::string> const& args,
       BT<cmState::Command>(
         cmLegacyCommandWrapper(cm::make_unique<cmLoadedCommand>(initFunction)),
         status.GetMakefile().GetBacktrace()),
-      status.GetMakefile());
+      status.GetMakefile(),
+      cmStateEnums::ScriptedCommandType::Command);
   }
   status.SetError("Attempt to load command failed. "
                   "No init function found.");

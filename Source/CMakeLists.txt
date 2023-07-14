@@ -740,6 +740,7 @@ add_library(
 
   bindexplib.cxx
   )
+
 target_include_directories(
   CMakeLib
   PUBLIC
@@ -749,6 +750,7 @@ target_include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/LexerParser"
     ${CMake_HAIKU_INCLUDE_DIRS}
   )
+
 target_link_libraries(
   CMakeLib
   PUBLIC
@@ -815,6 +817,10 @@ if(CMake_USE_XCOFF_PARSER)
       cmXCOFF.h
       cmXCOFF.cxx
     )
+endif()
+
+if(CMake_ENABLE_PYTHON)
+  add_subdirectory(Python)
 endif()
 
 # Xcode only works on Apple
@@ -1000,7 +1006,13 @@ endif()
 
 target_compile_definitions(CMakeLib PUBLIC ${CLANG_TIDY_DEFINITIONS})
 
-#
+# FIXME: remove
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  target_compile_options(CMakeLib PUBLIC -fdiagnostics-color=always)
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  target_compile_options(CMakeLib PUBLIC -fcolor-diagnostics)
+endif ()
+
 # Build CTestLib
 #
 add_library(
@@ -1270,6 +1282,7 @@ endif()
 
 include(${CMAKE_CURRENT_BINARY_DIR}/LocalUserOptions.cmake OPTIONAL)
 include(${CMAKE_CURRENT_SOURCE_DIR}/LocalUserOptions.cmake OPTIONAL)
+
 
 if(WIN32)
   # Compute the binary version that appears in the RC file. Version

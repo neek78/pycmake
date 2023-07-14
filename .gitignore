@@ -9,6 +9,9 @@
 # Python compile output.
 *.pyc
 
+# vim files
+.*.swp
+
 # See Utilities/Sphinx/tutorial_archive.cmake
 /Help/_generated
 
@@ -28,3 +31,6 @@
 /.vs/
 # Visual Studio build directory
 /out/
+
+build
+compile_commands.json

@@ -276,6 +276,7 @@ public:
                        bool immediate, bool system);
 
   void Configure();
+  void ConfigureListFile(const std::string& currentStart);
 
   /**
    * Configure a subdirectory
@@ -1033,6 +1034,8 @@ public:
                         cm::optional<std::string> const& rootENV);
   void MaybeWarnUninitialized(std::string const& variable,
                               const char* sourceFilename) const;
+  bool CheckInitialized(std::string const& variable,
+                        const char* sourceFilename, bool checkAll) const;
   bool IsProjectFile(const char* filename) const;
 
   size_t GetRecursionDepthLimit() const;
@@ -1046,6 +1049,10 @@ public:
   cm::optional<std::string> DeferGetCallIds() const;
   cm::optional<std::string> DeferGetCall(std::string const& id) const;
 
+  bool GetIsPython() const
+  {
+      return IsPython;
+  }
 protected:
   // add link libraries and directories to the target
   void AddGlobalLinkInformation(cmTarget& target);
@@ -1126,6 +1133,9 @@ private:
                    const std::string& filenametoread,
                    DeferCommands* defer = nullptr);
 
+  void RunDeferredCommands(DeferCommands* defer,
+                             std::string const& filenameToRead);
+
   bool ParseDefineFlag(std::string const& definition, bool remove);
 
   bool EnforceUniqueDir(const std::string& srcPath,
@@ -1192,12 +1202,15 @@ private:
                                          long line, bool removeEmpty,
                                          bool replaceAt) const;
   // CMP0053 == new
+public:
   MessageType ExpandVariablesInStringNew(std::string& errorstr,
                                          std::string& source,
                                          bool escapeQuotes, bool noEscapes,
                                          bool atOnly, const char* filename,
-                                         long line, bool replaceAt) const;
+                                         long line, bool replaceAt,
+                                         bool strict) const;
 
+private:
   bool ValidateCustomCommand(const cmCustomCommandLines& commandLines) const;
 
   void CreateGeneratedOutputs(const std::vector<std::string>& outputs);
@@ -1214,4 +1227,25 @@ private:
   bool IsSourceFileTryCompile;
   mutable bool SuppressSideEffects;
   ImportedTargetScope CurrentImportedTargetScope = ImportedTargetScope::Local;
+
+  struct CurrentFiles
+  {
+    std::string currentParentFile;
+    std::string currentFile;
+  };
+
+  CurrentFiles UpdateListVars(std::string const& filenametoread);
+  void RestoreListVars(const CurrentFiles& current);
+
+  // is the script in this dir python (as opposed to a classic CMakeLists.txt)
+  bool IsPython = false;
+#ifdef CMake_ENABLE_PYTHON 
+
+  // Python Stuff
+  void ConfigurePythonScript(const std::string& modPath, 
+        const std::string& modName);
+
+  void RunPythonScript(const std::string& modPath, 
+        const std::string& modName);
+#endif
 };

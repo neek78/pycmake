@@ -54,6 +54,10 @@ class cmMessenger;
 class cmVariableWatch;
 struct cmBuildOptions;
 
+#ifdef CMake_ENABLE_PYTHON
+class cmPythonCore;
+#endif
+
 /** \brief Represents a cmake invocation.
  *
  * This class represents a cmake invocation. It is the top level class when
@@ -837,6 +841,21 @@ private:
 
 public:
   static cmDocumentationEntry CMAKE_STANDARD_OPTIONS_TABLE[18];
+
+  // note this function is still available when python is not 
+  // compiled in (in which case it returns false)
+  bool IsPythonAvailable() const;
+
+#ifdef CMake_ENABLE_PYTHON
+  // Note - might be null if python failed to init
+  cmPythonCore* GetPythonCore();
+
+
+protected:
+  void BuildPythonCore();
+  void TeardownPythonCore();
+  std::unique_ptr<cmPythonCore> PythonCore;
+#endif
 };
 
 #define FOR_EACH_C90_FEATURE(F) F(c_function_prototypes)

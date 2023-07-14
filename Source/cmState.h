@@ -26,6 +26,10 @@
 #include "cmStatePrivate.h"
 #include "cmStateTypes.h"
 #include "cmValue.h"
+        
+#ifdef CMake_ENABLE_PYTHON
+#include "Python/cmPythonTypes.h"
+#endif
 
 class cmCacheManager;
 class cmCommand;
@@ -134,6 +138,8 @@ public:
   void RemoveCacheEntryProperty(std::string const& key,
                                 std::string const& propertyName);
 
+  cmPropertyMap GetCacheEntryPropertyMap(std::string const& key);
+
   //! Break up a line like VAR:type="value" into var, type and value
   static bool ParseCacheEntry(const std::string& entry, std::string& var,
                               std::string& value,
@@ -188,8 +194,11 @@ public:
   void AddUnexpectedCommand(std::string const& name, const char* error);
   void AddUnexpectedFlowControlCommand(std::string const& name,
                                        const char* error);
+
   bool AddScriptedCommand(std::string const& name, BT<Command> command,
-                          cmMakefile& mf);
+                          cmMakefile& mf, cmStateEnums::ScriptedCommandType type,
+                          bool allowOverwrite = true);
+
   void RemoveBuiltinCommand(std::string const& name);
   void RemoveUserDefinedCommands();
   std::vector<std::string> GetCommandNames() const;
@@ -251,6 +260,13 @@ public:
   }
   bool InTopLevelIncludes() const { return this->ProcessingTopLevelIncludes; }
 
+#ifdef CMake_ENABLE_PYTHON
+  void SetPythonAvailable(bool avail)
+  {
+    this->PythonAvailable = avail;
+  }
+#endif
+
 private:
   friend class cmake;
   void AddCacheEntry(const std::string& key, cmValue value,
@@ -302,4 +318,8 @@ private:
   ProjectKind StateProjectKind = ProjectKind::Normal;
   cm::optional<cmDependencyProvider> DependencyProvider;
   bool ProcessingTopLevelIncludes = false;
+
+#ifdef CMake_ENABLE_PYTHON
+  bool PythonAvailable = false;
+#endif
 };

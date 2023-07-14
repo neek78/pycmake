@@ -150,6 +150,9 @@ else()
   set(CMake_ENABLE_DEBUGGER 0)
 endif()
 
+if(NOT DEFINED CMake_ENABLE_PYTHON)
+    set(CMake_ENABLE_PYTHON 0)
+endif()
 #-----------------------------------------------------------------------
 # a macro to deal with system libraries, implemented as a macro
 # simply to improve readability of the main script
@@ -223,6 +226,30 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
   # Inform utility library header wrappers whether to use system versions.
   configure_file(Utilities/cmThirdParty.h.in Utilities/cmThirdParty.h @ONLY)
 
+  option(CMAKE_USE_PYTHON "Enable python scripting in cmake" ON)
+  mark_as_advanced(CMAKE_USE_PYTHON)
+
+  if(CMAKE_USE_PYTHON)
+    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
+      message(WARNING " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
+                      " Use 'git submodule update --init' in your source tree to populate the submodule")
+    else()
+      add_subdirectory(extern/pybind11)
+
+      if(NOT pybind11_FOUND)
+        # if they asked for Python, but we can't provide it, give a msg
+        message(STATUS "Python support requested, but couldn't find pybind11 or its ilk")
+        set(CMake_ENABLE_PYTHON 0)
+      else()
+        message(STATUS "Python support enabled")
+        set(CMake_ENABLE_PYTHON 1)
+      endif()
+    endif()
+  else()
+      message(STATUS "Python support disabled")
+  endif()
+
+  find_package(GTest)
 endmacro()
 
 #-----------------------------------------------------------------------
@@ -509,6 +536,10 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
 endif()
 
 add_subdirectory(Tests)
+# pickup python tests
+if(CMake_ENABLE_PYTHON)
+  add_subdirectory(PyModules)
+endif()
 
 if(NOT CMake_TEST_EXTERNAL_CMAKE)
   if(BUILD_TESTING)
@@ -546,6 +577,17 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
                   WORLD_READ WORLD_EXECUTE
     REGEX "Help/(dev|guide)($|/)" EXCLUDE
     )
+
+  if(CMake_ENABLE_PYTHON)
+    install(
+      DIRECTORY PyModules/cmake
+      DESTINATION ${CMAKE_DATA_DIR}/PyModules
+      FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+      DIRECTORY_PERMISSIONS OWNER_READ OWNER_EXECUTE OWNER_WRITE
+                            GROUP_READ GROUP_EXECUTE
+                            WORLD_READ WORLD_EXECUTE
+      )
+  endif()
 
   # Install auxiliary files integrating with other tools.
   add_subdirectory(Auxiliary)

@@ -3662,4 +3662,17 @@ if(BUILD_TESTING)
       COMMENT "Removing test build directories."
       )
   endif()
+
+  # python tests
+  if(CMake_ENABLE_PYTHON)
+    ADD_TEST_MACRO(PyCMakeFunctionFromPythonTest)
+    ADD_TEST_MACRO(PyCacheAndVarTest)
+    ADD_TEST_MACRO(PyDirRecursionTest)
+    ADD_TEST_MACRO(PyFindPackage)
+    ADD_TEST_MACRO(PyFunctionFromCMakeTest)
+    ADD_TEST_MACRO(PyInclude)
+    ADD_TEST_MACRO(PyMacroInvoke)
+    ADD_TEST_MACRO(PySimpleCppProject)
+    ADD_TEST_MACRO(PyKwArgsTest)
+  endif()
 endif()

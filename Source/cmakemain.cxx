@@ -45,6 +45,10 @@
 #include "cmsys/Encoding.hxx"
 #include "cmsys/Terminal.h"
 
+#ifdef CMake_ENABLE_PYTHON
+#include "Python/cmPythonCore.h"
+#endif
+
 namespace {
 #ifndef CMAKE_BOOTSTRAP
 const cmDocumentationEntry cmDocumentationName = {
@@ -68,7 +72,7 @@ const cmDocumentationEntry cmDocumentationUsageNote = {
   "Run 'cmake --help' for more information."
 };
 
-const cmDocumentationEntry cmDocumentationOptions[31] = {
+const cmDocumentationEntry cmDocumentationOptions[32] = {
   { "--preset <preset>,--preset=<preset>", "Specify a configure preset." },
   { "--list-presets[=<type>]", "List available presets." },
   { "-E", "CMake command mode." },
@@ -85,6 +89,7 @@ const cmDocumentationEntry cmDocumentationOptions[31] = {
     "Generate graphviz of dependencies, see CMakeGraphVizOptions.cmake for "
     "more." },
   { "--system-information [file]", "Dump information about this system." },
+  { "--python-information", "Dump information about python compiled into this cmake." },
   { "--log-level=<ERROR|WARNING|NOTICE|STATUS|VERBOSE|DEBUG|TRACE>",
     "Set the verbosity of messages from CMake files. "
     "--loglevel is also accepted for backward compatibility reasons." },
@@ -239,6 +244,7 @@ int do_cmake(int ac, char const* const* av)
 
   bool wizard_mode = false;
   bool sysinfo = false;
+  bool pythoninfo = false;
   bool list_cached = false;
   bool list_all_cached = false;
   bool list_help = false;
@@ -263,6 +269,8 @@ int do_cmake(int ac, char const* const* av)
       } },
     CommandArgument{ "--system-information", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(sysinfo) },
+    CommandArgument{ "--python-information", CommandArgument::Values::Zero,
+                     CommandArgument::setToTrue(pythoninfo) },
     CommandArgument{ "-N", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(view_only) },
     CommandArgument{ "-LAH", CommandArgument::Values::Zero,
@@ -336,6 +344,19 @@ int do_cmake(int ac, char const* const* av)
     int ret = cm.GetSystemInformation(parsedArgs);
     return ret;
   }
+
+  if (pythoninfo) {
+#ifdef CMake_ENABLE_PYTHON
+    // only one core can exist at a time (as it holds the python scoped_interpreter
+    // so make sure this occurs before the creation of cmake below)
+    cmPythonCore core;
+    return core.PrintPythonInfo(std::wcout) ? 0 : 1;
+#else
+    std::cerr << "no python support compiled into this cmake.\n";
+    return 1;
+#endif
+  }
+
   cmake::Role const role =
     workingMode == cmake::SCRIPT_MODE ? cmake::RoleScript : cmake::RoleProject;
   cmState::Mode mode = cmState::Unknown;

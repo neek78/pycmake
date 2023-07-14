@@ -1,0 +1,5 @@
+
+add_subdirectory(dir3)
+
+set(BUBBLE_UP ${BUBBLE_UP} PARENT_SCOPE)
+set(BUBBLE_UP2 ${BUBBLE_UP2} PARENT_SCOPE)

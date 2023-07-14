@@ -169,7 +169,8 @@ bool cmFunctionFunctionBlocker::Replay(
     this->Args.front(),
     BT<cmState::Command>(std::move(f),
                          mf.GetBacktrace().Push(this->GetStartingContext())),
-    mf);
+    mf,
+    cmStateEnums::ScriptedCommandType::Function);
 }
 
 } // anonymous namespace

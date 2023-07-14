@@ -27,6 +27,10 @@
 #include "cmSystemTools.h"
 #include "cmake.h"
 
+#ifdef CMake_ENABLE_PYTHON
+#include "Python/cmPythonFunctionLauncher.h"
+#endif
+
 cmState::cmState(Mode mode, ProjectKind projectKind)
   : StateMode(mode)
   , StateProjectKind(projectKind)
@@ -496,7 +500,8 @@ void cmState::AddUnexpectedFlowControlCommand(std::string const& name,
 }
 
 bool cmState::AddScriptedCommand(std::string const& name, BT<Command> command,
-                                 cmMakefile& mf)
+                                 cmMakefile& mf, cmStateEnums::ScriptedCommandType type,
+                                 bool allowOverwrite)
 {
   std::string sName = cmSystemTools::LowerCase(name);
 
@@ -512,10 +517,27 @@ bool cmState::AddScriptedCommand(std::string const& name, BT<Command> command,
 
   // if the command already exists, give a new name to the old command.
   if (Command oldCmd = this->GetCommandByExactName(sName)) {
+    if(!allowOverwrite) {
+      mf.GetCMakeInstance()->IssueMessage(
+        MessageType::WARNING,
+        cmStrCat("command ", sName, "already exists"),
+        command.Backtrace);
+      return false;
+    }
     this->ScriptedCommands["_" + sName] = oldCmd;
   }
 
   this->ScriptedCommands[sName] = std::move(command.Value);
+
+#ifdef CMake_ENABLE_PYTHON
+  // register command with python
+  if (PythonAvailable) {
+    cmPythonFunctionLauncher::AddScriptedCommand(sName, ScriptedCommands[sName], type);
+  }
+#else
+  (void)type;
+#endif
+
   return true;
 }
 
@@ -563,6 +585,13 @@ void cmState::RemoveBuiltinCommand(std::string const& name)
 void cmState::RemoveUserDefinedCommands()
 {
   this->ScriptedCommands.clear();
+
+#ifdef CMake_ENABLE_PYTHON
+  // register command with python
+  if (PythonAvailable) {
+    cmPythonFunctionLauncher::RemoveAllScriptedCommands();
+  }
+#endif
 }
 
 void cmState::SetGlobalProperty(const std::string& prop,
@@ -1087,3 +1116,4 @@ cmState::Command cmState::GetDependencyProviderCommand(
     ? this->GetCommand(this->DependencyProvider->GetCommand())
     : Command{};
 }
+

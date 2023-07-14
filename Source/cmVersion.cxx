@@ -20,8 +20,25 @@ unsigned int cmVersion::GetTweakVersion()
 {
   return 0;
 }
-
 const char* cmVersion::GetCMakeVersion()
 {
   return CMake_VERSION;
+}
+
+const char* cmVersion::GetSuffix()
+{
+#ifdef CMake_VERSION_SUFFIX
+  return CMake_VERSION_SUFFIX;
+#else
+  return 0;
+#endif
+}
+
+bool cmVersion::GetVersionIsDirty()
+{
+#ifdef CMake_VERSION_IS_DIRTY 
+  return (CMake_VERSION_IS_DIRTY == 1);
+#else
+  return false;
+#endif
 }
