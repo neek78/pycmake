@@ -19,6 +19,7 @@ class TestCompactToList(unittest.TestCase):
         #self.expect("foo", "src1", "src2", "src3.cpp", "src4.h")
 
         # set
+
         # multi-depth
 
 if __name__ == "__main__":

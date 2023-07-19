@@ -127,7 +127,7 @@ def compact_enums_to_list(v):
     if(isinstance(v, enum.Enum)):
         return [v.name]
 
-    if is_sequence_but_not_string(v):
+    if is_sequence_but_not_string(v) or isinstance(v, set):
         res=[]
         for e in v:
             res.append(e.name)
