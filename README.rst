@@ -327,11 +327,11 @@ All of these options are controllable - See Tests/PyCMakeFunctionFromPythonTest 
 Calling CMake kwargs functions
 ------------------------------
 
-CMake script provides a rudimentary keyword args mechanism, using `cmake_parse_arguements() <https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html>`. This is an ancillary function that parses the existing formal and/or informal arguments; it doesn't change the actual calling mechanism. It is a built-in function now (ie implemented in CMake's C++ code), though it was previously implemented as a CMake script function.
+CMake script provides a rudimentary keyword args mechanism, using `cmake_parse_arguements() <https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html>`_ . This is an ancillary function that parses the existing formal and/or informal arguments; it doesn't change the actual calling mechanism. It is a built-in function now (ie implemented in CMake's C++ code), though it was previously implemented as a CMake script function.
 
 It takes three kinds of named arguments - Keyword, One Value and Multi Value arguments. These are automatically rendered by calling using Python named arguments. 
 
-One-value and multi-value arguments can be generated using normal name="value", and name=['value1', 'value2'] type calls. 
+One-value and multi-value arguments can be generated from python using normal name="value", and name=['value1', 'value2'] arguments.
 
 Plain keyword arguments are specified in CMake by including the keyword to represent true or on, and omitting the keyword to represent false. This is handled by passing in a ``cmake.KwArg`` object. 
 
@@ -339,8 +339,10 @@ This example shows all three parameter types, as well as regular parameter types
 ::
   self.cm_dir.functions.kw_func1(
     "positional1", "positional2", 7, True, 
-    B1=cmake.KwArg(), B2=cmake.KwArg(True), B3=cmake.KwArg(False),  # Keyword args
-    OV1="Cats", # One-value arg
+    B1=cmake.KwArg(),                   # KW arg - B1 is true
+    B2=cmake.KwArg(True),               # B2 also true
+    B3=cmake.KwArg(False),              # B3 is false, as is B4 assuming it exists
+    OV1="Cats",                         # One-value arg
     MV1=[1,2,3], MV2=["Dogs", True, 7]) # multi-value args
 
 See Tests/PyKwArgsTest for a working example. 
@@ -354,11 +356,11 @@ Firstly a little background. You can skip this section of course, but it is usef
 
 There's a bit of a misconception that "include" in CMake is like c/c++'s #include, including in the CMake source code itself which includes the comment "In almost every sense, this is identical to a C/C++ #include command". This statement is wrong in almost every sense. 
 
-CMake's include command is much closer to eval() or exec() functions in other scripting languages. CMake doesn't really build an abstract syntax tree or have any notion of a preprocessor. When a CMake script is loaded, it's parsed down into a set of commands - including things like flow control statements like if(), while() etc. At runtime, each command is looked up, the parameters are expanded (ie variables replaced with their current value), and the command is executed with these expanded string parameters.  For a normal command, when execution is done, the next command in the list is executed. For a flow-control command, the "program counter" might be modified to control which is the next command executed. When you're interpreting functions, the commands are registered, but not executed until the function is called. That's it really.
+CMake's include command is much closer to eval() or exec() functions in other scripting languages. CMake doesn't really build an abstract syntax tree or have any notion of a preprocessor. When a CMake script is loaded, it's parsed down into a set of commands - including things like flow control statements like if(), while() etc. At runtime, each command is looked up, the parameters are expanded (ie variable references replaced with their current value), and the command is executed with these expanded string parameters.  For a normal command, when execution is done, the next command in the list is executed. For a flow-control command, the "program counter" might be modified to control which is the next command executed. When the body of a function is encountered, the commands are recorded, but not executed until the function is called. That's it really.
 
-When you call ``add_subdirectory()``, a bunch of new state and a scope is created, and the process repeats recursively. Entities like functions are registered globally, so the are visible everywhere once they're interpreted from their source script. The ``include`` function works the same way, except without creating a new dir's state or scope. So the side effects of executing the included script are reflected in the current dir scope, like it was included in the original text.
+When you call ``add_subdirectory()``, a bunch of new state and a scope is created, and the process repeats recursively. Entities like functions are registered globally, so the are visible everywhere once they're interpreted from their source script. The ``include`` function works the same way, except without creating a new dir's state or scope. So the side effects of executing the included script are reflected in the current dir scope - functionally, like it was included in the original text, hence the comparison with #include.
 
-It's worth noting that this is largely how Python scripts executed in CMake work. From the CMake core's point of view, it's just seeing a bunch of command invocations coming from the Python interpreter. It doesn't know the difference between that and CMake script doing the calls. SO when you call include() from Python, it invokes the built-in interpreter, and it runs the CMake script in the context and scope of the Python script's directory. Whatever side effects are caused by the CMake script, like creating targets, functions or other entities will be visible to Python after execution is completed.
+It's worth noting that this is largely how Python scripts executed in CMake work. From the CMake core's point of view, it's just seeing a bunch of command invocations coming from the Python interpreter. It doesn't know the difference between that and CMake script doing the calls. SO when you call include() from Python, it invokes the built-in interpreter, and it runs the CMake script in the context and scope of the Python script's directory. Whatever side effects are caused by the CMake script, like creating targets, functions or other entities will be visible to Python via the CMake interface after execution is completed.
 
 Other interoperability notes
 ----------------------------
@@ -378,7 +380,7 @@ The CMAKE_PYTHON_AVAILABLE var will be set when the interpreter is compiled in a
 Using IPython as a debugger
 --------------------------
 
-You can use an embedded interactive Python interface - such as IPython - to interrogate the state of CMake at any point during script execution, even if the script is not written in Python. 
+You can use an embedded interactive Python interface - such as IPython - to interrogate the state of CMake at any point during script execution, even if the script is not written in Python. Pdb also works. 
 
 The easiest way to do this is -
 
@@ -412,7 +414,8 @@ pycmake will try to load its internal python module - which is named "cmake" - u
 Known Issues
 ============
 
-* Automated testing is dramatically lacking
+* It's really early days - there are many rough edges.
+* Automated testing is dramatically lacking.
 * Python function wrappers in cm_dir and cm_global, whilst mostly unit tested, are mostly not integration tested, and may be incorrect in many cases. CMake's command interface is syntactically inconsistent, and really finicky to get right.
 * Function objects returned from cm_dir.functions.values() (amongst others) are actually methods, so can't be called without a cm_dir.functions object; It's a bit misleading right now
 * Python scripting is not available for implementing find scripts (eg called from find_package) yet. 
@@ -445,7 +448,7 @@ Automated Testing
 There are three main places that automated tests are implemented -
 
 * Integrated with the existing CMake (integration) test suite - these are in Tests/Py*. This tests integration between Python and C++ code.
-* C++ unit tests - There isn't really much unit testing in CMake; there is a new, minimal GoogleTest based c++ unit test in Sources/Python/Test
+* C++ unit tests - There isn't really much unit testing in CMake; there is a new, minimal GoogleTest based C++ unit test in Sources/Python/Test
 * Python unit tests - There's a Python unittest-based test suite in PyModules/test which tests Python code in isolation.
 
 Style
@@ -462,5 +465,4 @@ Other
 -----
 - There are nowhere near enough docstrings and similar 
 - Too much copying
-- Is automated type conversion a good thing? Should it be more pythonistic
-
+- Is automated type conversion a good thing? Maybe being explicit with types is better. 
