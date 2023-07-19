@@ -98,7 +98,7 @@ void cmPythonDispatcher::convertKwArgs(const pybind11::kwargs& kwargs,
             continue;
         }
 
-        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a.second, tracker), true), out);
+        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a.second, tracker), false), out);
         // std::cout << "KWARG " << py::str(name) << " value " << py::str(value) << "\n";
     }
 }
@@ -121,7 +121,7 @@ void cmPythonDispatcher::convertArgs(const py::args& args,
     // Convert and expand each arg from python to a native representation
     // Either of these operations might throw... 
     for(const auto& a : args) {
-        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a, tracker), true), out);
+        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a, tracker), false), out);
     }
 }
 
