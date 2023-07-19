@@ -6,7 +6,7 @@ pycmake
 Disclaimer
 ==========
 
-This is an experimental project to bind the Python interpreter into the CMake environment. This is in no way an "official" CMake project, or a statement of its direction or anything like that. It's offered here in the hope that it is useful, etc.
+This is an experimental project to bind the Python interpreter into the CMake environment. This is in no way an "official" CMake project, anything like that. It's offered here in the hope that it is useful, etc.
 
 You should most certainly NOT use with any production code, or really any code that you need to compile reliably. The system is far from thoroughly tested. 
 
@@ -104,7 +104,8 @@ The code executes similarly to regular CMake code; As commands are executed, int
 
 Raw Interface
 -------------
-Almost all CMake commands are available via the raw interface. Everything except commands that really don't make sense under Python should be there. Commands excluded include flow control commands (like ``if()``, ``while()``, etc) and long-deprecated commands (like ``add_command()``).
+
+The Raw interface is where CMake's C++ code is bound for access by Python scripts. Almost all CMake commands are available via the raw interface. Everything except commands that really don't make sense under Python should be there. Commands excluded include flow control commands (like ``if()``, ``while()``, etc) and long-deprecated commands (like ``add_command()``).
 
 The raw interface object is bound into both ``cm_dir.raw`` and ``cm_global.raw``, and contains simple bindings to every command. The Python interface knows nothing about the nature of each command. Every command simply takes an arbitrary number of positional parameters, and will pass these back to the CMake implementation of each command (incidentally, this is also how CMake script works). 
 
@@ -131,9 +132,9 @@ Please note also that the integration tests are far from complete, so it's possi
 
 Some notes: 
 
-* find_package - The find_package wrapper will attempt to identify vars and targets created when calling find_package scripts, and return these in a dictionary. This is a bit of a hack to determine what a script is doing rather than a solid interface. In particular, it wont detect cache values touched, as there is no clear way from Python currently to see which cache values have been touched which were already set in the cache from a previous run. This is obvious in scripts like FindBoost.cmake which set cache values rather than creating targets. 
+* ``find_package()`` - The find_package wrapper will attempt to identify vars and targets created when calling find_package scripts, and return these in a dictionary. This is a bit of a hack to determine what a script is doing rather than a solid interface. In particular, it wont detect cache values touched, as there is no clear way from Python currently to see which cache values have been touched vs which were already set in the cache from a previous run. This is obvious in scripts like FindBoost.cmake which set cache values rather than creating targets. 
 
-* include - counterintuitively, include() works, and is available from Python. See the interoperability section for more details. The RESULT_VARIABLE interface instead works as a return value.
+* ``include()`` - counterintuitively, include() works, and is available from Python. See the interoperability section for more details. The RESULT_VARIABLE interface instead works as a return value.
 
 In some cases, a more natural replacement command exists in other places. For example, the set()/unset() commands exist in ``cm_dir.var`` and ``cm_global.cache``.
 
@@ -151,6 +152,8 @@ Accessing CMake Variables
 There are three views into CMake's variable system - ``cm_dir.combined_var``, ``cm_dir.vars``, and ``cm_global.cache``. All three implement a Python dictionary interface, so the familiar keys(), values() and items() functions are there, along with subscript access ([]). 
 
 Please note that you don't have to use CMake's variables outside of interacting with CMake itself or CMake script - That is, use native Python variables and function calls for your own purposes. 
+
+As it is very common to use ``if(FOO)`` in CMake, a shorthand exists as ``cm_dir.is_set("FOO")`` -  this is equivalent to ``"FOO" in cm_dir.combined_var``.
 
 combined_var
 ------------
@@ -184,7 +187,7 @@ dir_attr
 Type Conversion
 ---------------
 
-pycmake will attempt to automatically convert types between CMake and Python. This is hindered by CMake's very basic and context-dependant type-system. This is subject to change as it might be more trouble than it's worth. 
+pycmake will attempt to automatically convert types between CMake and Python. This is hindered by CMake's very basic and context-dependant type system. This is subject to change as it might be more trouble than it's worth. 
 
 Generally, strings, paths, bools, ints, floats and sequences (lists/sets/dict_keys/dict_values) should automatically convert between environments where possible. Cached values have a little more type info, so can convert slightly better. More complex behaviours are not clearly defined right now (eg passing None or nested lists or dictionaries). Also things like CMake's "magic" (really, afterthought implementation) strings such as "NOTFOUND" and its "internally on" state are not properly handled at present.
 
@@ -259,6 +262,8 @@ Exceptions
 
 If you want to stop execution, you can raise an exception from Python code; There's presently no way to catch this in CMake script, so it'll be regarded as a fatal error and stop execution.
 
+You can also use ``cm_global.message('...', level=MsgLevel.FATAL_ERROR)`` in the normal CMake way.
+
 Return Values
 ^^^^^^^^^^^^^
 
@@ -299,6 +304,8 @@ This can now be called from Python using -
   cm_dir.functions.return_input("foo", "bar")
   b = cm_dir.var["bar"]
   
+You can call both CMake user functions and macros from Python via this interface (in fact, also Python functions registered for CMake scripts too) - they exist in the same namespace. There's a bit of a misconception that CMake macros work like c/c++'s #define, and logically shouldn't work by calling them from Python; This is not really true. Macros and functions are very similar in CMake, the former just don't have their own variable scope, and thus any variables they set are left in the current scope without any cleanup. The 'return value' mechanism works the same way, just without needing the caller to write into the parent namespace. It's wild needing to understand the mechanics of multiple calling conventions in an interpreted script language. 
+
 Listing Functions
 ^^^^^^^^^^^^^^^^^
 
@@ -317,10 +324,26 @@ In this case, a unique variable name is devised, the return value extracted from
   
 All of these options are controllable - See Tests/PyCMakeFunctionFromPythonTest for more examples.
 
-Calling KW args functions
--------------------------
+Calling CMake kwargs functions
+------------------------------
 
-CMake provides a rudimentary keyword args mechanism 
+CMake script provides a rudimentary keyword args mechanism, using `cmake_parse_arguements() <https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html>`. This is an ancillary function that parses the existing formal and/or informal arguments; it doesn't change the actual calling mechanism. It is a built-in function now (ie implemented in CMake's C++ code), though it was previously implemented as a CMake script function.
+
+It takes three kinds of named arguments - Keyword, One Value and Multi Value arguments. These are automatically rendered by calling using Python named arguments. 
+
+One-value and multi-value arguments can be generated using normal name="value", and name=['value1', 'value2'] type calls. 
+
+Plain keyword arguments are specified in CMake by including the keyword to represent true or on, and omitting the keyword to represent false. This is handled by passing in a ``cmake.KwArg`` object. 
+
+This example shows all three parameter types, as well as regular parameter types -
+::
+  self.cm_dir.functions.kw_func1(
+    "positional1", "positional2", 7, True, 
+    B1=cmake.KwArg(), B2=cmake.KwArg(True), B3=cmake.KwArg(False),  # Keyword args
+    OV1="Cats", # One-value arg
+    MV1=[1,2,3], MV2=["Dogs", True, 7]) # multi-value args
+
+See Tests/PyKwArgsTest for a working example. 
 
 The include() command
 ---------------------

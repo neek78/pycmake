@@ -123,6 +123,11 @@ class CMakeDir():
         self.py_functions = self._factory.py_functions
         self.legacy = cm_dir_legacy.CMakeDirLegacy(self.raw)
 
+    ## shorthands
+    def is_set(self, varname):
+        "a shorthand to check if a var is set in combined var"
+        return varname in self.combined_var
+
     ###############################3
     ## add commands
     def add_compile_definitions(self, *defs):
