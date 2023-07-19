@@ -102,6 +102,8 @@ The two provided objects give access into CMake's interfaces. The reason for the
 
 The code executes similarly to regular CMake code; As commands are executed, internal state is updated. When code execution is completed, the regular generation process executes, and build-system files are outputted.
 
+Variable expansion is performed in parameters in the normal CMake way - that is, the following works from Python as you might expect -  ``cm_global.message("c++ compiler ${CMAKE_CXX_COMPILER}")``.
+
 Raw Interface
 -------------
 
@@ -109,9 +111,9 @@ The Raw interface is where CMake's C++ code is bound for access by Python script
 
 The raw interface object is bound into both ``cm_dir.raw`` and ``cm_global.raw``, and contains simple bindings to every command. The Python interface knows nothing about the nature of each command. Every command simply takes an arbitrary number of positional parameters, and will pass these back to the CMake implementation of each command (incidentally, this is also how CMake script works). 
 
-They won't generate return values, but you should get an exception if CMake declares an error. 
+Calls to raw functions won't generate return values, but you should get an exception if CMake declares an error. 
 
-A simple example of calling into the raw interface:
+A simple example of calling into the raw interface - 
 :: 
   cm_dir.raw.project("simpleCpp")
   cm_dir.raw.add_executable("simpleCpp", "simpleCpp.cpp")
@@ -327,7 +329,7 @@ All of these options are controllable - See Tests/PyCMakeFunctionFromPythonTest 
 Calling CMake kwargs functions
 ------------------------------
 
-CMake script provides a rudimentary keyword args mechanism, using `cmake_parse_arguements() <https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html>`_ . This is an ancillary function that parses the existing formal and/or informal arguments; it doesn't change the actual calling mechanism. It is a built-in function now (ie implemented in CMake's C++ code), though it was previously implemented as a CMake script function.
+CMake script provides a rudimentary keyword args mechanism, using `cmake_parse_arguments() <https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html>`_ . This is an ancillary function that parses the existing formal and/or informal arguments; it doesn't change the actual calling mechanism. It is a built-in function now (ie implemented in CMake's C++ code), though it was previously implemented as a CMake script function.
 
 It takes three kinds of named arguments - Keyword, One Value and Multi Value arguments. These are automatically rendered by calling using Python named arguments. 
 
@@ -335,13 +337,13 @@ One-value and multi-value arguments can be generated from python using normal na
 
 Plain keyword arguments are specified in CMake by including the keyword to represent true or on, and omitting the keyword to represent false. This is handled by passing in a ``cmake.KwArg`` object. 
 
-This example shows all three parameter types, as well as regular parameter types -
+This example shows all three parameter types, as well as regular positional arguments -
 ::
   self.cm_dir.functions.kw_func1(
     "positional1", "positional2", 7, True, 
     B1=cmake.KwArg(),                   # KW arg - B1 is true
     B2=cmake.KwArg(True),               # B2 also true
-    B3=cmake.KwArg(False),              # B3 is false, as is B4 assuming it exists
+    B3=cmake.KwArg(False),              # B3 is false, as is B4
     OV1="Cats",                         # One-value arg
     MV1=[1,2,3], MV2=["Dogs", True, 7]) # multi-value args
 
