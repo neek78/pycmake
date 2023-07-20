@@ -154,9 +154,9 @@ class CMakeDir():
         args = ['OUTPUT', output, *outputs, *flags]
         self.raw.add_custom_command(*args)
 
-    def add_custom_command_build_event(self, target, *,
-                    build_when : enums.BuildWhen,
+    def add_custom_command_build_event(self, target,
                     commands,
+                    build_when : enums.BuildWhen,
                     byproducts = None,
                     working_directory = None,
                     comment = None,
@@ -192,7 +192,7 @@ class CMakeDir():
         args = [name, "ALIAS", target]
         self.raw.add_executable(*args)
 
-    def add_subdirectory(self, path, *, bin_dir = None, 
+    def add_subdirectory(self, path,bin_dir = None, 
                          exclude_from_all : bool = False, system : bool = False):
         p = utils.scan_params()
         flags = utils.build_params(p, default_key_names=False)
@@ -201,7 +201,8 @@ class CMakeDir():
 
     #add_library(<name> [STATIC | SHARED | MODULE] [EXCLUDE_FROM_ALL] [<source>...])
     def add_library(self, name, *sources, 
-                    library_type : enums.LibraryType = None, exclude_from_all=False):
+                    library_type : enums.LibraryType = None, 
+                    exclude_from_all = False):
         p = utils.scan_params()
         flags = utils.build_params(p, default_enum_names=False, default_key_names=False)
         src = utils.compact_to_list(sources)
@@ -245,7 +246,7 @@ class CMakeDir():
 #                  [VERBATIM] [USES_TERMINAL]
 #                  [COMMAND_EXPAND_LISTS]
 #                  [SOURCES src1 [src2...]])
-    def add_custom_target(self, name, *,
+    def add_custom_target(self, name,
                     _all = False,
                     commands = None,
                     depends = None,
@@ -281,7 +282,7 @@ class CMakeDir():
 #         [CONFIGURATIONS <config>...]
 #         [WORKING_DIRECTORY <dir>]
 #         [COMMAND_EXPAND_LISTS])
-    def add_test(self, name, *,
+    def add_test(self, name,
                     command : Command, 
                     configurations = None,
                     working_directory = None,
@@ -300,13 +301,13 @@ class CMakeDir():
 
     ###############################3
     ## cmake_policy commands
-    def cmake_policy_version(self, version, policy_max=None):
+    def cmake_policy_version(self, version, policy_max = None):
         "set policies by cmake version"
         version_str = shared.build_version_str(version, policy_max)
         args = ["VERSION", version_str]
         self.raw.cmake_policy(*args)
 
-    def cmake_policy_set(self, policy, *, mode: enums.PolicyMode):
+    def cmake_policy_set(self, policy, mode: enums.PolicyMode):
         "set individual policies explicitly"
         p = utils.scan_params()
         flags = utils.build_params(p, default_enum_names=False)
@@ -319,7 +320,7 @@ class CMakeDir():
 
     ###############################3
     ## find commands
-    def find_package(self, package_name, *, 
+    def find_package(self, package_name,
                     version=None, 
                     exact=False, 
                     quiet=False, 
@@ -418,10 +419,10 @@ class CMakeDir():
 #  <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #  [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
 
-    def target_include_directories(self, target, *,
+    def target_include_directories(self, target,
+                                   items,
                                    system = False, 
-                                   end : enums.End = None,
-                                   items):
+                                   end : enums.End = None):
         p = utils.scan_params()
         flags = utils.build_params(p, default_enum_names = False, 
                                    default_list_names = False)
@@ -431,9 +432,8 @@ class CMakeDir():
 #target_link_directories(<target> [BEFORE]
 #  <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #  [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
-    def target_link_directories(self, target, *,
-                                end : enums.End = None,
-                                items):
+    def target_link_directories(self, target, items
+                                end : enums.End = None):
         p = utils.scan_params()
         # special case handling for end - there's no "after" parameter
         del p['end']
@@ -445,7 +445,7 @@ class CMakeDir():
         args += flags
         self.raw.target_link_directories(*args)
 
-    def include(self, f, *, optional=False, no_policy_scope=False):
+    def include(self, f, optional=False, no_policy_scope=False):
         p = utils.scan_params()
         flags = utils.build_params(p)
         # capture the result var (ie location of the file found).
@@ -454,7 +454,7 @@ class CMakeDir():
         res = self.raw.include(*args)
         return res
 
-    def project(self, project_name, *, version=None, description=None, 
+    def project(self, project_name, version=None, description=None, 
                 homepage_url=None, languages=None):
         args = [project_name]
         # FIXME: this could probably use utils.build_params()
@@ -477,7 +477,7 @@ class CMakeDir():
 
 #FIXME: implement permissions stuff
     def configure_file(self, 
-                       input_path, output_path, *,
+                       input_path, output_path,
                        copy_only = False,
                        escape_quotes = False,
                        at_only = False,
