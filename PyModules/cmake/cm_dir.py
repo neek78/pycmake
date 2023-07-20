@@ -307,7 +307,7 @@ class CMakeDir():
         args = ["VERSION", version_str]
         self.raw.cmake_policy(*args)
 
-    def cmake_policy_set(self, policy, mode: enums.PolicyMode):
+    def cmake_policy_set(self,policy, *, mode: enums.PolicyMode):
         "set individual policies explicitly"
         p = utils.scan_params()
         flags = utils.build_params(p, default_enum_names=False)
@@ -321,39 +321,40 @@ class CMakeDir():
     ###############################3
     ## find commands
     def find_package(self, package_name,
-                    version=None, 
-                    exact=False, 
-                    quiet=False, 
-                    required=False, 
-                    components=None, 
-                    optional_components=None, 
-                    mode : enums.FindPackageMode = None, 
-                    _global=False, 
-                    no_policy_scope=False,
-                    bypass_provider=False, 
-                    names=None, 
-                    configs=None,
-                    hints=None, 
-                    paths=None, 
-                    registry_view : enums.RegistryView = None,
-                    path_suffixes=None, 
-                    no_default_path=False,
-                    no_package_root_path=False,
-                    no_cmake_path=False,
-                    no_cmake_environment_path=False, 
-                    no_system_environment_path=False,
-                    no_cmake_package_registry=False,
-                    no_cmake_system_path=False,
-                    no_cmake_install_prefix=False, 
-                    no_cmake_system_package_registry=False,
-                    find_root_path_mode : enums.FindRootPathMode = None):
+                     *,
+                     version=None, 
+                     exact=False, 
+                     quiet=False, 
+                     required=False, 
+                     components=None, 
+                     optional_components=None, 
+                     mode : enums.FindPackageMode = None, 
+                     _global=False, 
+                     no_policy_scope=False,
+                     bypass_provider=False, 
+                     names=None, 
+                     configs=None,
+                     hints=None, 
+                     paths=None, 
+                     registry_view : enums.RegistryView = None,
+                     path_suffixes=None, 
+                     no_default_path=False,
+                     no_package_root_path=False,
+                     no_cmake_path=False,
+                     no_cmake_environment_path=False, 
+                     no_system_environment_path=False,
+                     no_cmake_package_registry=False,
+                     no_cmake_system_path=False,
+                     no_cmake_install_prefix=False, 
+                     no_cmake_system_package_registry=False,
+                     find_root_path_mode : enums.FindRootPathMode = None):
         p = utils.scan_params()
         flags = utils.build_params(p, 
                         default_enum_names=False, enum_name_exclusions={"registry_view"},
                         default_key_names=True, key_name_exclusions={'version'})
         args = [package_name, *flags]
 
-        #print("ARGS", args)
+        print("ARGS", args)
         return utils.exec_and_return_entity_diff(self, self.raw.find_package, args)
 
 #  find_file
@@ -375,7 +376,7 @@ class CMakeDir():
             args += f.render()
         self.raw.target_compile_features(*args)
 
-    def target_compile_options(self, target, *options, end : enums.End = None):
+    def target_compile_options(self, target, *, options, end : enums.End = None):
         args = [target]
         # special case handling for end - there's no "after" parameter
         if(end == enums.End.BEFORE):
@@ -405,6 +406,12 @@ class CMakeDir():
             args += h.render()
         self.raw.target_precompile_headers(*args)
 
+    def target_sources_single(self, target, scope : enums.Scope, sources):
+        args = [target]
+        args.append(scope.name)
+        args += sources
+        self.raw.target_sources(*args)
+
     def target_sources(self, target, *sets):
         args = [target]
         for s in sets:
@@ -432,7 +439,7 @@ class CMakeDir():
 #target_link_directories(<target> [BEFORE]
 #  <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #  [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
-    def target_link_directories(self, target, items
+    def target_link_directories(self, target, items,
                                 end : enums.End = None):
         p = utils.scan_params()
         # special case handling for end - there's no "after" parameter
