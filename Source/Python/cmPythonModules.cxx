@@ -15,6 +15,11 @@ py::module_ cmPythonModules::GetModulePathLib()
     return py::module_::import("pathlib");
 }
 
+py::module_ cmPythonModules::GetModuleInspect()
+{
+    return py::module_::import("inspect");
+}
+
 py::type cmPythonModules::GetTypePath()
 {
     py::object path = GetModulePathLib().attr("Path")();

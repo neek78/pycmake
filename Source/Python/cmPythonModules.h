@@ -15,6 +15,7 @@ public:
     static pybind11::module_ GetModuleImportLibUtil();
     static pybind11::type GetTypeReturnParam();
     static pybind11::type GetTypeKwArg();
+    static pybind11::module_ GetModuleInspect();
 
     // return the '_builtin' module - access to entities implemented in c++
     static pybind11::module_ GetBuiltinModule();
