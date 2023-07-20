@@ -58,7 +58,7 @@ void cmPythonFunctionLauncher::AddScriptedCommand(const std::string& name,
     cls.def(name.c_str(), 
         [name, cmd](cmPythonFunctionLauncher& self, 
             const py::args& args, const py::kwargs& kwargs) {
-            return self.invokeFunction(cmd, name, args, kwargs); 
+            return self.invokeFunction(cmd, name, -1, -1, args, kwargs); 
         });
 
     auto fn = cls.attr(name.c_str());

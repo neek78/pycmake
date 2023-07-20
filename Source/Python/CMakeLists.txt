@@ -37,7 +37,6 @@ target_sources(
     cmPythonGlobalAttr.h
     cmPythonKwArg.h
     cmPythonKwArg.cxx
-    cmPythonModBase.cxx
     cmPythonModBase.h
     cmPythonModules.cxx
     cmPythonModules.h

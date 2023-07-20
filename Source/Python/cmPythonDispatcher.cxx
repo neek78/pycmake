@@ -11,6 +11,7 @@
 #include "cmArgTracker.h"
 
 #include "cmMakefile.h"
+#include "cmListFileCache.h"
 #include "cmExecutionStatus.h"
 #include "cmake.h"
 
@@ -28,42 +29,44 @@ cmPythonDispatcher::cmPythonDispatcher(cmMakefile& makefile)
 {
 }
 
-
-py::object cmPythonDispatcher::invokeFunction(const cmState::BuiltinCommand& function, 
-        const std::string_view& fnName, const py::args& args, const py::kwargs& kwargs)
+py::object cmPythonDispatcher::invokeFunction(
+        const cmState::BuiltinCommand& function, 
+        const std::string_view& fnName, 
+        int lineNum,
+        int endLineNum,
+        const py::args& args, 
+        const py::kwargs& kwargs)
 {
-    ArgTracker tracker(fnName);
-    StrArgs out;
-
-    convertArgs(args, tracker, out);
-    convertKwArgs(kwargs, tracker, out);
-
-#if 0
-    for(const auto& a: out) {
-        std::cerr << "ARG " << a.Value << "\n";
-    }
-#endif
-
-    return coreInvoke(function, args, out, tracker);
+    return invokeFunctionInternal<StrArgs>(function, fnName, lineNum, endLineNum, args, kwargs);
 }
 
-py::object cmPythonDispatcher::invokeFunction(const cmState::Command& function, 
-        const std::string_view& fnName, const py::args& args, const py::kwargs& kwargs)
+py::object cmPythonDispatcher::invokeFunction(
+        const cmState::Command& function, 
+        const std::string_view& fnName, 
+        int lineNum,
+        int endLineNum,
+        const py::args& args, 
+        const py::kwargs& kwargs)
+{
+    return invokeFunctionInternal<LfArgs>(function, fnName, lineNum, endLineNum, args, kwargs);
+}
+
+template<typename ArgsType, typename FnType>
+py::object cmPythonDispatcher::invokeFunctionInternal(
+        const FnType& function, 
+        const std::string_view& fnName, 
+        int lineNum,
+        int endLineNum,
+        const py::args& args, 
+        const py::kwargs& kwargs)
 {
     ArgTracker tracker(fnName);
-    LfArgs out;
+    ArgsType out;
 
     convertArgs(args, tracker, out);
     convertKwArgs(kwargs, tracker, out);
 
-#if 0
-    std::cerr << "AAAAAAAAAAAAAAAAaa a1\n";
-    for(const auto& a: out) {
-        std::cerr << "ARG " << a.Value << "\n";
-    }
-#endif
-
-    return coreInvoke(function, args, out, tracker);
+    return coreInvoke(function, fnName, lineNum, endLineNum, args, out, tracker);
 }
 
 template<typename OutArgsType>
@@ -198,6 +201,9 @@ std::string cmPythonDispatcher::convertSimple(const py::handle& arg, ArgTracker&
 template<typename FnType, typename ArgsType>
 py::object cmPythonDispatcher::coreInvoke(
         const FnType& function, 
+        const std::string_view& fnName,
+        int lineNum,
+        int endLineNum,
         const py::args& originalArgs,
         const ArgsType& processedArgs,
         const ArgTracker& tracker)
@@ -210,6 +216,15 @@ py::object cmPythonDispatcher::coreInvoke(
     // don't blow up again because of it
     bool alreadyFatal = cmSystemTools::GetFatalErrorOccurred();
 
+    // trace command
+    if (GetMakefile().GetCMakeInstance()->GetTrace()) {
+        LfArgs args = ConvertToLfArgs(processedArgs);
+
+        cmListFileFunction lff(std::string(fnName), lineNum, endLineNum, args);
+
+        GetMakefile().PrintCommandTrace(lff, GetMakefile().GetBacktrace());
+    } 
+    
     // fire off the command itself
     bool invokeSucceeded = function(processedArgs, status);
 
@@ -248,6 +263,7 @@ py::object cmPythonDispatcher::BuildReturnValueTuple(
     py::type retParamType = cmPythonModules::GetTypeReturnParam();
     for(const auto& arg : originalArgs) {
         if(!py::isinstance(arg, retParamType)) {
+            // not a return value, nothing to do
             continue;
         }
 
@@ -317,3 +333,18 @@ py::object cmPythonDispatcher::BuildReturnValue(const cmPythonReturnParam& arg,
 
     return ret;
 }
+
+const cmPythonDispatcher::LfArgs& cmPythonDispatcher::ConvertToLfArgs(const LfArgs& args)
+{
+    return args;
+}
+
+cmPythonDispatcher::LfArgs cmPythonDispatcher::ConvertToLfArgs(const StrArgs& args)
+{
+    LfArgs a;
+    for(const auto& i : args) {
+        AddToOutArgs(i, a);
+    }
+    return a;
+}
+
