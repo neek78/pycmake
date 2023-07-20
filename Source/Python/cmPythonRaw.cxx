@@ -74,7 +74,6 @@ template<typename FunctionType>
 py::object cmPythonRaw::invokeFunction(const FunctionType& function, 
         const std::string_view& fnName, int lineNum, int endLineNum, const pybind11::args& args)
 {
-    // std::cout << "exec: " << fnName<< "\n";
     checkCommands(function);
     return cmPythonDispatcher::invokeFunction(function, fnName, lineNum, endLineNum, args);
 }
