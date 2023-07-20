@@ -28,19 +28,35 @@ protected:
     using LfArgs = std::vector<cmListFileArgument>;
 
     pybind11::object invokeFunction(const cmState::BuiltinCommand& function, 
-            const std::string_view& fnName, 
-            const pybind11::args& args, 
-            const pybind11::kwargs& kwargs = pybind11::kwargs());
+        const std::string_view& fnName, 
+        int lineNum,
+        int endLineNum,
+        const pybind11::args& args, 
+        const pybind11::kwargs& kwargs = pybind11::kwargs());
 
     pybind11::object invokeFunction(const cmState::Command& function, 
-            const std::string_view& fnName,
+        const std::string_view& fnName,
+        int lineNum,
+        int endLineNum,
         const pybind11::args& args, 
         const pybind11::kwargs& kwargs = pybind11::kwargs());
 
 private:
+    template<typename ArgsType, typename FnType>
+    pybind11::object invokeFunctionInternal(
+            const FnType& function, 
+            const std::string_view& fnName, 
+            int lineNum,
+            int endLineNum,
+            const pybind11::args& args, 
+            const pybind11::kwargs& kwargs);
+
     template<typename FnType, typename ArgsType>
     pybind11::object coreInvoke(
         const FnType& function, 
+        const std::string_view& fnName,
+        int lineNum,
+        int endLineNum,
         const pybind11::args& originalArgs,
         const ArgsType& processedArgs,
         const ArgTracker& tracker);
@@ -71,4 +87,6 @@ private:
 
     pybind11::object BuildReturnValue(const cmPythonReturnParam& arg, const ArgTracker& tracker);
 
+    const LfArgs& ConvertToLfArgs(const LfArgs& args);
+    LfArgs ConvertToLfArgs(const StrArgs& args);
 };
