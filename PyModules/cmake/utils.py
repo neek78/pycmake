@@ -59,6 +59,9 @@ def add_key(key, default, exclusions):
     else:
         return default
 
+def is_renderable(item):
+    return hasattr(item, 'render')
+
 def conv_param(key, value, 
                  default_key_names, key_name_exclusions,
                  default_enum_names, enum_name_exclusions,
@@ -73,7 +76,7 @@ def conv_param(key, value,
         else:
             return None
 
-    if hasattr(value, 'render'):
+    if is_renderable(value):
         return value.render()
 
     # FIXME should recurse and handle this case
@@ -97,20 +100,54 @@ def conv_param(key, value,
 
     return None
 
+def build_one_param(key, value, 
+                 default_key_names, key_name_exclusions, 
+                 default_enum_names, enum_name_exclusions,
+                 default_list_names, list_name_exclusions):
+
+    r = conv_param(key, value, 
+            default_key_names, key_name_exclusions,
+            default_enum_names, enum_name_exclusions, 
+            default_list_names, list_name_exclusions)
+
+    if r is None:
+        return None
+
+    out = []
+    for v in r:
+        u = try_remove_leading_underscore(v)
+        out.append(u)
+    return out
+
 def build_params(params, 
                  default_key_names=True, key_name_exclusions = {}, 
                  default_enum_names=True, enum_name_exclusions = {},
-                 default_list_names=True, list_name_exclusions = {}):
+                 default_list_names=True, list_name_exclusions = {},
+                 push_to_back = {}):
     out = []
+    deferred = []
+
     for (k,v) in params.items():
-        r = conv_param(k, v, 
-                       default_key_names, key_name_exclusions,
-                       default_enum_names, enum_name_exclusions, 
-                       default_list_names, list_name_exclusions)
-        if r is not None:
-            for v in r:
-                u = try_remove_leading_underscore(v)
-                out.append(u)
+        if k in push_to_back:
+            deferred.append((k,v))
+            continue
+
+        o = build_one_param(k,v, 
+            default_key_names, key_name_exclusions,
+            default_enum_names, enum_name_exclusions, 
+            default_list_names, list_name_exclusions)
+
+        if o is not None:
+            out += o
+
+    for (k,v) in deferred:
+        o = build_one_param(k,v, 
+            default_key_names, key_name_exclusions,
+            default_enum_names, enum_name_exclusions, 
+            default_list_names, list_name_exclusions)
+
+        if o is not None:
+            out += o
     return out
 
 def make_iterable(thing):
@@ -176,4 +213,20 @@ def exec_and_return_entity_diff(cm_dir, function, args):
     result["alias_targets"] = dict_key_diff(alias_targets_before, alias_targets_after)
 
     return result
+
+def target_handle_args(args_seq):
+    "common args handling for target_* commands"
+    if args_seq is None:
+        raise TypeError("none passed as args_seq")
+    args = []
+    for arg in args_seq:
+        if arg is None:
+            raise TypeError("none in args_seq")
+        elif isinstance(arg, str):
+            args.append(arg)
+        elif is_renderable(arg):
+            args += arg.render()
+        else:
+            raise TypeError("unexpected type " + str(type(arg)))
+    return args
 

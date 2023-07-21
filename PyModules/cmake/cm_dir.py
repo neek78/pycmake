@@ -154,9 +154,9 @@ class CMakeDir():
         args = ['OUTPUT', output, *outputs, *flags]
         self.raw.add_custom_command(*args)
 
-    def add_custom_command_build_event(self, target,
-                    commands,
+    def add_custom_command_build_event(self, target, *,
                     build_when : enums.BuildWhen,
+                    commands, 
                     byproducts = None,
                     working_directory = None,
                     comment = None,
@@ -192,8 +192,10 @@ class CMakeDir():
         args = [name, "ALIAS", target]
         self.raw.add_executable(*args)
 
-    def add_subdirectory(self, path,bin_dir = None, 
-                         exclude_from_all : bool = False, system : bool = False):
+    def add_subdirectory(self, path, *,
+                         bin_dir = None, 
+                         exclude_from_all : bool = False, 
+                         system : bool = False):
         p = utils.scan_params()
         flags = utils.build_params(p, default_key_names=False)
         args = [path, *flags]
@@ -246,7 +248,7 @@ class CMakeDir():
 #                  [VERBATIM] [USES_TERMINAL]
 #                  [COMMAND_EXPAND_LISTS]
 #                  [SOURCES src1 [src2...]])
-    def add_custom_target(self, name,
+    def add_custom_target(self, name, *,
                     _all = False,
                     commands = None,
                     depends = None,
@@ -278,11 +280,12 @@ class CMakeDir():
 
         args += flags
         self.raw.add_custom_target(*args)
+
 #add_test(NAME <name> COMMAND <command> [<arg>...]
 #         [CONFIGURATIONS <config>...]
 #         [WORKING_DIRECTORY <dir>]
 #         [COMMAND_EXPAND_LISTS])
-    def add_test(self, name,
+    def add_test(self, name, *,
                     command : Command, 
                     configurations = None,
                     working_directory = None,
@@ -354,7 +357,6 @@ class CMakeDir():
                         default_key_names=True, key_name_exclusions={'version'})
         args = [package_name, *flags]
 
-        print("ARGS", args)
         return utils.exec_and_return_entity_diff(self, self.raw.find_package, args)
 
 #  find_file
@@ -364,86 +366,73 @@ class CMakeDir():
 
     ###############################3
     ## Target commands
-    def target_compile_definitions(self, target, *defs):
+    def target_compile_definitions(self, target, define, *defines):
         args = [target]
-        for d in defs:
-            args += d.render()
+        args += utils.target_handle_args([define, *defines])
         self.raw.target_compile_definitions(*args)
 
-    def target_compile_features(self, target, *features):
+    def target_compile_features(self, target, feature, *features):
         args = [target]
-        for f in features:
-            args += f.render()
+        args += utils.target_handle_args([feature, *features])
         self.raw.target_compile_features(*args)
 
-    def target_compile_options(self, target, *, options, end : enums.End = None):
+    def target_compile_options(self, target, option, *options,
+                               end : enums.End = None):
         args = [target]
+
         # special case handling for end - there's no "after" parameter
         if(end == enums.End.BEFORE):
             args += ["BEFORE"]
-        for o in options:
-            args += o.render()
+
+        args += utils.target_handle_args([option, *options])
         self.raw.target_compile_options(*args)
 
-    def target_link_libraries(self, target, *libraries):
+    def target_link_libraries(self, target, library, *libraries):
         args = [target]
-        for lib in libraries:
-            if type(lib) is TargetEntitySet:
-                args += lib.render()
-            else:
-                args += utils.compact_to_list([lib])
+        args += utils.target_handle_args([library, *libraries])
         self.raw.target_link_libraries(*args)
 
-    def target_link_options(self, target, *options):
+    def target_link_options(self, target, option, *options):
         args = [target]
-        for o in options:
-            args += o.render()
+        args += utils.target_handle_args([option, *options])
         self.raw.target_link_options(*args)
     
-    def target_precompile_headers(self, target, *headers):
+    def target_precompile_headers(self, target, header, *headers):
         args = [target]
-        for h in headers:
-            args += h.render()
+        args += utils.target_handle_args([header, *headers])
         self.raw.target_precompile_headers(*args)
 
-    def target_sources_single(self, target, scope : enums.Scope, sources):
+    def target_sources(self, target, source, *sources):
         args = [target]
-        args.append(scope.name)
-        args += sources
-        self.raw.target_sources(*args)
-
-    def target_sources(self, target, *sets):
-        args = [target]
-        for s in sets:
-            if type(s) not in (FileSet, TargetEntitySet):
-                raise TypeError("unexpected type " + str(type(s)) +' given to target_sources')
-            for a in s.render():
-                args.append(a)
-        
+        args += utils.target_handle_args([source, *sources])
         self.raw.target_sources(*args)
 
 #target_include_directories(<target> [SYSTEM] [AFTER|BEFORE]
 #  <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #  [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
 
-    def target_include_directories(self, target,
+    def target_include_directories(self, target, *,
                                    items,
                                    system = False, 
                                    end : enums.End = None):
         p = utils.scan_params()
         flags = utils.build_params(p, default_enum_names = False, 
-                                   default_list_names = False)
+                                   default_list_names = False,
+                                   push_to_back = {"items"})
         args = [target, *flags]
         self.raw.target_include_directories(*args)
 
 #target_link_directories(<target> [BEFORE]
 #  <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #  [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
-    def target_link_directories(self, target, items,
+    def target_link_directories(self, target, *,
+                                items,
                                 end : enums.End = None):
         p = utils.scan_params()
+
         # special case handling for end - there's no "after" parameter
-        del p['end']
+        p.pop('end', None)
+
         flags = utils.build_params(p, default_enum_names = False, 
                                    default_list_names = False)
         args = [target]
@@ -452,7 +441,9 @@ class CMakeDir():
         args += flags
         self.raw.target_link_directories(*args)
 
-    def include(self, f, optional=False, no_policy_scope=False):
+    def include(self, f, *, 
+                optional=False, 
+                no_policy_scope=False):
         p = utils.scan_params()
         flags = utils.build_params(p)
         # capture the result var (ie location of the file found).
@@ -484,7 +475,7 @@ class CMakeDir():
 
 #FIXME: implement permissions stuff
     def configure_file(self, 
-                       input_path, output_path,
+                       input_path, output_path, *,
                        copy_only = False,
                        escape_quotes = False,
                        at_only = False,

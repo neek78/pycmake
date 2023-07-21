@@ -155,16 +155,20 @@ class TestCommandAddCustomCommandOutput(mock.CommonDir):
 class TestCommandAddCustomCommandBuildEvent(mock.CommonDir):
     def test_simple(self):
         self.d.add_custom_command_build_event(
-                "t50", build_when=cmake.BuildWhen.PRE_BUILD,
-                commands = [cmake.Command("ext_command")])
+                "t50", 
+                build_when=cmake.BuildWhen.PRE_BUILD,
+                commands = [cmake.Command("ext_command")]
+                )
 
         self.d.raw.add_custom_command.assert_called_once_with(
             't50', 'PRE_BUILD', 'COMMAND', 'ext_command')
 
     def test_extra_params(self):
         self.d.add_custom_command_build_event(
-                "t50", build_when=cmake.BuildWhen.PRE_BUILD,
-                commands = [cmake.Command("ext_command")], working_directory="some_dir")
+                "t50", 
+                build_when = cmake.BuildWhen.PRE_BUILD,
+                commands = [cmake.Command("ext_command")],
+                working_directory="some_dir")
 
         self.d.raw.add_custom_command.assert_called_once_with(
             't50', 'PRE_BUILD', 'COMMAND', 'ext_command', 'WORKING_DIRECTORY', 'some_dir')
@@ -345,7 +349,7 @@ class TestCommandTargetLinkLibraries(mock.CommonDir):
                 't21', 'myLib', 'myOtherLib')
 
     def test_target_link_libraries_list(self):
-        self.d.target_link_libraries("t21", ["myLib", "myOtherLib"])
+        self.d.target_link_libraries("t21", "myLib", "myOtherLib")
 
         self.d.raw.target_link_libraries.assert_called_once_with(
                 't21', 'myLib', 'myOtherLib')
