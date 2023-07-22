@@ -231,7 +231,7 @@ void cmPythonDispatcher::DoTrace(
         return;
     }
 
-    GetMakefile().PrintCommandTrace(FindCallSite(unexpandedArgs), 
+    GetMakefile().PrintCommandTrace(FindCallSite(fnName, lineNum, unexpandedArgs), 
             GetMakefile().GetBacktrace());
 }
 
@@ -381,19 +381,20 @@ cmPythonDispatcher::LfArgs cmPythonDispatcher::ConvertToLfArgs(const StrArgs& ar
 }
 #endif
 
-cmListFileFunction cmPythonDispatcher::FindCallSite(const LfArgs& unprocessedArgs)
+cmListFileFunction cmPythonDispatcher::FindCallSite(const std::string_view& fnName,
+        int lineNo, const LfArgs& unprocessedArgs)
 {
     py::module_ inspect = cmPythonModules::GetModuleInspect();
     py::object frame = inspect.attr("currentframe")();
     int i =0;
     while(!frame.is_none()) {
         py::object code = frame.attr("f_code");
-        int lineNo = frame.attr("f_lineno").cast<int>();
+        int lineNo2 = frame.attr("f_lineno").cast<int>();
         py::str name = code.attr("co_qualname");
         py::str filename = code.attr("co_filename");
-        std::cout << "PYFRAME " << name << " line " << lineNo << " " << filename << "\n";
+        std::cout << "PYFRAME " << name << " line " << lineNo << " " << lineNo2 << " " << filename << "\n";
         if (i==1) {
-            return cmListFileFunction(std::string(name), lineNo, lineNo, unprocessedArgs);
+            return cmListFileFunction(std::string(fnName), lineNo, lineNo, unprocessedArgs);
         }
 
         i++;

@@ -103,5 +103,9 @@ private:
 
     pybind11::object BuildReturnValue(const cmPythonReturnParam& arg, const ArgTracker& tracker);
 
-    cmListFileFunction FindCallSite(const LfArgs& unexpandedArgs);
+    const LfArgs& ConvertToLfArgs(const LfArgs& args);
+    LfArgs ConvertToLfArgs(const StrArgs& args);
+
+    cmListFileFunction FindCallSite(const std::string_view& fnName, int lineNo,
+            const LfArgs& unexpandedArgs);
 };
