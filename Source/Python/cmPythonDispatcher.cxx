@@ -61,17 +61,35 @@ py::object cmPythonDispatcher::invokeFunctionInternal(
         const py::kwargs& kwargs)
 {
     ArgTracker tracker(fnName);
-    ArgsType out;
+    LfArgs unexpandedArgs;
+    ArgsType expandedArgs;
 
-    convertArgs(args, tracker, out);
-    convertKwArgs(kwargs, tracker, out);
+    convertArgs(args, tracker, unexpandedArgs, expandedArgs);
+    convertKwArgs(kwargs, tracker, unexpandedArgs, expandedArgs);
 
-    return coreInvoke(function, fnName, lineNum, endLineNum, args, out, tracker);
+    return coreInvoke(function, fnName, lineNum, endLineNum, args, unexpandedArgs, expandedArgs, tracker);
+}
+
+template<typename OutArgsType>
+void cmPythonDispatcher::convertArgs(
+        const py::args& args, 
+        ArgTracker& tracker, 
+        LfArgs& unexpandedArgs,
+        OutArgsType& expandedArgs)
+{
+    // Convert and expand each arg from python to a native representation
+    // Either of these operations might throw... 
+    for(const auto& a : args) {
+        auto converted = convertArg(a, tracker);
+        ExpandAndAddToOutArgs(converted, unexpandedArgs, expandedArgs, true);
+    }
 }
 
 template<typename OutArgsType>
 void cmPythonDispatcher::convertKwArgs(const pybind11::kwargs& kwargs, 
-        ArgTracker& tracker, OutArgsType& out)
+        ArgTracker& tracker, 
+        LfArgs& unexpandedArgs,
+        OutArgsType& expandedArgs)
 {
     using namespace literals;
 
@@ -95,36 +113,40 @@ void cmPythonDispatcher::convertKwArgs(const pybind11::kwargs& kwargs,
 
         // increase arg count for keyname
         tracker.IncArgNum();
-        AddToOutArgs(name, out);
+        //AddToOutArgs(name, expandedArgs);
+        ExpandAndAddToOutArgs(name, unexpandedArgs, expandedArgs, false);
 
         if (!convertValue) {
             continue;
         }
 
-        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a.second, tracker), false), out);
+        auto convertedArg = convertArg(a.second, tracker);
+        ExpandAndAddToOutArgs(convertedArg, unexpandedArgs, expandedArgs, true);
         // std::cout << "KWARG " << py::str(name) << " value " << py::str(value) << "\n";
     }
 }
 
-void cmPythonDispatcher::AddToOutArgs(const std::string& param, StrArgs& out)
+void cmPythonDispatcher::ExpandAndAddToOutArgs(const std::string& param, 
+        LfArgs& unexpandedArgs, StrArgs& expandedArgs, bool expand)
 {
-    out.emplace_back(param);
+    unexpandedArgs.emplace_back(param, cmListFileArgument::Delimiter::Unquoted, 0);
+    if (expand) {
+        expandedArgs.emplace_back(ExpandVar(GetMakefile(), param, false));
+    } else {
+        expandedArgs.emplace_back(param);
+    }
 }
 
-void cmPythonDispatcher::AddToOutArgs(const std::string& param, LfArgs& out)
+void cmPythonDispatcher::ExpandAndAddToOutArgs(const std::string& param, 
+        LfArgs& unexpandedArgs, LfArgs& expandedArgs, bool expand)
 {
-    //FIXME: 2nd and 3rd parameters?
-    out.emplace_back(param, cmListFileArgument::Delimiter::Unquoted, 0);
-}
+    unexpandedArgs.emplace_back(param, cmListFileArgument::Delimiter::Unquoted, 0);
 
-template<typename OutArgsType>
-void cmPythonDispatcher::convertArgs(const py::args& args, 
-        ArgTracker& tracker, OutArgsType& out)
-{
-    // Convert and expand each arg from python to a native representation
-    // Either of these operations might throw... 
-    for(const auto& a : args) {
-        AddToOutArgs(ExpandVar(GetMakefile(), convertArg(a, tracker), false), out);
+    if (expand) {
+        expandedArgs.emplace_back(ExpandVar(GetMakefile(), param, false), 
+                cmListFileArgument::Delimiter::Unquoted, 0);
+    } else {
+        expandedArgs.emplace_back(param, cmListFileArgument::Delimiter::Unquoted, 0);
     }
 }
 
@@ -198,6 +220,21 @@ std::string cmPythonDispatcher::convertSimple(const py::handle& arg, ArgTracker&
     }
 }
 
+void cmPythonDispatcher::DoTrace(
+        const std::string_view& fnName,
+        int lineNum,
+        int endLineNum,
+        const LfArgs& unexpandedArgs)
+{
+    // trace enabled? 
+    if (!GetMakefile().GetCMakeInstance()->GetTrace()) {
+        return;
+    }
+
+    GetMakefile().PrintCommandTrace(FindCallSite(unexpandedArgs), 
+            GetMakefile().GetBacktrace());
+}
+
 template<typename FnType, typename ArgsType>
 py::object cmPythonDispatcher::coreInvoke(
         const FnType& function, 
@@ -205,6 +242,7 @@ py::object cmPythonDispatcher::coreInvoke(
         int lineNum,
         int endLineNum,
         const py::args& originalArgs,
+        const LfArgs& unexpandedArgs,
         const ArgsType& processedArgs,
         const ArgTracker& tracker)
 {
@@ -216,14 +254,7 @@ py::object cmPythonDispatcher::coreInvoke(
     // don't blow up again because of it
     bool alreadyFatal = cmSystemTools::GetFatalErrorOccurred();
 
-    // trace command
-    if (GetMakefile().GetCMakeInstance()->GetTrace()) {
-        LfArgs args = ConvertToLfArgs(processedArgs);
-
-        cmListFileFunction lff(std::string(fnName), lineNum, endLineNum, args);
-
-        GetMakefile().PrintCommandTrace(lff, GetMakefile().GetBacktrace());
-    } 
+    DoTrace(fnName, lineNum, endLineNum, unexpandedArgs);
     
     // fire off the command itself
     bool invokeSucceeded = function(processedArgs, status);
@@ -334,6 +365,7 @@ py::object cmPythonDispatcher::BuildReturnValue(const cmPythonReturnParam& arg,
     return ret;
 }
 
+#if 0
 const cmPythonDispatcher::LfArgs& cmPythonDispatcher::ConvertToLfArgs(const LfArgs& args)
 {
     return args;
@@ -347,4 +379,25 @@ cmPythonDispatcher::LfArgs cmPythonDispatcher::ConvertToLfArgs(const StrArgs& ar
     }
     return a;
 }
+#endif
 
+cmListFileFunction cmPythonDispatcher::FindCallSite(const LfArgs& unprocessedArgs)
+{
+    py::module_ inspect = cmPythonModules::GetModuleInspect();
+    py::object frame = inspect.attr("currentframe")();
+    int i =0;
+    while(!frame.is_none()) {
+        py::object code = frame.attr("f_code");
+        int lineNo = frame.attr("f_lineno").cast<int>();
+        py::str name = code.attr("co_qualname");
+        py::str filename = code.attr("co_filename");
+        std::cout << "PYFRAME " << name << " line " << lineNo << " " << filename << "\n";
+        if (i==1) {
+            return cmListFileFunction(std::string(name), lineNo, lineNo, unprocessedArgs);
+        }
+
+        i++;
+        frame = frame.attr("f_back");
+    }
+    return cmListFileFunction("unknown", 0, 0, LfArgs());
+}

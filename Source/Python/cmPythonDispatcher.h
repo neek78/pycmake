@@ -58,25 +58,41 @@ private:
         int lineNum,
         int endLineNum,
         const pybind11::args& originalArgs,
+        const LfArgs& unexpandedArgs,
         const ArgsType& processedArgs,
         const ArgTracker& tracker);
+
+    void DoTrace(
+        const std::string_view& fnName,
+        int lineNum,
+        int endLineNum,
+        const LfArgs& unexpandedArgs);
 
     void ExpandArguments(const std::vector<std::string>& in,
                          std::vector<std::string>& outArgs) const;
 
     template<typename OutArgsType>
-    void convertArgs(const pybind11::args& args, ArgTracker& tracker, OutArgsType& out);
+    void convertArgs(const pybind11::args& args, 
+            ArgTracker& tracker, 
+            LfArgs& unexpandedArgs,
+            OutArgsType& out);
 
     template<typename OutArgsType>
-    void convertKwArgs(const pybind11::kwargs& kwargs, ArgTracker& tracker, OutArgsType& out);
+    void convertKwArgs(const pybind11::kwargs& kwargs, 
+            ArgTracker& tracker, 
+            LfArgs& unexpandedArgs,
+            OutArgsType& out);
 
     std::string convertArg(const pybind11::handle& arg, ArgTracker& tracker);
     std::string convertSimple(const pybind11::handle& arg, ArgTracker& tracker);
 
     bool TestForKwArg(const pybind11::handle& arg);
 
-    void AddToOutArgs(const std::string& param, StrArgs& out);
-    void AddToOutArgs(const std::string& param, LfArgs& out);
+    void ExpandAndAddToOutArgs(const std::string& param, LfArgs& unexpandedArgs, 
+            StrArgs& expandedArgs, bool expand);
+
+    void ExpandAndAddToOutArgs(const std::string& param, LfArgs& unexpandedArgs, 
+            LfArgs& expandedArgs, bool expand);
 
     template<typename T>
     std::string flattenCollection(const T& arg);
@@ -87,6 +103,5 @@ private:
 
     pybind11::object BuildReturnValue(const cmPythonReturnParam& arg, const ArgTracker& tracker);
 
-    const LfArgs& ConvertToLfArgs(const LfArgs& args);
-    LfArgs ConvertToLfArgs(const StrArgs& args);
+    cmListFileFunction FindCallSite(const LfArgs& unexpandedArgs);
 };

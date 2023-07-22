@@ -77,3 +77,4 @@ py::object cmPythonRaw::invokeFunction(const FunctionType& function,
     checkCommands(function);
     return cmPythonDispatcher::invokeFunction(function, fnName, lineNum, endLineNum, args);
 }
+
