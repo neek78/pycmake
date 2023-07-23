@@ -29,15 +29,11 @@ protected:
 
     pybind11::object invokeFunction(const cmState::BuiltinCommand& function, 
         const std::string_view& fnName, 
-        int lineNum,
-        int endLineNum,
         const pybind11::args& args, 
         const pybind11::kwargs& kwargs = pybind11::kwargs());
 
     pybind11::object invokeFunction(const cmState::Command& function, 
         const std::string_view& fnName,
-        int lineNum,
-        int endLineNum,
         const pybind11::args& args, 
         const pybind11::kwargs& kwargs = pybind11::kwargs());
 
@@ -46,8 +42,6 @@ private:
     pybind11::object invokeFunctionInternal(
             const FnType& function, 
             const std::string_view& fnName, 
-            int lineNum,
-            int endLineNum,
             const pybind11::args& args, 
             const pybind11::kwargs& kwargs);
 
@@ -55,8 +49,6 @@ private:
     pybind11::object coreInvoke(
         const FnType& function, 
         const std::string_view& fnName,
-        int lineNum,
-        int endLineNum,
         const pybind11::args& originalArgs,
         const LfArgs& unexpandedArgs,
         const ArgsType& processedArgs,
@@ -64,8 +56,6 @@ private:
 
     void DoTrace(
         const std::string_view& fnName,
-        int lineNum,
-        int endLineNum,
         const LfArgs& unexpandedArgs);
 
     void ExpandArguments(const std::vector<std::string>& in,
@@ -106,6 +96,6 @@ private:
     const LfArgs& ConvertToLfArgs(const LfArgs& args);
     LfArgs ConvertToLfArgs(const StrArgs& args);
 
-    cmListFileFunction FindCallSite(const std::string_view& fnName, int lineNo,
+    cmListFileFunction FindCallSite(const std::string_view& fnName,
             const LfArgs& unexpandedArgs);
 };

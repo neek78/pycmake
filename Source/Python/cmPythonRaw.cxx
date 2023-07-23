@@ -44,7 +44,7 @@ void cmPythonRaw::build(ClassType* cls, const std::string& fnName, const Functio
     // here is the actual initial entrypoint from python calls 
     cls->def(fnName.c_str(), [fnName, function] (cmPythonRaw& self, const py::args& args) {
         // std::cout << "invoke lambda builtin: " << fnName<< " argc " << args.size() << "\n";
-        return self.invokeFunction(function, fnName, -1, -1, args);
+        return self.invokeFunction(function, fnName, args);
         });
 }
 
@@ -72,9 +72,9 @@ void cmPythonRaw::checkCommands(const cmState::Command&)
 
 template<typename FunctionType>
 py::object cmPythonRaw::invokeFunction(const FunctionType& function, 
-        const std::string_view& fnName, int lineNum, int endLineNum, const pybind11::args& args)
+        const std::string_view& fnName, const pybind11::args& args)
 {
     checkCommands(function);
-    return cmPythonDispatcher::invokeFunction(function, fnName, lineNum, endLineNum, args);
+    return cmPythonDispatcher::invokeFunction(function, fnName, args);
 }
 

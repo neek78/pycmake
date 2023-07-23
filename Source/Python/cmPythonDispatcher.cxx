@@ -32,31 +32,25 @@ cmPythonDispatcher::cmPythonDispatcher(cmMakefile& makefile)
 py::object cmPythonDispatcher::invokeFunction(
         const cmState::BuiltinCommand& function, 
         const std::string_view& fnName, 
-        int lineNum,
-        int endLineNum,
         const py::args& args, 
         const py::kwargs& kwargs)
 {
-    return invokeFunctionInternal<StrArgs>(function, fnName, lineNum, endLineNum, args, kwargs);
+    return invokeFunctionInternal<StrArgs>(function, fnName, args, kwargs);
 }
 
 py::object cmPythonDispatcher::invokeFunction(
         const cmState::Command& function, 
         const std::string_view& fnName, 
-        int lineNum,
-        int endLineNum,
         const py::args& args, 
         const py::kwargs& kwargs)
 {
-    return invokeFunctionInternal<LfArgs>(function, fnName, lineNum, endLineNum, args, kwargs);
+    return invokeFunctionInternal<LfArgs>(function, fnName, args, kwargs);
 }
 
 template<typename ArgsType, typename FnType>
 py::object cmPythonDispatcher::invokeFunctionInternal(
         const FnType& function, 
         const std::string_view& fnName, 
-        int lineNum,
-        int endLineNum,
         const py::args& args, 
         const py::kwargs& kwargs)
 {
@@ -67,7 +61,7 @@ py::object cmPythonDispatcher::invokeFunctionInternal(
     convertArgs(args, tracker, unexpandedArgs, expandedArgs);
     convertKwArgs(kwargs, tracker, unexpandedArgs, expandedArgs);
 
-    return coreInvoke(function, fnName, lineNum, endLineNum, args, unexpandedArgs, expandedArgs, tracker);
+    return coreInvoke(function, fnName, args, unexpandedArgs, expandedArgs, tracker);
 }
 
 template<typename OutArgsType>
@@ -222,8 +216,6 @@ std::string cmPythonDispatcher::convertSimple(const py::handle& arg, ArgTracker&
 
 void cmPythonDispatcher::DoTrace(
         const std::string_view& fnName,
-        int lineNum,
-        int endLineNum,
         const LfArgs& unexpandedArgs)
 {
     // trace enabled? 
@@ -231,7 +223,7 @@ void cmPythonDispatcher::DoTrace(
         return;
     }
 
-    GetMakefile().PrintCommandTrace(FindCallSite(fnName, lineNum, unexpandedArgs), 
+    GetMakefile().PrintCommandTrace(FindCallSite(fnName, unexpandedArgs), 
             GetMakefile().GetBacktrace());
 }
 
@@ -239,8 +231,6 @@ template<typename FnType, typename ArgsType>
 py::object cmPythonDispatcher::coreInvoke(
         const FnType& function, 
         const std::string_view& fnName,
-        int lineNum,
-        int endLineNum,
         const py::args& originalArgs,
         const LfArgs& unexpandedArgs,
         const ArgsType& processedArgs,
@@ -254,7 +244,7 @@ py::object cmPythonDispatcher::coreInvoke(
     // don't blow up again because of it
     bool alreadyFatal = cmSystemTools::GetFatalErrorOccurred();
 
-    DoTrace(fnName, lineNum, endLineNum, unexpandedArgs);
+    DoTrace(fnName, unexpandedArgs);
     
     // fire off the command itself
     bool invokeSucceeded = function(processedArgs, status);
@@ -382,17 +372,21 @@ cmPythonDispatcher::LfArgs cmPythonDispatcher::ConvertToLfArgs(const StrArgs& ar
 #endif
 
 cmListFileFunction cmPythonDispatcher::FindCallSite(const std::string_view& fnName,
-        int lineNo, const LfArgs& unprocessedArgs)
+        const LfArgs& unprocessedArgs)
 {
     py::module_ inspect = cmPythonModules::GetModuleInspect();
     py::object frame = inspect.attr("currentframe")();
     int i =0;
     while(!frame.is_none()) {
         py::object code = frame.attr("f_code");
-        int lineNo2 = frame.attr("f_lineno").cast<int>();
+        py::object tf = frame.attr("f_trace");
+        int lineNo = frame.attr("f_lineno").cast<int>();
         py::str name = code.attr("co_qualname");
         py::str filename = code.attr("co_filename");
-        std::cout << "PYFRAME " << name << " line " << lineNo << " " << lineNo2 << " " << filename << "\n";
+        std::cout << "PYFRAME " << i << "" <<  name << " line " << " " 
+            << lineNo << " " << filename << " tf " << tf << "\n";
+
+        //std::cout << "PYFRAME2 " << py::eval("dir(ins)") << "\n";
         if (i==1) {
             return cmListFileFunction(std::string(fnName), lineNo, lineNo, unprocessedArgs);
         }

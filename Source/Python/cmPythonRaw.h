@@ -28,7 +28,7 @@ private:
 
   template<typename FunctionType>
   pybind11::object invokeFunction(const FunctionType& function, 
-        const std::string_view& fnName, int lineNum, int endLineNum, const pybind11::args& args);
+        const std::string_view& fnName, const pybind11::args& args);
 
   template<typename FunctionType>
   static void build(ClassType* cls, const std::string& fnName, const FunctionType& function);
