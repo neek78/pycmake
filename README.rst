@@ -50,7 +50,7 @@ Building pycmake
 
 pycmake is built in much the same way as regular cmake. It adds pybind11/Python integration in the standard recommended way - that is, pybind11 is included as a git submodule, and pybind11's build logic is used for locating Python.
 
-See the original README <README.original.rst> for more details on this. 
+See the original `README <README.original.rst>`_ for more details on this. 
 
 If you didn't clone the repo with --recursive, in your source dir, run -
 
