@@ -1006,13 +1006,6 @@ endif()
 
 target_compile_definitions(CMakeLib PUBLIC ${CLANG_TIDY_DEFINITIONS})
 
-# FIXME: remove
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  target_compile_options(CMakeLib PUBLIC -fdiagnostics-color=always)
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  target_compile_options(CMakeLib PUBLIC -fcolor-diagnostics)
-endif ()
-
 # Build CTestLib
 #
 add_library(
