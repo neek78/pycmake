@@ -422,6 +422,7 @@ Known Issues
 * Function objects returned from cm_dir.functions.values() (amongst others) are actually methods, so can't be called without a cm_dir.functions object; It's a bit misleading right now
 * Python scripting is not available for implementing find scripts (eg called from find_package) yet. 
 * Python scripting is not available when cmake is called-back from the build system (ie at build-time).
+* There doesn't seem to be a way to import other Python modules into the current Python script at the moment (add_subdirectory works of course, as does importing system modules) - the way cmake_build.py is loaded is presently breaking the import statement. 
 
 Implementation Notes
 ====================
