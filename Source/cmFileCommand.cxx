@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <locale>
 #include <map>
 #include <set>
 #include <sstream>
@@ -464,6 +465,8 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
   int output_size = 0;
   std::vector<std::string> strings;
   std::string s;
+
+  std::locale cloc("C");
   while ((!limit_count || strings.size() < limit_count) &&
          (limit_input < 0 || static_cast<int>(fin.tellg()) < limit_input) &&
          fin) {
@@ -490,8 +493,12 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
       continue;
     }
 
+    // sigh. isprint() changes behaviour depending on locale. 
+    // the previous version assumes the local is C. this check breaks on other locales
+    // (eg "C/en_AU.UTF-8/C/C/C/C"). When python is loaded, the local can be setup.
+    // For now, use std::isprint and force clocale
     if (c >= 0 && c <= 0xFF &&
-        (isprint(c) || c == '\t' || (c == '\n' && newline_consume))) {
+        (std::isprint((char)c, cloc)|| c == '\t' || (c == '\n' && newline_consume))) {
       // This is an ASCII character that may be part of a string.
       // Cast added to avoid compiler warning. Cast is ok because
       // c is guaranteed to fit in char by the above if...
