@@ -111,6 +111,9 @@ public:
   //! Return true if the path is a framework
   static bool IsPathToFramework(const std::string& path);
 
+  //! Return true if the path is a xcframework
+  static bool IsPathToXcFramework(const std::string& path);
+
   //! Return true if the path is a macOS non-framework shared library (aka
   //! .dylib)
   static bool IsPathToMacOSSharedLibrary(const std::string& path);
@@ -302,7 +305,7 @@ public:
     std::vector<std::string>::const_iterator argBeg,
     std::vector<std::string>::const_iterator argEnd);
 
-  static size_t CalculateCommandLineLengthLimit();
+  static std::size_t CalculateCommandLineLengthLimit();
 
   static void DisableRunCommandOutput() { s_DisableRunCommandOutput = true; }
   static void EnableRunCommandOutput() { s_DisableRunCommandOutput = false; }

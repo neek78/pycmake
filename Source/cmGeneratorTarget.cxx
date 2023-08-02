@@ -13,6 +13,7 @@
 #include <iterator>
 #include <queue>
 #include <sstream>
+#include <type_traits>
 #include <unordered_set>
 #include <utility>
 
@@ -8872,6 +8873,47 @@ std::string cmGeneratorTarget::GenerateHeaderSetVerificationFile(
   fout.close();
 
   return filename;
+}
+
+std::string cmGeneratorTarget::GetImportedXcFrameworkPath(
+  const std::string& config) const
+{
+  if (!(this->IsApple() && this->IsImported() &&
+        (this->GetType() == cmStateEnums::SHARED_LIBRARY ||
+         this->GetType() == cmStateEnums::STATIC_LIBRARY ||
+         this->GetType() == cmStateEnums::UNKNOWN_LIBRARY))) {
+    return {};
+  }
+
+  std::string desiredConfig = config;
+  if (config.empty()) {
+    desiredConfig = "NOCONFIG";
+  }
+
+  std::string result;
+
+  cmValue loc = nullptr;
+  cmValue imp = nullptr;
+  std::string suffix;
+
+  if (this->Target->GetMappedConfig(desiredConfig, loc, imp, suffix)) {
+    if (loc) {
+      result = *loc;
+    } else {
+      std::string impProp = cmStrCat("IMPORTED_LOCATION", suffix);
+      if (cmValue configLocation = this->GetProperty(impProp)) {
+        result = *configLocation;
+      } else if (cmValue location = this->GetProperty("IMPORTED_LOCATION")) {
+        result = *location;
+      }
+    }
+
+    if (cmSystemTools::IsPathToXcFramework(result)) {
+      return result;
+    }
+  }
+
+  return {};
 }
 
 bool cmGeneratorTarget::HaveFortranSources(std::string const& config) const

@@ -10,6 +10,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <sstream>
+#include <type_traits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -40,6 +41,7 @@
 #include "cmLinkLineDeviceComputer.h"
 #include "cmList.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmRange.h"
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
@@ -1659,6 +1661,8 @@ std::vector<BT<std::string>> cmLocalGenerator::GetTargetCompileFlags(
   this->AppendFlags(compileFlags, mf->GetDefineFlags());
   this->AppendFlags(compileFlags,
                     this->GetFrameworkFlags(lang, config, target));
+  this->AppendFlags(compileFlags,
+                    this->GetXcFrameworkFlags(lang, config, target));
 
   if (!compileFlags.empty()) {
     flags.emplace_back(std::move(compileFlags));
@@ -1719,6 +1723,43 @@ std::string cmLocalGenerator::GetFrameworkFlags(std::string const& lang,
           lg->ConvertToOutputFormat(framework, cmOutputConverter::SHELL);
         flags += " ";
       }
+    }
+  }
+  return flags;
+}
+
+std::string cmLocalGenerator::GetXcFrameworkFlags(std::string const& lang,
+                                                  std::string const& config,
+                                                  cmGeneratorTarget* target)
+{
+  cmLocalGenerator* lg = target->GetLocalGenerator();
+  cmMakefile* mf = lg->GetMakefile();
+
+  if (!target->IsApple()) {
+    return std::string();
+  }
+
+  cmValue includeSearchFlag =
+    mf->GetDefinition(cmStrCat("CMAKE_INCLUDE_FLAG_", lang));
+  cmValue sysIncludeSearchFlag =
+    mf->GetDefinition(cmStrCat("CMAKE_INCLUDE_SYSTEM_FLAG_", lang));
+
+  if (!includeSearchFlag && !sysIncludeSearchFlag) {
+    return std::string{};
+  }
+
+  std::string flags;
+  if (cmComputeLinkInformation* cli = target->GetLinkInformation(config)) {
+    std::vector<std::string> const& paths = cli->GetXcFrameworkHeaderPaths();
+    for (std::string const& path : paths) {
+      if (sysIncludeSearchFlag &&
+          target->IsSystemIncludeDirectory(path, config, lang)) {
+        flags += *sysIncludeSearchFlag;
+      } else {
+        flags += *includeSearchFlag;
+      }
+      flags += lg->ConvertToOutputFormat(path, cmOutputConverter::SHELL);
+      flags += " ";
     }
   }
   return flags;

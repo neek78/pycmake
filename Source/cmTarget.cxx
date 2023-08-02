@@ -40,6 +40,7 @@
 #include "cmSystemTools.h"
 #include "cmTargetPropertyComputer.h"
 #include "cmValue.h"
+#include "cmXcFramework.h"
 #include "cmake.h"
 
 template <>
@@ -2422,6 +2423,7 @@ cmValue cmTarget::GetProperty(const std::string& prop) const
     propC_STANDARD,
     propCXX_STANDARD,
     propCUDA_STANDARD,
+    propHIP_STANDARD,
     propOBJC_STANDARD,
     propOBJCXX_STANDARD,
     propLINK_LIBRARIES,
@@ -2446,8 +2448,8 @@ cmValue cmTarget::GetProperty(const std::string& prop) const
   };
   if (specialProps.count(prop)) {
     if (prop == propC_STANDARD || prop == propCXX_STANDARD ||
-        prop == propCUDA_STANDARD || prop == propOBJC_STANDARD ||
-        prop == propOBJCXX_STANDARD) {
+        prop == propCUDA_STANDARD || prop == propHIP_STANDARD ||
+        prop == propOBJC_STANDARD || prop == propOBJCXX_STANDARD) {
       auto propertyIter = this->impl->LanguageStandardProperties.find(prop);
       if (propertyIter == this->impl->LanguageStandardProperties.end()) {
         return nullptr;
@@ -2798,6 +2800,25 @@ std::string cmTarget::ImportedGetFullPath(
             } else if (cmValue implib = this->GetProperty("IMPORTED_IMPLIB")) {
               result = *implib;
             }
+          }
+        }
+        if (this->IsApple() &&
+            (this->impl->TargetType == cmStateEnums::SHARED_LIBRARY ||
+             this->impl->TargetType == cmStateEnums::STATIC_LIBRARY ||
+             this->impl->TargetType == cmStateEnums::UNKNOWN_LIBRARY) &&
+            cmSystemTools::IsPathToXcFramework(result)) {
+          auto plist = cmParseXcFrameworkPlist(result, *this->impl->Makefile,
+                                               this->impl->Backtrace);
+          if (!plist) {
+            return "";
+          }
+          auto const* library = plist->SelectSuitableLibrary(
+            *this->impl->Makefile, this->impl->Backtrace);
+          if (library) {
+            result = cmStrCat(result, '/', library->LibraryIdentifier, '/',
+                              library->LibraryPath);
+          } else {
+            return "";
           }
         }
         break;

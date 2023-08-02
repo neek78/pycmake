@@ -529,7 +529,7 @@ bool cmSystemTools::SplitProgramFromArgs(std::string const& command,
   return !in_single && !in_escape && !in_double;
 }
 
-size_t cmSystemTools::CalculateCommandLineLengthLimit()
+std::size_t cmSystemTools::CalculateCommandLineLengthLimit()
 {
   size_t sz =
 #ifdef _WIN32
@@ -1898,6 +1898,12 @@ bool cmSystemTools::IsPathToFramework(const std::string& path)
 {
   return (cmSystemTools::FileIsFullPath(path) &&
           cmHasLiteralSuffix(path, ".framework"));
+}
+
+bool cmSystemTools::IsPathToXcFramework(const std::string& path)
+{
+  return (cmSystemTools::FileIsFullPath(path) &&
+          cmHasLiteralSuffix(path, ".xcframework"));
 }
 
 bool cmSystemTools::IsPathToMacOSSharedLibrary(const std::string& path)

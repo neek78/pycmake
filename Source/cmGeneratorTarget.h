@@ -17,6 +17,7 @@
 #include <cm/optional>
 
 #include "cmAlgorithms.h"
+#include "cmComputeLinkInformation.h"
 #include "cmLinkItem.h"
 #include "cmListFileCache.h"
 #include "cmPolicies.h"
@@ -24,7 +25,6 @@
 #include "cmValue.h"
 
 enum class cmBuildStep;
-class cmComputeLinkInformation;
 class cmCustomCommand;
 class cmFileSet;
 class cmGlobalGenerator;
@@ -925,6 +925,8 @@ public:
   std::string GenerateHeaderSetVerificationFile(
     cmSourceFile& source, const std::string& dir,
     cm::optional<std::set<std::string>>& languages) const;
+
+  std::string GetImportedXcFrameworkPath(const std::string& config) const;
 
 private:
   void AddSourceCommon(const std::string& src, bool before = false);

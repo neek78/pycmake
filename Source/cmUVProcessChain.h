@@ -2,6 +2,8 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #pragma once
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
 #include <array>
 #include <cstddef> // IWYU pragma: keep
 #include <cstdint>
@@ -102,7 +104,7 @@ public:
   int ErrorStream();
 
   bool Valid() const;
-  bool Wait(int64_t milliseconds = -1);
+  bool Wait(uint64_t milliseconds = 0);
   std::vector<const Status*> GetStatus() const;
   const Status& GetStatus(std::size_t index) const;
   bool Finished() const;

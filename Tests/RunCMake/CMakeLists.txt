@@ -536,6 +536,7 @@ add_RunCMake_test(option)
 add_RunCMake_test(PrintHelpers)
 add_RunCMake_test(project -DCMake_TEST_RESOURCES=${CMake_TEST_RESOURCES})
 add_RunCMake_test(project_injected)
+add_RunCMake_test(property_init)
 add_RunCMake_test(DependencyProviders)
 add_RunCMake_test(return)
 add_RunCMake_test(separate_arguments)
@@ -703,6 +704,23 @@ endif()
 if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang"
     AND NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 6.0)
   add_RunCMake_test(Framework)
+  if(NOT DEFINED CMake_TEST_XcFramework)
+    set(CMake_TEST_XcFramework ON)
+  endif()
+  if(CMake_TEST_XcFramework AND NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 11.0)
+    set(XcFramework_ARGS -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
+    add_RunCMake_test(XcFramework)
+
+    # This test can take a very long time due to lots of combinations.
+    # Use a long default timeout and provide an option to customize it.
+    if(NOT DEFINED CMake_TEST_XcFramework_TIMEOUT)
+      set(CMake_TEST_XcFramework_TIMEOUT 3000)
+    endif()
+    set_tests_properties(RunCMake.XcFramework PROPERTIES
+      TIMEOUT "${CMake_TEST_XcFramework_TIMEOUT}"
+      RUN_SERIAL TRUE
+      )
+  endif()
 endif()
 
 add_RunCMake_test(File_Archive)

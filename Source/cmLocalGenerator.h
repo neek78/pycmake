@@ -19,8 +19,9 @@
 #include <cm3p/kwiml/int.h>
 
 #include "cmCustomCommandTypes.h"
+#include "cmGeneratorTarget.h"
 #include "cmListFileCache.h"
-#include "cmMessageType.h"
+#include "cmMessageType.h" // IWYU pragma: keep
 #include "cmOutputConverter.h"
 #include "cmPolicies.h"
 #include "cmStateSnapshot.h"
@@ -31,7 +32,6 @@ class cmComputeLinkInformation;
 class cmCustomCommand;
 class cmCustomCommandGenerator;
 class cmCustomCommandLines;
-class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmImplicitDependsList;
 class cmLinkLineComputer;
@@ -520,6 +520,9 @@ public:
   std::string GetFrameworkFlags(std::string const& l,
                                 std::string const& config,
                                 cmGeneratorTarget* target);
+  std::string GetXcFrameworkFlags(std::string const& l,
+                                  std::string const& config,
+                                  cmGeneratorTarget* target);
   virtual std::string GetTargetFortranFlags(cmGeneratorTarget const* target,
                                             std::string const& config);
 
