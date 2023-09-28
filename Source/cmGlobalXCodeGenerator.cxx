@@ -407,8 +407,10 @@ bool cmGlobalXCodeGenerator::ProcessGeneratorToolsetField(
       mf->IssueMessage(MessageType::FATAL_ERROR, e);
       return false;
     }
-    if (this->XcodeBuildSystem == BuildSystem::Twelve &&
-        this->XcodeVersion < 120) {
+    if ((this->XcodeBuildSystem == BuildSystem::Twelve &&
+         this->XcodeVersion < 120) ||
+        (this->XcodeBuildSystem == BuildSystem::One &&
+         this->XcodeVersion >= 140)) {
       /* clang-format off */
       std::string const& e = cmStrCat(
         "Generator\n"
@@ -1385,8 +1387,8 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
   if (gtgt->HaveCxx20ModuleSources()) {
     gtgt->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
-      cmStrCat("The \"", gtgt->GetName(),
-               "\" target contains C++ module sources which are not "
+      cmStrCat("The target named \"", gtgt->GetName(),
+               "\" contains C++ sources that export modules which is not "
                "supported by the generator"));
   }
 
@@ -3598,6 +3600,13 @@ void cmGlobalXCodeGenerator::AddDependAndLinkInformation(cmXCodeObject* target)
       continue;
     }
     for (auto const& libItem : cli->GetItems()) {
+      // Explicitly ignore OBJECT libraries as Xcode emulates them as static
+      // libraries without an artifact. Avoid exposing this to the rest of
+      // CMake's compilation model.
+      if (libItem.Target &&
+          libItem.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+        continue;
+      }
       // We want to put only static libraries, dynamic libraries, frameworks
       // and bundles that are built from targets that are not imported in "Link
       // Binary With Libraries" build phase. Except if the target property

@@ -536,19 +536,17 @@ cmComputeLinkInformation::GetSharedLibrariesLinked() const
   return this->SharedLibrariesLinked;
 }
 
-const std::vector<const cmGeneratorTarget*>&
-cmComputeLinkInformation::GetObjectLibrariesLinked() const
-{
-  return this->ObjectLibrariesLinked;
-}
-
 bool cmComputeLinkInformation::Compute()
 {
-  // Skip targets that do not link.
+  // Skip targets that do not link or have link-like information consumers may
+  // need (namely modules).
   if (!(this->Target->GetType() == cmStateEnums::EXECUTABLE ||
         this->Target->GetType() == cmStateEnums::SHARED_LIBRARY ||
         this->Target->GetType() == cmStateEnums::MODULE_LIBRARY ||
-        this->Target->GetType() == cmStateEnums::STATIC_LIBRARY)) {
+        this->Target->GetType() == cmStateEnums::STATIC_LIBRARY ||
+        (this->Target->CanCompileSources() &&
+         (this->Target->HaveCxx20ModuleSources() ||
+          this->Target->HaveFortranSources())))) {
     return false;
   }
 
@@ -1164,12 +1162,7 @@ void cmComputeLinkInformation::AddItem(LinkEntry const& entry)
         this->AddItem(BT<std::string>(libName, item.Backtrace));
       }
     } else if (tgt->GetType() == cmStateEnums::OBJECT_LIBRARY) {
-      if (!tgt->HaveCxx20ModuleSources() && !tgt->HaveFortranSources(config)) {
-        // Ignore object library!
-        // Its object-files should already have been extracted for linking.
-      } else {
-        this->ObjectLibrariesLinked.push_back(entry.Target);
-      }
+      this->Items.emplace_back(entry.Item, ItemIsPath::No, entry.Target);
     } else if (this->GlobalGenerator->IsXcode() &&
                !tgt->GetImportedXcFrameworkPath(config).empty()) {
       this->Items.emplace_back(

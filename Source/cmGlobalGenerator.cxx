@@ -30,6 +30,7 @@
 #include "cmAlgorithms.h"
 #include "cmCPackPropertiesGenerator.h"
 #include "cmComputeTargetDepends.h"
+#include "cmCryptoHash.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmDuration.h"
@@ -54,6 +55,7 @@
 #include "cmStateDirectory.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmSyntheticTargetCache.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
 #include "cmVersion.h"
@@ -64,7 +66,6 @@
 #  include <cm3p/json/value.h>
 #  include <cm3p/json/writer.h>
 
-#  include "cmCryptoHash.h"
 #  include "cmQtAutoGenGlobalInitializer.h"
 #endif
 
@@ -1560,6 +1561,17 @@ bool cmGlobalGenerator::Compute()
   }
 #endif
 
+  // Iterate through all targets and set up C++20 module targets.
+  // Create target templates for each imported target with C++20 modules.
+  // INTERFACE library with BMI-generating rules and a collation step?
+  // Maybe INTERFACE libraries with modules files should just do BMI-only?
+  // Make `add_dependencies(imported_target
+  // $<$<TARGET_NAME_IF_EXISTS:uses_imported>:synth1>
+  // $<$<TARGET_NAME_IF_EXISTS:other_uses_imported>:synth2>)`
+  if (!this->DiscoverSyntheticTargets()) {
+    return false;
+  }
+
   // Add generator specific helper commands
   for (const auto& localGen : this->LocalGenerators) {
     localGen->AddHelperCommands();
@@ -1782,6 +1794,34 @@ void cmGlobalGenerator::ComputeTargetOrder(cmGeneratorTarget const* gt,
   }
 
   entry->second = index++;
+}
+
+bool cmGlobalGenerator::DiscoverSyntheticTargets()
+{
+  cmSyntheticTargetCache cache;
+
+  for (auto const& gen : this->LocalGenerators) {
+    // Because DiscoverSyntheticTargets() adds generator targets, we need to
+    // cache the existing list of generator targets before starting.
+    std::vector<cmGeneratorTarget*> genTargets;
+    genTargets.reserve(gen->GetGeneratorTargets().size());
+    for (auto const& tgt : gen->GetGeneratorTargets()) {
+      genTargets.push_back(tgt.get());
+    }
+
+    for (auto* tgt : genTargets) {
+      std::vector<std::string> const& configs =
+        tgt->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
+
+      for (auto const& config : configs) {
+        if (!tgt->DiscoverSyntheticTargets(cache, config)) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 bool cmGlobalGenerator::AddHeaderSetVerification()
@@ -2650,13 +2690,9 @@ cmGlobalGenerator::SplitFrameworkPath(const std::string& path,
   return cm::nullopt;
 }
 
-bool cmGlobalGenerator::CheckCMP0037(std::string const& targetName,
-                                     std::string const& reason) const
+static bool RaiseCMP0037Message(cmake* cm, cmTarget* tgt,
+                                std::string const& reason)
 {
-  cmTarget* tgt = this->FindTarget(targetName);
-  if (!tgt) {
-    return true;
-  }
   MessageType messageType = MessageType::AUTHOR_WARNING;
   std::ostringstream e;
   bool issueMessage = false;
@@ -2675,18 +2711,27 @@ bool cmGlobalGenerator::CheckCMP0037(std::string const& targetName,
       break;
   }
   if (issueMessage) {
-    e << "The target name \"" << targetName << "\" is reserved " << reason
+    e << "The target name \"" << tgt->GetName() << "\" is reserved " << reason
       << ".";
     if (messageType == MessageType::AUTHOR_WARNING) {
       e << "  It may result in undefined behavior.";
     }
-    this->GetCMakeInstance()->IssueMessage(messageType, e.str(),
-                                           tgt->GetBacktrace());
+    cm->IssueMessage(messageType, e.str(), tgt->GetBacktrace());
     if (messageType == MessageType::FATAL_ERROR) {
       return false;
     }
   }
   return true;
+}
+
+bool cmGlobalGenerator::CheckCMP0037(std::string const& targetName,
+                                     std::string const& reason) const
+{
+  cmTarget* tgt = this->FindTarget(targetName);
+  if (!tgt) {
+    return true;
+  }
+  return RaiseCMP0037Message(this->GetCMakeInstance(), tgt, reason);
 }
 
 void cmGlobalGenerator::CreateDefaultGlobalTargets(
@@ -3102,10 +3147,11 @@ bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
   // by one or more of the cmake generators.
 
   // Adding additional targets to this list will require a policy!
-  const char* reservedTargets[] = { "all",       "ALL_BUILD",  "help",
-                                    "install",   "INSTALL",    "preinstall",
-                                    "clean",     "edit_cache", "rebuild_cache",
-                                    "ZERO_CHECK" };
+  static const cm::static_string_view reservedTargets[] = {
+    "all"_s,           "ALL_BUILD"_s,  "help"_s,  "install"_s,
+    "INSTALL"_s,       "preinstall"_s, "clean"_s, "edit_cache"_s,
+    "rebuild_cache"_s, "ZERO_CHECK"_s
+  };
 
   return cm::contains(reservedTargets, name);
 }
@@ -3222,7 +3268,6 @@ std::set<std::string> const& cmGlobalGenerator::GetDirectoryContent(
 void cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
                                     std::string const& content)
 {
-#if !defined(CMAKE_BOOTSTRAP)
   // Ignore if there are no outputs.
   if (outputs.empty()) {
     return;
@@ -3242,20 +3287,14 @@ void cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
 
   // Associate the hash with this output.
   this->RuleHashes[fname] = hash;
-#else
-  (void)outputs;
-  (void)content;
-#endif
 }
 
 void cmGlobalGenerator::CheckRuleHashes()
 {
-#if !defined(CMAKE_BOOTSTRAP)
   std::string home = this->GetCMakeInstance()->GetHomeOutputDirectory();
   std::string pfile = cmStrCat(home, "/CMakeFiles/CMakeRuleHashes.txt");
   this->CheckRuleHashes(pfile, home);
   this->WriteRuleHashes(pfile);
-#endif
 }
 
 void cmGlobalGenerator::CheckRuleHashes(std::string const& pfile,

@@ -87,6 +87,11 @@ The options are:
     :ref:`Target-dependent expressions <Target-Dependent Queries>` are not
     permitted.
 
+  .. versionchanged:: 3.28
+    In targets using :ref:`file sets`, custom command byproducts are now
+    considered private unless they are listed in a non-private file set.
+    See policy :policy:`CMP0154`.
+
 ``COMMAND``
   Specify the command-line(s) to execute at build time.
   If more than one ``COMMAND`` is specified they will be executed in order,
@@ -270,6 +275,11 @@ The options are:
     :ref:`Target-dependent expressions <Target-Dependent Queries>` are not
     permitted.
 
+  .. versionchanged:: 3.28
+    In targets using :ref:`file sets`, custom command outputs are now
+    considered private unless they are listed in a non-private file set.
+    See policy :policy:`CMP0154`.
+
 ``USES_TERMINAL``
   .. versionadded:: 3.2
 
@@ -376,7 +386,7 @@ The options are:
 
   .. versionadded:: 3.27
 
-  Indicate that the command's ``DEPENDS`` argument represents all files
+  Indicates that the command's ``DEPENDS`` argument represents all files
   required by the command and implicit dependencies are not required.
 
   Without this option, if any target uses the output of the custom command,
@@ -389,6 +399,10 @@ The options are:
 
   Only the :ref:`Ninja Generators` actually use this information to remove
   unnecessary implicit dependencies.
+
+  See also the :prop_tgt:`OPTIMIZE_DEPENDENCIES` target property, which may
+  provide another way for reducing the impact of target dependencies in some
+  scenarios.
 
 Examples: Generating Files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

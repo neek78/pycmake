@@ -212,6 +212,7 @@ public:
   bool IsImported() const;
   bool IsImportedGloballyVisible() const;
   bool IsPerConfig() const;
+  bool IsRuntimeBinary() const;
   bool CanCompileSources() const;
 
   bool GetMappedConfig(std::string const& desired_config, cmValue& loc,
@@ -290,6 +291,10 @@ public:
   cmBTStringRange GetLinkInterfaceDirectEntries() const;
   cmBTStringRange GetLinkInterfaceDirectExcludeEntries() const;
 
+  void CopyPolicyStatuses(cmTarget const* tgt);
+  void CopyImportedCxxModulesEntries(cmTarget const* tgt);
+  void CopyImportedCxxModulesProperties(cmTarget const* tgt);
+
   cmBTStringRange GetHeaderSetsEntries() const;
   cmBTStringRange GetCxxModuleSetsEntries() const;
 
@@ -315,6 +320,8 @@ public:
 
   static std::string GetFileSetsPropertyName(const std::string& type);
   static std::string GetInterfaceFileSetsPropertyName(const std::string& type);
+
+  bool HasFileSets() const;
 
 private:
   template <typename ValueType>

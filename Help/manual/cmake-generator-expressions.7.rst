@@ -195,6 +195,12 @@ Two forms of conditional generator expressions are supported:
   if ``condition`` is ``0``.  Any other value for ``condition`` results in an
   error.
 
+    .. versionadded:: 3.28
+
+    This generator expression short-circuits such that generator expressions in
+    ``false_string`` will not evaluate when ``condition`` is ``1``, and generator
+    expressions in ``true_string`` will not evaluate when condition is ``0``.
+
 Typically, the ``condition`` is itself a generator expression.  For instance,
 the following expression expands to ``DEBUG_MODE`` when the ``Debug``
 configuration is used, and the empty string for all other configurations:
@@ -251,6 +257,11 @@ The common boolean logic operators are supported:
 
   ``condition`` must be ``0`` or ``1``.  The result of the expression is
   ``0`` if ``condition`` is ``1``, else ``1``.
+
+  .. versionadded:: 3.28
+
+  Logical operators short-circuit such that generator expressions in the
+  arguments list will not be evaluated once a return value can be determined.
 
 .. _`Comparison Expressions`:
 
@@ -2267,9 +2278,9 @@ In the following, the phrase "the ``tgt`` filename" means the name of the
     section for details.  Many :ref:`Find Modules` produce imported targets
     with the ``UNKNOWN`` type and therefore will be ignored.
 
-On platforms that support runtime paths (``RPATH``), refer to the
-:prop_tgt:`INSTALL_RPATH` target property.
-On Apple platforms, refer to the :prop_tgt:`INSTALL_NAME_DIR` target property.
+  On platforms that support runtime paths (``RPATH``), refer to the
+  :prop_tgt:`INSTALL_RPATH` target property.
+  On Apple platforms, refer to the :prop_tgt:`INSTALL_NAME_DIR` target property.
 
 .. genex:: $<TARGET_RUNTIME_DLL_DIRS:tgt>
 

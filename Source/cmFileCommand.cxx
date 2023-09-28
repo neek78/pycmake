@@ -1021,7 +1021,8 @@ bool HandleRPathChangeCommand(std::vector<std::string> const& args,
   if (success) {
     if (changed) {
       std::string message =
-        cmStrCat("Set runtime path of \"", file, "\" to \"", *newRPath, '"');
+        cmStrCat("Set non-toolchain portion of runtime path of \"", file,
+                 "\" to \"", *newRPath, '"');
       status.GetMakefile().DisplayStatus(message, -1);
     }
     ft.Store(file);
@@ -1075,7 +1076,8 @@ bool HandleRPathSetCommand(std::vector<std::string> const& args,
   if (success) {
     if (changed) {
       std::string message =
-        cmStrCat("Set runtime path of \"", file, "\" to \"", *newRPath, '"');
+        cmStrCat("Set non-toolchain portion of runtime path of \"", file,
+                 "\" to \"", *newRPath, '"');
       status.GetMakefile().DisplayStatus(message, -1);
     }
     ft.Store(file);
@@ -2613,8 +2615,9 @@ bool HandleGenerateCommand(std::vector<std::string> const& args,
     return false;
   }
   const bool inputIsContent = arguments.ParsedKeywords[1] == "CONTENT"_s;
-  if (!inputIsContent && arguments.ParsedKeywords[1] == "INPUT") {
+  if (!inputIsContent && arguments.ParsedKeywords[1] != "INPUT") {
     status.SetError("Unknown argument to GENERATE subcommand.");
+    return false;
   }
   std::string const& input =
     inputIsContent ? *arguments.Content : *arguments.Input;
@@ -3024,8 +3027,7 @@ bool HandleCreateLinkCommand(std::vector<std::string> const& args,
   }
 
   // Check if the new file already exists and remove it.
-  if ((cmSystemTools::FileExists(newFileName) ||
-       cmSystemTools::FileIsSymlink(newFileName)) &&
+  if (cmSystemTools::PathExists(newFileName) &&
       !cmSystemTools::RemoveFile(newFileName)) {
     std::ostringstream e;
     e << "Failed to create link '" << newFileName

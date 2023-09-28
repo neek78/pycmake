@@ -173,13 +173,7 @@ std::vector<std::string> cmCommonTargetGenerator::GetLinkedTargetDirectories(
         this->GeneratorTarget->GetLinkInformation(config)) {
     std::vector<cmGeneratorTarget const*> targets;
     for (auto const& item : cli->GetItems()) {
-      targets.push_back(item.Target);
-    }
-    for (auto const* target : cli->GetObjectLibrariesLinked()) {
-      targets.push_back(target);
-    }
-
-    for (auto const* linkee : targets) {
+      auto const* linkee = item.Target;
       if (linkee &&
           !linkee->IsImported()
           // Skip targets that build after this one in a static lib cycle.
@@ -336,10 +330,7 @@ std::string cmCommonTargetGenerator::GenerateCodeCheckRules(
     auto evaluatedProp = cmGeneratorExpression::Evaluate(
       *value, this->GeneratorTarget->GetLocalGenerator(), config,
       this->GeneratorTarget, nullptr, this->GeneratorTarget, lang);
-    if (!evaluatedProp.empty()) {
-      return evaluatedProp;
-    }
-    return *value;
+    return evaluatedProp;
   };
   std::string const tidy_prop = cmStrCat(lang, "_CLANG_TIDY");
   tidy = evaluateProp(tidy_prop);

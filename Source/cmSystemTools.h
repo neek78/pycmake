@@ -18,11 +18,11 @@
 #include <cm/optional>
 #include <cm/string_view>
 
-#include "cmsys/Process.h"
+#include <cm3p/uv.h>
+
 #include "cmsys/Status.hxx"      // IWYU pragma: export
 #include "cmsys/SystemTools.hxx" // IWYU pragma: export
 
-#include "cmCryptoHash.h"
 #include "cmDuration.h"
 #include "cmProcessOutput.h"
 
@@ -214,20 +214,6 @@ public:
   static void MoveFileIfDifferent(const std::string& source,
                                   const std::string& destination);
 
-#ifndef CMAKE_BOOTSTRAP
-  //! Compute the hash of a file
-  static std::string ComputeFileHash(const std::string& source,
-                                     cmCryptoHash::Algo algo);
-
-  /** Compute the md5sum of a string.  */
-  static std::string ComputeStringMD5(const std::string& input);
-
-#  ifdef _WIN32
-  //! Get the SHA thumbprint for a certificate file
-  static std::string ComputeCertificateThumbprint(const std::string& source);
-#  endif
-#endif
-
   /**
    * Run a single executable command
    *
@@ -354,10 +340,20 @@ public:
    */
   static void ReportLastSystemError(const char* m);
 
-  /** a general output handler for cmsysProcess  */
-  static int WaitForLine(cmsysProcess* process, std::string& line,
-                         cmDuration timeout, std::vector<char>& out,
-                         std::vector<char>& err);
+  enum class WaitForLineResult
+  {
+    None,
+    STDOUT,
+    STDERR,
+    Timeout,
+  };
+
+  /** a general output handler for libuv  */
+  static WaitForLineResult WaitForLine(uv_loop_t* loop, uv_stream_t* outPipe,
+                                       uv_stream_t* errPipe, std::string& line,
+                                       cmDuration timeout,
+                                       std::vector<char>& out,
+                                       std::vector<char>& err);
 
   static void SetForceUnixPaths(bool v) { s_ForceUnixPaths = v; }
   static bool GetForceUnixPaths() { return s_ForceUnixPaths; }

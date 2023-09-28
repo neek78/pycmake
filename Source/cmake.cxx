@@ -23,14 +23,11 @@
 #include <cmext/algorithm>
 #include <cmext/string_view>
 
-#if !defined(CMAKE_BOOTSTRAP) && !defined(_WIN32)
-#  include <unistd.h>
-#endif
-
 #include "cmsys/FStream.hxx"
 #include "cmsys/Glob.hxx"
 #include "cmsys/RegularExpression.hxx"
 
+#include "cm_fileno.hxx"
 #include "cm_sys_stat.h"
 
 #include "cmBuildOptions.h"
@@ -40,7 +37,11 @@
 #include "cmCommands.h"
 #ifdef CMake_ENABLE_DEBUGGER
 #  include "cmDebuggerAdapter.h"
-#  include "cmDebuggerPipeConnection.h"
+#  ifdef _WIN32
+#    include "cmDebuggerWindowsPipeConnection.h"
+#  else //!_WIN32
+#    include "cmDebuggerPosixPipeConnection.h"
+#  endif //_WIN32
 #endif
 #include "cmDocumentation.h"
 #include "cmDocumentationEntry.h"
@@ -790,6 +791,9 @@ void cmake::ReadListFile(const std::vector<std::string>& args,
       mf.SetScriptModeFile(file);
 
       mf.SetArgcArgv(args);
+    }
+    if (!cmSystemTools::FileExists(path, true)) {
+      cmSystemTools::Error("Not a file: " + path);
     }
     if (!mf.ReadListFile(path)) {
       cmSystemTools::Error("Error processing file: " + path);
@@ -3295,7 +3299,7 @@ int cmake::CheckBuildSystem()
   // If any byproduct of makefile generation is missing we must re-run.
   cmList products{ mf.GetDefinition("CMAKE_MAKEFILE_PRODUCTS") };
   for (auto const& p : products) {
-    if (!(cmSystemTools::FileExists(p) || cmSystemTools::FileIsSymlink(p))) {
+    if (!cmSystemTools::PathExists(p)) {
       if (verbose) {
         cmSystemTools::Stdout(
           cmStrCat("Re-run cmake, missing byproduct: ", p, '\n'));
@@ -3945,15 +3949,11 @@ std::function<int()> cmake::BuildWorkflowStep(
   const std::vector<std::string>& args)
 {
   cmUVProcessChainBuilder builder;
-  builder
-    .AddCommand(args)
-#  ifdef _WIN32
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT, _fileno(stdout))
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR, _fileno(stderr));
-#  else
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT, STDOUT_FILENO)
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR, STDERR_FILENO);
-#  endif
+  builder.AddCommand(args)
+    .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT,
+                       cm_fileno(stdout))
+    .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR,
+                       cm_fileno(stderr));
   return [builder]() -> int {
     auto chain = builder.Start();
     chain.Wait();

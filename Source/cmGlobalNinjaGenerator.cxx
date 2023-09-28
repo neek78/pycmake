@@ -554,6 +554,15 @@ cmGlobalNinjaGenerator::cmGlobalNinjaGenerator(cmake* cm)
 {
 #ifdef _WIN32
   cm->GetState()->SetWindowsShell(true);
+
+  // Attempt to use full path to COMSPEC, default "cmd.exe"
+  std::string comspec;
+  if (cmSystemTools::GetEnv("COMSPEC", comspec) &&
+      cmSystemTools::FileIsFullPath(comspec)) {
+    this->Comspec = comspec;
+  } else {
+    this->Comspec = "cmd.exe";
+  }
 #endif
   this->FindMakeProgramFile = "CMakeNinjaFindMake.cmake";
 }
@@ -1267,6 +1276,13 @@ std::string cmGlobalNinjaGenerator::OrderDependsTargetForTarget(
   cmGeneratorTarget const* target, const std::string& /*config*/) const
 {
   return cmStrCat("cmake_object_order_depends_target_", target->GetName());
+}
+
+std::string cmGlobalNinjaGenerator::OrderDependsTargetForTargetPrivate(
+  cmGeneratorTarget const* target, const std::string& config) const
+{
+  return cmStrCat(this->OrderDependsTargetForTarget(target, config),
+                  "_private");
 }
 
 void cmGlobalNinjaGenerator::AppendTargetOutputs(
@@ -2643,7 +2659,9 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
   for (cmScanDepInfo const& object : objects) {
     for (auto const& p : object.Provides) {
       std::string mod;
-      if (!p.CompiledModulePath.empty()) {
+      if (cmDyndepCollation::IsBmiOnly(export_info, object.PrimaryOutput)) {
+        mod = object.PrimaryOutput;
+      } else if (!p.CompiledModulePath.empty()) {
         // The scanner provided the path to the module file.
         mod = p.CompiledModulePath;
         if (!cmSystemTools::FileIsFullPath(mod)) {
@@ -2714,8 +2732,12 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
       build.Outputs[0] = this->ConvertToNinjaPath(object.PrimaryOutput);
       build.ImplicitOuts.clear();
       for (auto const& p : object.Provides) {
-        build.ImplicitOuts.push_back(
-          this->ConvertToNinjaPath(mod_files[p.LogicalName].BmiPath));
+        auto const implicitOut =
+          this->ConvertToNinjaPath(mod_files[p.LogicalName].BmiPath);
+        // Ignore the `provides` when the BMI is the output.
+        if (implicitOut != build.Outputs[0]) {
+          build.ImplicitOuts.emplace_back(implicitOut);
+        }
       }
       build.ImplicitDeps.clear();
       for (auto const& r : object.Requires) {
@@ -3160,4 +3182,11 @@ std::string cmGlobalNinjaMultiGenerator::OrderDependsTargetForTarget(
 {
   return cmStrCat("cmake_object_order_depends_target_", target->GetName(), '_',
                   cmSystemTools::UpperCase(config));
+}
+
+std::string cmGlobalNinjaMultiGenerator::OrderDependsTargetForTargetPrivate(
+  cmGeneratorTarget const* target, const std::string& config) const
+{
+  return cmStrCat(this->OrderDependsTargetForTarget(target, config),
+                  "_private");
 }

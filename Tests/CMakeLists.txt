@@ -117,8 +117,8 @@ if(BUILD_TESTING)
   if(WIN32 OR CYGWIN)
     set(CMake_TEST_RESOURCES TRUE)
   endif()
-  # for borland and watcom there is no resource support
-  if(WATCOM OR BORLAND)
+  # For some Windows toolchains there is no resource support.
+  if(WATCOM OR BORLAND OR CMAKE_C_COMPILER_ID STREQUAL "OrangeC")
     set(CMake_TEST_RESOURCES FALSE)
   endif()
 
@@ -140,6 +140,10 @@ if(BUILD_TESTING)
     list(APPEND build_generator_args
       --build-makeprogram ${CMake_TEST_EXPLICIT_MAKE_PROGRAM}
       )
+  endif()
+
+  if(_isMultiConfig)
+    set(test_options -C Debug)
   endif()
 
   # Look for git to use for tests.
@@ -2090,7 +2094,10 @@ if(BUILD_TESTING)
       )
   endif()
 
-  if(MAKE_SUPPORTS_SPACES AND NOT CMAKE_GENERATOR STREQUAL "Xcode" AND NOT CMAKE_GENERATOR STREQUAL "Watcom WMake")
+  if(MAKE_SUPPORTS_SPACES
+      AND NOT CMAKE_GENERATOR STREQUAL "Xcode"
+      AND NOT CMAKE_GENERATOR STREQUAL "Watcom WMake"
+      )
     add_test(SubDirSpaces ${CMAKE_CTEST_COMMAND}
       --build-and-test
       "${CMake_SOURCE_DIR}/Tests/SubDirSpaces"
@@ -2765,29 +2772,6 @@ if(BUILD_TESTING)
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/${CTestUpdateP4_DIR}")
   endif()
 
-  configure_file(
-    "${CMake_SOURCE_DIR}/Tests/CTestTestFailure/testNoBuild.cmake.in"
-    "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testNoBuild.cmake"
-    @ONLY ESCAPE_QUOTES)
-  add_test(CTestTestNoBuild ${CMAKE_CTEST_COMMAND}
-    -S "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testNoBuild.cmake" -V
-    --output-log "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testOut1.log"
-    )
-  set_tests_properties(CTestTestNoBuild PROPERTIES
-    FAIL_REGULAR_EXPRESSION "Error" WILL_FAIL true)
-
-  configure_file(
-    "${CMake_SOURCE_DIR}/Tests/CTestTestFailure/testNoExe.cmake.in"
-    "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testNoExe.cmake"
-    @ONLY ESCAPE_QUOTES)
-  add_test(CTestTestNoExe ${CMAKE_CTEST_COMMAND}
-    -S "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testNoExe.cmake" -V
-    --output-log "${CMake_BINARY_DIR}/Tests/CTestTestFailure/testOut2.log"
-    )
-  set_tests_properties(CTestTestNoExe PROPERTIES DEPENDS CTestTestNoBuild
-    PASS_REGULAR_EXPRESSION "Could not find executable"
-    FAIL_REGULAR_EXPRESSION "SegFault")
-
   if(NOT CMake_TEST_NO_NETWORK)
     configure_file(
       "${CMake_SOURCE_DIR}/Tests/CTestTestUpload/test.cmake.in"
@@ -3019,8 +3003,8 @@ if(BUILD_TESTING)
     -S "${CMake_BINARY_DIR}/Tests/CTestTestCrash/test.cmake" -V
     --output-log "${CMake_BINARY_DIR}/Tests/CTestTestCrash/testOutput.log"
     )
-  # with watcom the SEGFAULT is not found, it just fails
-  if(CMAKE_GENERATOR MATCHES "Watcom WMake")
+  # With Watcom and OrangeC the SEGFAULT is not found, it just fails
+  if(CMAKE_GENERATOR MATCHES "Watcom WMake" OR CMAKE_C_COMPILER_ID STREQUAL "OrangeC")
     set_tests_properties(CTestTestCrash PROPERTIES
       PASS_REGULAR_EXPRESSION "Failed")
   else()
@@ -3278,7 +3262,7 @@ if(BUILD_TESTING)
     if(NOT CMake_TEST_EXTERNAL_CMAKE)
       configure_file("${CMake_SOURCE_DIR}/Tests/CTestTest2/test.cmake.in"
         "${CMake_BINARY_DIR}/Tests/CTestTest2/test.cmake" @ONLY ESCAPE_QUOTES)
-      add_test(CTestTest2 ${CMAKE_CTEST_COMMAND}
+      add_test(NAME CTestTest2 COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG>
         -S "${CMake_BINARY_DIR}/Tests/CTestTest2/test.cmake" -V
         --output-log "${CMake_BINARY_DIR}/Tests/CTestTest2/testOutput.log"
         )

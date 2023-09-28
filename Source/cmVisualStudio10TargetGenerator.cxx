@@ -9,7 +9,6 @@
 #include <set>
 #include <sstream>
 
-#include <cm/filesystem>
 #include <cm/memory>
 #include <cm/optional>
 #include <cm/string_view>
@@ -18,11 +17,14 @@
 #include <cmext/string_view>
 
 #include "windows.h"
+// include wincrypt.h after windows.h
+#include <wincrypt.h>
 
 #include "cmsys/FStream.hxx"
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmComputeLinkInformation.h"
+#include "cmCryptoHash.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
 #include "cmFileSet.h"
@@ -53,8 +55,6 @@
 #include "cmTarget.h"
 #include "cmValue.h"
 #include "cmVisualStudioGeneratorOptions.h"
-
-const std::string kBuildSystemSources = "Buildsystem Input Files";
 
 struct cmIDEFlagTable;
 
@@ -366,9 +366,9 @@ void cmVisualStudio10TargetGenerator::Generate()
       !this->GlobalGenerator->SupportsCxxModuleDyndep()) {
     this->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
-      cmStrCat("The \"", this->GeneratorTarget->GetName(),
-               "\" target contains C++ module sources which are not supported "
-               "by the generator"));
+      cmStrCat("The target named \"", this->GeneratorTarget->GetName(),
+               "\" contains C++ sources that export modules which is not "
+               "supported by the generator"));
   }
 
   this->ProjectType = computeProjectType(this->GeneratorTarget);
@@ -1824,8 +1824,9 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
     }
     script += lg->FinishConstructScript(this->ProjectType);
     if (this->ProjectType == VsProjectType::csproj) {
-      std::string name = cmStrCat("CustomCommand_", c, '_',
-                                  cmSystemTools::ComputeStringMD5(sourcePath));
+      cmCryptoHash hasher(cmCryptoHash::AlgoMD5);
+      std::string name =
+        cmStrCat("CustomCommand_", c, '_', hasher.HashString(sourcePath));
       this->WriteCustomRuleCSharp(e0, c, name, script, additional_inputs.str(),
                                   outputs.str(), comment, ccg);
     } else {
@@ -1968,13 +1969,7 @@ void cmVisualStudio10TargetGenerator::WriteGroups()
                  "http://schemas.microsoft.com/developer/msbuild/2003");
 
     for (auto const& ti : this->Tools) {
-      if ((this->GeneratorTarget->GetName() ==
-           CMAKE_CHECK_BUILD_SYSTEM_TARGET) &&
-          (ti.first == "None"_s)) {
-        this->WriteBuildSystemSources(e0, ti.first, ti.second);
-      } else {
-        this->WriteGroupSources(e0, ti.first, ti.second, sourceGroups);
-      }
+      this->WriteGroupSources(e0, ti.first, ti.second, sourceGroups);
     }
 
     // Added files are images and the manifest.
@@ -2045,18 +2040,6 @@ void cmVisualStudio10TargetGenerator::WriteGroups()
                    "rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;"
                    "gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms");
       }
-
-      if (this->GeneratorTarget->GetName() ==
-          CMAKE_CHECK_BUILD_SYSTEM_TARGET) {
-        for (const std::string& filter : this->BuildSystemSourcesFilters) {
-          std::string guidName = "SG_Filter_";
-          guidName += filter;
-          std::string guid = this->GlobalGenerator->GetGUID(guidName);
-          Elem e2(e1, "Filter");
-          e2.Attribute("Include", filter);
-          e2.Element("UniqueIdentifier", cmStrCat('{', guid, '}'));
-        }
-      }
     }
   }
   fout << '\n';
@@ -2120,39 +2103,6 @@ void cmVisualStudio10TargetGenerator::WriteGroupSources(
     if (!filter.empty()) {
       e2.Element("Filter", filter);
     }
-  }
-}
-
-void cmVisualStudio10TargetGenerator::WriteBuildSystemSources(
-  Elem& e0, std::string const& name, ToolSources const& sources)
-{
-  const std::string srcDir = this->Makefile->GetCurrentSourceDirectory();
-  const std::string::size_type srcDirLength = srcDir.length();
-
-  Elem e1(e0, "ItemGroup");
-  e1.SetHasElements();
-  for (ToolSource const& s : sources) {
-    cmSourceFile const* sf = s.SourceFile;
-    std::string const& source = sf->GetFullPath();
-
-    cm::filesystem::path sourcePath(source);
-    bool isInSrcDir = cmHasPrefix(source, srcDir);
-
-    std::string filter = kBuildSystemSources;
-    if (isInSrcDir) {
-      std::string parentPath = sourcePath.parent_path().string();
-      if (srcDir != parentPath) {
-        filter += parentPath.substr(srcDirLength);
-      }
-      ConvertToWindowsSlash(filter);
-      this->BuildSystemSourcesFilters.insert(filter);
-    }
-
-    std::string path = this->ConvertPath(source, s.RelativePath);
-    ConvertToWindowsSlash(path);
-    Elem e2(e1, name);
-    e2.Attribute("Include", path);
-    e2.Element("Filter", filter);
   }
 }
 
@@ -2567,6 +2517,7 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       case cmGeneratorTarget::SourceKindModuleDefinition:
         tool = "None";
         break;
+      case cmGeneratorTarget::SourceKindCxxModuleSource:
       case cmGeneratorTarget::SourceKindUnityBatched:
       case cmGeneratorTarget::SourceKindObjectSource: {
         const std::string& lang = si.Source->GetLanguage();
@@ -2600,6 +2551,12 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
         break;
     }
 
+    std::string config;
+    if (!this->Configurations.empty()) {
+      config = this->Configurations[si.Configs[0]];
+    }
+    auto const* fs =
+      this->GeneratorTarget->GetFileSetForSource(config, si.Source);
     if (tool) {
       // Compute set of configurations to exclude, if any.
       std::vector<size_t> const& include_configs = si.Configs;
@@ -2665,6 +2622,13 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       if (si.Kind == cmGeneratorTarget::SourceKindObjectSource ||
           si.Kind == cmGeneratorTarget::SourceKindUnityBatched) {
         this->OutputSourceSpecificFlags(e2, si.Source);
+      } else if (fs && fs->GetType() == "CXX_MODULES"_s) {
+        this->GeneratorTarget->Makefile->IssueMessage(
+          MessageType::FATAL_ERROR,
+          cmStrCat("Target \"", this->GeneratorTarget->GetName(),
+                   "\" has source file\n  ", si.Source->GetFullPath(),
+                   "\nin a \"FILE_SET TYPE CXX_MODULES\" but it is not "
+                   "scheduled for compilation."));
       }
       if (si.Source->GetPropertyAsBool("SKIP_PRECOMPILE_HEADERS")) {
         e2.Element("PrecompiledHeader", "NotUsing");
@@ -2674,6 +2638,13 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
       }
 
       this->FinishWritingSource(e2, toolSettings);
+    } else if (fs && fs->GetType() == "CXX_MODULES"_s) {
+      this->GeneratorTarget->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("Target \"", this->GeneratorTarget->GetName(),
+                 "\" has source file\n  ", si.Source->GetFullPath(),
+                 "\nin a \"FILE_SET TYPE CXX_MODULES\" but it is not "
+                 "scheduled for compilation."));
     }
   }
 
@@ -3893,22 +3864,41 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
   }
   cudaLinkOptions.AppendFlagString("AdditionalOptions", linkFlags);
 
-  // For static libraries that have device linking enabled compute
-  // the  libraries
-  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY &&
-      doDeviceLinking) {
-    cmComputeLinkInformation& cli = *pcli;
-    cmLinkLineDeviceComputer computer(
-      this->LocalGenerator,
-      this->LocalGenerator->GetStateSnapshot().GetDirectory());
-    std::vector<BT<std::string>> btLibVec;
-    computer.ComputeLinkLibraries(cli, std::string{}, btLibVec);
+  if (doDeviceLinking) {
     std::vector<std::string> libVec;
-    for (auto const& item : btLibVec) {
-      libVec.emplace_back(item.Value);
+    auto const& kinded = this->GeneratorTarget->GetKindedSources(configName);
+    // CMake conversion uses full paths when possible to allow deeper trees.
+    // However, CUDA 8.0 msbuild rules fail on absolute paths so for CUDA
+    // we must use relative paths.
+    const bool forceRelative = true;
+    for (cmGeneratorTarget::SourceAndKind const& si : kinded.Sources) {
+      switch (si.Kind) {
+        case cmGeneratorTarget::SourceKindExternalObject: {
+          std::string path =
+            this->ConvertPath(si.Source.Value->GetFullPath(), forceRelative);
+          ConvertToWindowsSlash(path);
+          libVec.emplace_back(std::move(path));
+        } break;
+        default:
+          break;
+      }
     }
-
-    cudaLinkOptions.AddFlag("AdditionalDependencies", libVec);
+    // For static libraries that have device linking enabled compute
+    // the  libraries
+    if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
+      cmComputeLinkInformation& cli = *pcli;
+      cmLinkLineDeviceComputer computer(
+        this->LocalGenerator,
+        this->LocalGenerator->GetStateSnapshot().GetDirectory());
+      std::vector<BT<std::string>> btLibVec;
+      computer.ComputeLinkLibraries(cli, std::string{}, btLibVec);
+      for (auto const& item : btLibVec) {
+        libVec.emplace_back(item.Value);
+      }
+    }
+    if (!libVec.empty()) {
+      cudaLinkOptions.AddFlag("AdditionalDependencies", libVec);
+    }
   }
 
   this->CudaLinkOptions[configName] = std::move(pOptions);
@@ -3918,7 +3908,10 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaLinkOptions(
 void cmVisualStudio10TargetGenerator::WriteCudaLinkOptions(
   Elem& e1, std::string const& configName)
 {
-  if (this->GeneratorTarget->GetType() > cmStateEnums::MODULE_LIBRARY) {
+  // We need to write link options for OBJECT libraries so that
+  // we override the default device link behavior ( enabled ) when
+  // building object libraries with ptx/optix-ir/etc
+  if (this->GeneratorTarget->GetType() > cmStateEnums::OBJECT_LIBRARY) {
     return;
   }
 
@@ -4603,7 +4596,8 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
                                         : path);
       }
     } else if (!l.Target ||
-               l.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+               (l.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY &&
+                l.Target->GetType() != cmStateEnums::OBJECT_LIBRARY)) {
       libVec.push_back(l.Value.Value);
     }
   }
@@ -4918,6 +4912,73 @@ void cmVisualStudio10TargetGenerator::WriteSingleSDKReference(
     .Attribute("Include", cmStrCat(extension, ", Version=", version));
 }
 
+namespace {
+std::string ComputeCertificateThumbprint(const std::string& source)
+{
+  std::string thumbprint;
+
+  CRYPT_INTEGER_BLOB cryptBlob;
+  HCERTSTORE certStore = nullptr;
+  PCCERT_CONTEXT certContext = nullptr;
+
+  HANDLE certFile = CreateFileW(
+    cmsys::Encoding::ToWide(source.c_str()).c_str(), GENERIC_READ,
+    FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+  if (certFile != INVALID_HANDLE_VALUE && certFile != nullptr) {
+    DWORD fileSize = GetFileSize(certFile, nullptr);
+    if (fileSize != INVALID_FILE_SIZE) {
+      auto certData = cm::make_unique<BYTE[]>(fileSize);
+      if (certData != nullptr) {
+        DWORD dwRead = 0;
+        if (ReadFile(certFile, certData.get(), fileSize, &dwRead, nullptr)) {
+          cryptBlob.cbData = fileSize;
+          cryptBlob.pbData = certData.get();
+
+          // Verify that this is a valid cert
+          if (PFXIsPFXBlob(&cryptBlob)) {
+            // Open the certificate as a store
+            certStore =
+              PFXImportCertStore(&cryptBlob, nullptr, CRYPT_EXPORTABLE);
+            if (certStore != nullptr) {
+              // There should only be 1 cert.
+              certContext =
+                CertEnumCertificatesInStore(certStore, certContext);
+              if (certContext != nullptr) {
+                // The hash is 20 bytes
+                BYTE hashData[20];
+                DWORD hashLength = 20;
+
+                // Buffer to print the hash. Each byte takes 2 chars +
+                // terminating character
+                char hashPrint[41];
+                char* pHashPrint = hashPrint;
+                // Get the hash property from the certificate
+                if (CertGetCertificateContextProperty(
+                      certContext, CERT_HASH_PROP_ID, hashData, &hashLength)) {
+                  for (DWORD i = 0; i < hashLength; i++) {
+                    // Convert each byte to hexadecimal
+                    snprintf(pHashPrint, 3, "%02X", hashData[i]);
+                    pHashPrint += 2;
+                  }
+                  *pHashPrint = '\0';
+                  thumbprint = hashPrint;
+                }
+                CertFreeCertificateContext(certContext);
+              }
+              CertCloseStore(certStore, 0);
+            }
+          }
+        }
+      }
+    }
+    CloseHandle(certFile);
+  }
+
+  return thumbprint;
+}
+}
+
 void cmVisualStudio10TargetGenerator::WriteWinRTPackageCertificateKeyFile(
   Elem& e0)
 {
@@ -4964,14 +5025,14 @@ void cmVisualStudio10TargetGenerator::WriteWinRTPackageCertificateKeyFile(
       }
 
       e1.Element("PackageCertificateKeyFile", pfxFile);
-      std::string thumb = cmSystemTools::ComputeCertificateThumbprint(pfxFile);
+      std::string thumb = ComputeCertificateThumbprint(pfxFile);
       if (!thumb.empty()) {
         e1.Element("PackageCertificateThumbprint", thumb);
       }
     } else if (!pfxFile.empty()) {
       Elem e1(e0, "PropertyGroup");
       e1.Element("PackageCertificateKeyFile", pfxFile);
-      std::string thumb = cmSystemTools::ComputeCertificateThumbprint(pfxFile);
+      std::string thumb = ComputeCertificateThumbprint(pfxFile);
       if (!thumb.empty()) {
         e1.Element("PackageCertificateThumbprint", thumb);
       }

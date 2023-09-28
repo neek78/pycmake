@@ -9,6 +9,7 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cmext/string_view>
 
 #include "cmsys/FStream.hxx"
 
@@ -536,7 +537,7 @@ static void getCompatibleInterfaceProperties(
   const cmComputeLinkInformation::ItemVector& deps = info->GetItems();
 
   for (auto const& dep : deps) {
-    if (!dep.Target) {
+    if (!dep.Target || dep.Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
       continue;
     }
     getPropertyContents(dep.Target, "COMPATIBLE_INTERFACE_BOOL",
@@ -1253,6 +1254,94 @@ void cmExportFileGenerator::GenerateImportedFileChecksCode(
   }
 
   os << ")\n\n";
+}
+
+enum class PropertyType
+{
+  Strings,
+  Paths,
+};
+
+struct ModulePropertyTable
+{
+  cm::static_string_view Name;
+  PropertyType Type;
+};
+
+bool cmExportFileGenerator::PopulateCxxModuleExportProperties(
+  cmGeneratorTarget const* gte, ImportPropertyMap& properties,
+  cmGeneratorExpression::PreprocessContext ctx, std::string& errorMessage)
+{
+  if (!gte->HaveCxx20ModuleSources(&errorMessage)) {
+    return true;
+  }
+
+  const cm::static_string_view exportedDirectModuleProperties[] = {
+    "CXX_EXTENSIONS"_s,
+  };
+  for (auto const& propName : exportedDirectModuleProperties) {
+    auto const propNameStr = std::string(propName);
+    cmValue prop = gte->Target->GetComputedProperty(
+      propNameStr, *gte->Target->GetMakefile());
+    if (!prop) {
+      prop = gte->Target->GetProperty(propNameStr);
+    }
+    if (prop) {
+      properties[propNameStr] = cmGeneratorExpression::Preprocess(*prop, ctx);
+    }
+  }
+
+  const ModulePropertyTable exportedModuleProperties[] = {
+    { "INCLUDE_DIRECTORIES"_s, PropertyType::Paths },
+    { "COMPILE_DEFINITIONS"_s, PropertyType::Strings },
+    { "COMPILE_OPTIONS"_s, PropertyType::Strings },
+    { "COMPILE_FEATURES"_s, PropertyType::Strings },
+  };
+  for (auto const& propEntry : exportedModuleProperties) {
+    auto const propNameStr = std::string(propEntry.Name);
+    cmValue prop = gte->Target->GetComputedProperty(
+      propNameStr, *gte->Target->GetMakefile());
+    if (!prop) {
+      prop = gte->Target->GetProperty(propNameStr);
+    }
+    if (prop) {
+      auto const exportedPropName =
+        cmStrCat("IMPORTED_CXX_MODULES_", propEntry.Name);
+      properties[exportedPropName] =
+        cmGeneratorExpression::Preprocess(*prop, ctx);
+      if (ctx == cmGeneratorExpression::InstallInterface &&
+          propEntry.Type == PropertyType::Paths) {
+        this->ReplaceInstallPrefix(properties[exportedPropName]);
+        prefixItems(properties[exportedPropName]);
+      }
+    }
+  }
+
+  const cm::static_string_view exportedLinkModuleProperties[] = {
+    "LINK_LIBRARIES"_s,
+  };
+  for (auto const& propName : exportedLinkModuleProperties) {
+    auto const propNameStr = std::string(propName);
+    cmValue prop = gte->Target->GetComputedProperty(
+      propNameStr, *gte->Target->GetMakefile());
+    if (!prop) {
+      prop = gte->Target->GetProperty(propNameStr);
+    }
+    if (prop) {
+      auto const exportedPropName =
+        cmStrCat("IMPORTED_CXX_MODULES_", propName);
+      auto value = cmGeneratorExpression::Preprocess(*prop, ctx);
+      this->ResolveTargetsInGeneratorExpressions(
+        value, gte, cmExportFileGenerator::ReplaceFreeTargets);
+      std::vector<std::string> wrappedValues;
+      for (auto& item : cmList{ value }) {
+        wrappedValues.push_back(cmStrCat("$<COMPILE_ONLY:", item, '>'));
+      }
+      properties[exportedPropName] = cmJoin(wrappedValues, ";");
+    }
+  }
+
+  return true;
 }
 
 bool cmExportFileGenerator::PopulateExportProperties(

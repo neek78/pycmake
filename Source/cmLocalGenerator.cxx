@@ -25,6 +25,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmComputeLinkInformation.h"
+#include "cmCryptoHash.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
 #include "cmCustomCommandLines.h"
@@ -59,18 +60,13 @@
 #include "cmVersion.h"
 #include "cmake.h"
 
-#if !defined(CMAKE_BOOTSTRAP)
-#  define CM_LG_ENCODE_OBJECT_NAMES
-#  include "cmCryptoHash.h"
-#endif
-
 #if defined(__HAIKU__)
 #  include <FindDirectory.h>
 #  include <StorageDefs.h>
 #endif
 
 // List of variables that are replaced when
-// rules are expanced.  These variables are
+// rules are expanded.  These variables are
 // replaced in the form <var> with GetSafeDefinition(var).
 // ${LANG} is replaced in the variable first with all enabled
 // languages.
@@ -91,6 +87,8 @@ static auto ruleReplaceVars = { "CMAKE_${LANG}_COMPILER",
                                 "CMAKE_TAPI",
                                 "CMAKE_CUDA_HOST_COMPILER",
                                 "CMAKE_CUDA_HOST_LINK_LAUNCHER",
+                                "CMAKE_HIP_HOST_COMPILER",
+                                "CMAKE_HIP_HOST_LINK_LAUNCHER",
                                 "CMAKE_CL_SHOWINCLUDES_PREFIX" };
 
 cmLocalGenerator::cmLocalGenerator(cmGlobalGenerator* gg, cmMakefile* makefile)
@@ -1854,11 +1852,8 @@ void cmLocalGenerator::OutputLinkLibraries(
   // Append the framework search path flags.
   cmValue fwSearchFlag = this->Makefile->GetDefinition(
     cmStrCat("CMAKE_", linkLanguage, "_FRAMEWORK_SEARCH_FLAG"));
-  cmValue sysFwSearchFlag = this->Makefile->GetDefinition(
-    cmStrCat("CMAKE_", linkLanguage, "_SYSTEM_FRAMEWORK_SEARCH_FLAG"));
 
-  frameworkPath =
-    linkLineComputer->ComputeFrameworkPath(cli, fwSearchFlag, sysFwSearchFlag);
+  frameworkPath = linkLineComputer->ComputeFrameworkPath(cli, fwSearchFlag);
   linkLineComputer->ComputeLinkPath(cli, libPathFlag, libPathTerminator,
                                     linkPath);
   linkLineComputer->ComputeLinkLibraries(cli, stdLibString, linkLibraries);
@@ -2062,7 +2057,7 @@ void cmLocalGenerator::AddLanguageFlags(std::string& flags,
         this->Makefile->GetSafeDefinition("CMAKE_CXX_SIMULATE_ID");
     }
   } else if (lang == "HIP") {
-    target->AddHIPArchitectureFlags(flags);
+    target->AddHIPArchitectureFlags(compileOrLink, config, flags);
   }
 
   // Add VFS Overlay for Clang compilers
@@ -2774,10 +2769,10 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
                 }
 
                 if (editAndContinueDebugInfo || msvc2008OrLess) {
-                  this->CopyPchCompilePdb(config, target, *ReuseFrom,
+                  this->CopyPchCompilePdb(config, lang, target, *ReuseFrom,
                                           reuseTarget, { ".pdb", ".idb" });
                 } else if (programDatabaseDebugInfo) {
-                  this->CopyPchCompilePdb(config, target, *ReuseFrom,
+                  this->CopyPchCompilePdb(config, lang, target, *ReuseFrom,
                                           reuseTarget, { ".pdb" });
                 }
               }
@@ -2834,9 +2829,9 @@ void cmLocalGenerator::AddPchDependencies(cmGeneratorTarget* target)
 }
 
 void cmLocalGenerator::CopyPchCompilePdb(
-  const std::string& config, cmGeneratorTarget* target,
-  const std::string& ReuseFrom, cmGeneratorTarget* reuseTarget,
-  const std::vector<std::string>& extensions)
+  const std::string& config, const std::string& language,
+  cmGeneratorTarget* target, const std::string& ReuseFrom,
+  cmGeneratorTarget* reuseTarget, const std::vector<std::string>& extensions)
 {
   const std::string pdb_prefix =
     this->GetGlobalGenerator()->IsMultiConfig() ? cmStrCat(config, "/") : "";
@@ -2920,6 +2915,7 @@ void cmLocalGenerator::CopyPchCompilePdb(
   cc->SetCommandLines(commandLines);
   cc->SetComment(no_message);
   cc->SetStdPipesUTF8(true);
+  cc->AppendDepends({ reuseTarget->GetPchFile(config, language) });
 
   if (this->GetGlobalGenerator()->IsVisualStudio()) {
     cc->SetByproducts(outputs);
@@ -3026,20 +3022,18 @@ void cmLocalGenerator::WriteUnitySourceInclude(
     } else {
       pathToHash = "ABS_" + sf_full_path;
     }
+    cmCryptoHash hasher(cmCryptoHash::AlgoMD5);
     unity_file << "/* " << pathToHash << " */\n"
                << "#undef " << *uniqueIdName << "\n"
                << "#define " << *uniqueIdName << " unity_"
-#ifndef CMAKE_BOOTSTRAP
-               << cmSystemTools::ComputeStringMD5(pathToHash) << "\n"
-#endif
-      ;
+               << hasher.HashString(pathToHash) << "\n";
   }
 
   if (beforeInclude) {
     unity_file << *beforeInclude << "\n";
   }
 
-  unity_file << "// NOLINTNEXTLINE(bugprone-suspicious-include)\n";
+  unity_file << "/* NOLINTNEXTLINE(bugprone-suspicious-include) */\n";
   unity_file << "#include \"" << sf_full_path << "\"\n";
 
   if (afterInclude) {
@@ -3700,9 +3694,9 @@ void cmLocalGenerator::GenerateTargetInstallRules(
   }
 }
 
-#if defined(CM_LG_ENCODE_OBJECT_NAMES)
-static bool cmLocalGeneratorShortenObjectName(std::string& objName,
-                                              std::string::size_type max_len)
+namespace {
+bool cmLocalGeneratorShortenObjectName(std::string& objName,
+                                       std::string::size_type max_len)
 {
   // Check if the path can be shortened using an md5 sum replacement for
   // a portion of the path.
@@ -3746,7 +3740,7 @@ bool cmLocalGeneratorCheckObjectName(std::string& objName,
   // already too deep.
   return false;
 }
-#endif
+}
 
 std::string& cmLocalGenerator::CreateSafeUniqueObjectFileName(
   const std::string& sin, std::string const& dir_max)
@@ -3796,7 +3790,6 @@ std::string& cmLocalGenerator::CreateSafeUniqueObjectFileName(
       } while (!done);
     }
 
-#if defined(CM_LG_ENCODE_OBJECT_NAMES)
     if (!cmLocalGeneratorCheckObjectName(ssin, dir_max.size(),
                                          this->ObjectPathMax)) {
       // Warn if this is the first time the path has been seen.
@@ -3817,9 +3810,6 @@ std::string& cmLocalGenerator::CreateSafeUniqueObjectFileName(
         this->IssueMessage(MessageType::WARNING, m.str());
       }
     }
-#else
-    (void)dir_max;
-#endif
 
     // Insert the newly mapped object file name.
     std::map<std::string, std::string>::value_type e(sin, ssin);
