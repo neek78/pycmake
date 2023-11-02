@@ -266,7 +266,7 @@ std::string cmNinjaTargetGenerator::ComputeFlagsForObject(
 
     if (!this->GeneratorTarget->Target->IsNormal()) {
       auto flag = this->GetMakefile()->GetSafeDefinition(
-        "CMAKE_EXPERIMENTAL_CXX_MODULE_BMI_ONLY_FLAG");
+        "CMAKE_CXX_MODULE_BMI_ONLY_FLAG");
       cmRulePlaceholderExpander::RuleVariables compileObjectVars;
       compileObjectVars.Object = objectFileName.c_str();
       auto rulePlaceholderExpander =
@@ -710,7 +710,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     }
   }
   std::string const modmapFormatVar =
-    cmStrCat("CMAKE_EXPERIMENTAL_", lang, "_MODULE_MAP_FORMAT");
+    cmStrCat("CMAKE_", lang, "_MODULE_MAP_FORMAT");
   std::string const modmapFormat =
     this->Makefile->GetSafeDefinition(modmapFormatVar);
 
@@ -734,7 +734,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
 
   if (withScanning == WithScanning::Yes) {
     const auto& scanDepType = this->GetMakefile()->GetSafeDefinition(
-      cmStrCat("CMAKE_EXPERIMENTAL_", lang, "_SCANDEP_DEPFILE_FORMAT"));
+      cmStrCat("CMAKE_", lang, "_SCANDEP_DEPFILE_FORMAT"));
 
     // Rule to scan dependencies of sources that need preprocessing.
     {
@@ -745,7 +745,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
         scanRuleName = this->LanguageScanRule(lang, config);
         ppFileName = "$PREPROCESSED_OUTPUT_FILE";
         std::string const& scanCommand = mf->GetRequiredDefinition(
-          cmStrCat("CMAKE_EXPERIMENTAL_", lang, "_SCANDEP_SOURCE"));
+          cmStrCat("CMAKE_", lang, "_SCANDEP_SOURCE"));
         scanCommands.assign(scanCommand);
         for (auto& i : scanCommands) {
           i = cmStrCat(launcher, i);
@@ -893,8 +893,8 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
   }
 
   if (withScanning == WithScanning::Yes && !modmapFormat.empty()) {
-    std::string modmapFlags = mf->GetRequiredDefinition(
-      cmStrCat("CMAKE_EXPERIMENTAL_", lang, "_MODULE_MAP_FLAG"));
+    std::string modmapFlags =
+      mf->GetRequiredDefinition(cmStrCat("CMAKE_", lang, "_MODULE_MAP_FLAG"));
     cmSystemTools::ReplaceString(modmapFlags, "<MODULE_MAP_FILE>",
                                  "$DYNDEP_MODULE_MAP_FILE");
     flags += cmStrCat(' ', modmapFlags);
@@ -1048,21 +1048,29 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
       cmCustomCommandGenerator ccg(*cc, config, this->GetLocalGenerator());
       const std::vector<std::string>& ccoutputs = ccg.GetOutputs();
       const std::vector<std::string>& ccbyproducts = ccg.GetByproducts();
+      auto const nPreviousOutputs = ccouts.size();
       ccouts.insert(ccouts.end(), ccoutputs.begin(), ccoutputs.end());
       ccouts.insert(ccouts.end(), ccbyproducts.begin(), ccbyproducts.end());
       if (usePrivateGeneratedSources) {
         auto it = ccouts.begin();
+        // Skip over outputs that were already detected.
+        std::advance(it, nPreviousOutputs);
         while (it != ccouts.end()) {
           cmFileSet const* fileset =
             this->GeneratorTarget->GetFileSetForSource(
               config, this->Makefile->GetOrCreateGeneratedSource(*it));
-          if (fileset &&
-              fileset->GetVisibility() != cmFileSetVisibility::Private) {
+          bool isVisible = fileset &&
+            cmFileSetVisibilityIsForInterface(fileset->GetVisibility());
+          bool isIncludeable =
+            !fileset || cmFileSetTypeCanBeIncluded(fileset->GetType());
+          if (fileset && isVisible && isIncludeable) {
             ++it;
-          } else {
-            ccouts_private.push_back(*it);
-            it = ccouts.erase(it);
+            continue;
           }
+          if (!fileset || isIncludeable) {
+            ccouts_private.push_back(*it);
+          }
+          it = ccouts.erase(it);
         }
       }
     }
@@ -1140,6 +1148,30 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
     for (cmSourceFile const* sf : bmiOnlySources) {
       this->WriteCxxModuleBmiBuildStatement(sf, config, fileConfig,
                                             firstForConfig);
+    }
+  }
+
+  // Detect sources in `CXX_MODULES` which are not compiled.
+  {
+    std::vector<cmSourceFile*> sources;
+    this->GeneratorTarget->GetSourceFiles(sources, config);
+    for (cmSourceFile const* sf : sources) {
+      cmFileSet const* fs =
+        this->GeneratorTarget->GetFileSetForSource(config, sf);
+      if (!fs) {
+        continue;
+      }
+      if (fs->GetType() != "CXX_MODULES"_s) {
+        continue;
+      }
+      if (sf->GetLanguage().empty()) {
+        this->GeneratorTarget->Makefile->IssueMessage(
+          MessageType::FATAL_ERROR,
+          cmStrCat("Target \"", this->GeneratorTarget->GetName(),
+                   "\" has source file\n  ", sf->GetFullPath(),
+                   "\nin a \"FILE_SET TYPE CXX_MODULES\" but it is not "
+                   "scheduled for compilation."));
+      }
     }
   }
 
@@ -1225,8 +1257,6 @@ cmNinjaBuild GetScanBuildStatement(const std::string& ruleName,
 {
   cmNinjaBuild scanBuild(ruleName);
 
-  scanBuild.RspFile = "$out.rsp";
-
   if (compilePP) {
     // Move compilation dependencies to the scan/preprocessing build statement.
     std::swap(scanBuild.ExplicitDeps, objBuild.ExplicitDeps);
@@ -1267,6 +1297,7 @@ cmNinjaBuild GetScanBuildStatement(const std::string& ruleName,
   // Tell dependency scanner where to store dyndep intermediate results.
   std::string ddiFileName = cmStrCat(objectFileName, ".ddi");
   scanBuild.Variables["DYNDEP_INTERMEDIATE_FILE"] = ddiFileName;
+  scanBuild.RspFile = cmStrCat(ddiFileName, ".rsp");
 
   // Outputs of the scan/preprocessor build statement.
   if (compilePP) {
@@ -1385,10 +1416,13 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
     }
   }
 
+  this->SetMsvcTargetPdbVariable(vars, config);
+
   if (firstForConfig) {
     this->ExportObjectCompileCommand(
       language, sourceFilePath, objectDir, objectFileName, objectFileDir,
-      vars["FLAGS"], vars["DEFINES"], vars["INCLUDES"], config);
+      vars["FLAGS"], vars["DEFINES"], vars["INCLUDES"],
+      vars["TARGET_COMPILE_PDB"], vars["TARGET_PDB"], config);
   }
 
   objBuild.Outputs.push_back(objectFileName);
@@ -1477,7 +1511,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   std::string modmapFormat;
   if (needDyndep) {
     std::string const modmapFormatVar =
-      cmStrCat("CMAKE_EXPERIMENTAL_", language, "_MODULE_MAP_FORMAT");
+      cmStrCat("CMAKE_", language, "_MODULE_MAP_FORMAT");
     modmapFormat = this->Makefile->GetSafeDefinition(modmapFormatVar);
   }
 
@@ -1582,8 +1616,6 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
                                  this->GetGeneratorTarget(), vars);
     }
   }
-
-  this->SetMsvcTargetPdbVariable(vars, config);
 
   objBuild.RspFile = cmStrCat(objectFileName, ".rsp");
 
@@ -1735,10 +1767,13 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
     vars["CLANG_TIDY_EXPORT_FIXES"] = fixesFile;
   }
 
+  this->SetMsvcTargetPdbVariable(vars, config);
+
   if (firstForConfig) {
     this->ExportObjectCompileCommand(
       language, sourceFilePath, bmiDir, bmiFileName, bmiFileDir, vars["FLAGS"],
-      vars["DEFINES"], vars["INCLUDES"], config);
+      vars["DEFINES"], vars["INCLUDES"], vars["TARGET_COMPILE_PDB"],
+      vars["TARGET_PDB"], config);
   }
 
   bmiBuild.Outputs.push_back(bmiFileName);
@@ -1758,7 +1793,7 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
   std::string modmapFormat;
   if (true) {
     std::string const modmapFormatVar =
-      cmStrCat("CMAKE_EXPERIMENTAL_", language, "_MODULE_MAP_FORMAT");
+      cmStrCat("CMAKE_", language, "_MODULE_MAP_FORMAT");
     modmapFormat = this->Makefile->GetSafeDefinition(modmapFormatVar);
   }
 
@@ -1808,8 +1843,6 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
 
   this->addPoolNinjaVariable("JOB_POOL_COMPILE", this->GetGeneratorTarget(),
                              vars);
-
-  this->SetMsvcTargetPdbVariable(vars, config);
 
   bmiBuild.RspFile = cmStrCat(bmiFileName, ".rsp");
 
@@ -1942,6 +1975,7 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
   std::string const& objectDir, std::string const& objectFileName,
   std::string const& objectFileDir, std::string const& flags,
   std::string const& defines, std::string const& includes,
+  std::string const& targetCompilePdb, std::string const& targetPdb,
   std::string const& outputConfig)
 {
   if (!this->GeneratorTarget->GetPropertyAsBool("EXPORT_COMPILE_COMMANDS")) {
@@ -1969,12 +2003,12 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
     bool const needDyndep =
       this->GetGeneratorTarget()->NeedDyndep(language, outputConfig);
     std::string const modmapFormatVar =
-      cmStrCat("CMAKE_EXPERIMENTAL_", language, "_MODULE_MAP_FORMAT");
+      cmStrCat("CMAKE_", language, "_MODULE_MAP_FORMAT");
     std::string const modmapFormat =
       this->Makefile->GetSafeDefinition(modmapFormatVar);
     if (needDyndep && !modmapFormat.empty()) {
       std::string modmapFlags = this->GetMakefile()->GetRequiredDefinition(
-        cmStrCat("CMAKE_EXPERIMENTAL_", language, "_MODULE_MAP_FLAG"));
+        cmStrCat("CMAKE_", language, "_MODULE_MAP_FLAG"));
       // XXX(modmap): If changing this path construction, change
       // `cmGlobalNinjaGenerator::WriteDyndep` and
       // `cmNinjaTargetGenerator::WriteObjectBuildStatement` to expect the
@@ -1992,6 +2026,8 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
   compileObjectVars.Flags = fullFlags.c_str();
   compileObjectVars.Defines = defines.c_str();
   compileObjectVars.Includes = includes.c_str();
+  compileObjectVars.TargetCompilePDB = targetCompilePdb.c_str();
+  compileObjectVars.TargetPDB = targetPdb.c_str();
 
   // Rule for compiling object file.
   std::string cudaCompileMode;

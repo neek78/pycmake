@@ -1934,8 +1934,10 @@ function(_ep_get_build_command
   set(args)
   _ep_get_configure_command_id(${name} cfg_cmd_id)
   if(cfg_cmd_id STREQUAL "cmake")
-    # CMake project.  Select build command based on generator.
-    get_target_property(cmake_generator ${name} _EP_CMAKE_GENERATOR)
+    # Adding a CMake project as an External Project.  Select command based on generator
+    get_property(cmake_generator TARGET ${name} PROPERTY _EP_CMAKE_GENERATOR)
+    # cmake_generator is the CMake generator of the ExternalProject target being added
+    # CMAKE_GENERATOR is the CMake generator of the Current Project
     if("${CMAKE_GENERATOR}" MATCHES "Make" AND
        ("${cmake_generator}" MATCHES "Make" OR NOT cmake_generator))
       # The project uses the same Makefile generator.  Use recursive make.
@@ -1948,6 +1950,11 @@ function(_ep_get_build_command
       endif()
     else()
       # Drive the project with "cmake --build".
+      if(NOT cmake_generator)
+        # If there is no CMake Generator defined on the ExternalProject,
+        # use the same Generator as the current project
+        set(cmake_generator "${CMAKE_GENERATOR}")
+      endif()
       get_target_property(cmake_command ${name} _EP_CMAKE_COMMAND)
       if(cmake_command)
         set(cmd "${cmake_command}")
@@ -1977,7 +1984,11 @@ function(_ep_get_build_command
         list(APPEND args --config ${config})
       endif()
       if(step STREQUAL "INSTALL")
-        list(APPEND args --target install)
+        if("${cmake_generator}" MATCHES "Green Hills MULTI")
+          list(APPEND args --target INSTALL)
+        else()
+          list(APPEND args --target install)
+        endif()
       endif()
       # But for "TEST" drive the project with corresponding "ctest".
       if("x${step}x" STREQUAL "xTESTx")
@@ -2825,6 +2836,7 @@ function(_ep_add_download_command name)
   set(comment)
   set(work_dir)
   set(extra_repo_info)
+  set(byproduct_file)
 
   if(cmd_set)
     set(work_dir ${download_dir})
@@ -3105,14 +3117,16 @@ hash=${hash}
           get_filename_component(fname "${fname}" NAME)
         else()
           # Fall back to a default file name.  The actual file name does not
-          # matter because it is used only internally and our extraction tool
-          # inspects the file content directly.  If it turns out the wrong URL
-          # was given that will be revealed during the build which is an easier
-          # place for users to diagnose than an error here anyway.
-          set(fname "archive.tar")
+          # matter as long as it doesn't conflict with other projects because
+          # it is used only internally and our extraction tool inspects the
+          # file content directly.  If it turns out the wrong URL was given
+          # that will be revealed during the build which is an easier place for
+          # users to diagnose than an error here anyway.
+          set(fname "${name}-archive.tar")
         endif()
         string(REPLACE ";" "-" fname "${fname}")
         set(file ${download_dir}/${fname})
+        set(byproduct_file "${download_dir}/${fname}")
         get_property(timeout TARGET ${name} PROPERTY _EP_TIMEOUT)
         get_property(inactivity_timeout
           TARGET ${name}
@@ -3289,6 +3303,7 @@ hash=${hash}
       COMMAND ${__cmdQuoted}
       WORKING_DIRECTORY \${work_dir}
       DEPENDS \${depends}
+      BYPRODUCTS \${byproduct_file}
       DEPENDEES mkdir
       ${log}
       ${uses_terminal}

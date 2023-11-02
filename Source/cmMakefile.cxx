@@ -1244,8 +1244,8 @@ cmTarget* cmMakefile::AddCustomCommandToTarget(
   // Dispatch command creation to allow generator expressions in outputs.
   this->AddGeneratorAction(
     std::move(cc),
-    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
-        std::unique_ptr<cmCustomCommand> tcc) {
+    [this, t, type](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
+                    std::unique_ptr<cmCustomCommand> tcc) {
       BacktraceGuard guard(this->Backtrace, lfbt);
       tcc->SetBacktrace(lfbt);
       detail::AddCustomCommandToTarget(lg, cmCommandOrigin::Project, t, type,
@@ -1283,8 +1283,9 @@ void cmMakefile::AddCustomCommandToOutput(
   // Dispatch command creation to allow generator expressions in outputs.
   this->AddGeneratorAction(
     std::move(cc),
-    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
-        std::unique_ptr<cmCustomCommand> tcc) {
+    [this, replace, callback](cmLocalGenerator& lg,
+                              const cmListFileBacktrace& lfbt,
+                              std::unique_ptr<cmCustomCommand> tcc) {
       BacktraceGuard guard(this->Backtrace, lfbt);
       tcc->SetBacktrace(lfbt);
       cmSourceFile* sf = detail::AddCustomCommandToOutput(
@@ -1370,7 +1371,8 @@ void cmMakefile::AppendCustomCommandToOutput(
   if (this->ValidateCustomCommand(commandLines)) {
     // Dispatch command creation to allow generator expressions in outputs.
     this->AddGeneratorAction(
-      [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      [this, output, depends, implicit_depends,
+       commandLines](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
         BacktraceGuard guard(this->Backtrace, lfbt);
         detail::AppendCustomCommandToOutput(lg, lfbt, output, depends,
                                             implicit_depends, commandLines);
@@ -1401,8 +1403,8 @@ cmTarget* cmMakefile::AddUtilityCommand(const std::string& utilityName,
   // Dispatch command creation to allow generator expressions in outputs.
   this->AddGeneratorAction(
     std::move(cc),
-    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
-        std::unique_ptr<cmCustomCommand> tcc) {
+    [this, target](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
+                   std::unique_ptr<cmCustomCommand> tcc) {
       BacktraceGuard guard(this->Backtrace, lfbt);
       tcc->SetBacktrace(lfbt);
       detail::AddUtilityCommand(lg, cmCommandOrigin::Project, target,
@@ -4731,12 +4733,13 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
   }
 
   // Deprecate old policies.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0120 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0126 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.
           id == cmPolicies::CMP0065 || id == cmPolicies::CMP0083 ||
-          id == cmPolicies::CMP0091 || id == cmPolicies::CMP0104)) &&
+          id == cmPolicies::CMP0091 || id == cmPolicies::CMP0104 ||
+          id == cmPolicies::CMP0123 || id == cmPolicies::CMP0126)) &&
       (!this->IsSet("CMAKE_WARN_DEPRECATED") ||
        this->IsOn("CMAKE_WARN_DEPRECATED"))) {
     this->IssueMessage(MessageType::DEPRECATION_WARNING,

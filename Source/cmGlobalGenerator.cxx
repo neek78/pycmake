@@ -694,7 +694,22 @@ void cmGlobalGenerator::EnableLanguage(
     std::string includes =
       mf->GetSafeDefinition("CMAKE_PROJECT_TOP_LEVEL_INCLUDES");
     cmList includesList{ includes };
-    for (std::string const& setupFile : includesList) {
+    for (std::string setupFile : includesList) {
+      // Any relative path without a .cmake extension is checked for valid
+      // cmake modules. This logic should be consistent with CMake's include()
+      // command. Otherwise default to checking relative path w.r.t. source
+      // directory
+      if (!cmSystemTools::FileIsFullPath(setupFile) &&
+          !cmHasLiteralSuffix(setupFile, ".cmake")) {
+        std::string mfile = mf->GetModulesFile(cmStrCat(setupFile, ".cmake"));
+        if (mfile.empty()) {
+          cmSystemTools::Error(cmStrCat(
+            "CMAKE_PROJECT_TOP_LEVEL_INCLUDES module:\n  ", setupFile));
+          mf->GetState()->SetInTopLevelIncludes(false);
+          return;
+        }
+        setupFile = mfile;
+      }
       std::string absSetupFile = cmSystemTools::CollapseFullPath(
         setupFile, mf->GetCurrentSourceDirectory());
       if (!cmSystemTools::FileExists(absSetupFile)) {
@@ -859,7 +874,11 @@ void cmGlobalGenerator::EnableLanguage(
         noCompiler <<
           "The " << compilerName << ":\n"
           "  " << *compilerFile << "\n"
-          "is not a full path and was not found in the PATH.\n"
+          "is not a full path and was not found in the PATH."
+#ifdef _WIN32
+          "  Perhaps the extension is missing?"
+#endif
+          "\n"
           ;
         /* clang-format on */
       } else if (!cmSystemTools::FileExists(*compilerFile)) {

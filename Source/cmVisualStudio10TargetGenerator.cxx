@@ -358,17 +358,17 @@ std::ostream& cmVisualStudio10TargetGenerator::Elem::WriteString(
 
 void cmVisualStudio10TargetGenerator::Generate()
 {
-  for (std::string const& config : this->Configurations) {
-    this->GeneratorTarget->CheckCxxModuleStatus(config);
+  if (this->GeneratorTarget->IsSynthetic()) {
+    this->GeneratorTarget->Makefile->IssueMessage(
+      MessageType::FATAL_ERROR,
+      cmStrCat("Target \"", this->GeneratorTarget->GetName(),
+               "\" contains C++ modules intended for BMI-only compilation. "
+               "This is not yet supported by the Visual Studio generator."));
+    return;
   }
 
-  if (this->GeneratorTarget->HaveCxx20ModuleSources() &&
-      !this->GlobalGenerator->SupportsCxxModuleDyndep()) {
-    this->Makefile->IssueMessage(
-      MessageType::FATAL_ERROR,
-      cmStrCat("The target named \"", this->GeneratorTarget->GetName(),
-               "\" contains C++ sources that export modules which is not "
-               "supported by the generator"));
+  for (std::string const& config : this->Configurations) {
+    this->GeneratorTarget->CheckCxxModuleStatus(config);
   }
 
   this->ProjectType = computeProjectType(this->GeneratorTarget);
@@ -2996,6 +2996,16 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
       e1.WritePlatformConfigTag(
         "IntDir", cond, R"($(Platform)\$(Configuration)\$(ProjectName)\)");
     } else {
+      if (ttype == cmStateEnums::SHARED_LIBRARY ||
+          ttype == cmStateEnums::MODULE_LIBRARY ||
+          ttype == cmStateEnums::EXECUTABLE) {
+        auto linker = this->GeneratorTarget->GetLinkerTool(config);
+        if (!linker.empty()) {
+          ConvertToWindowsSlash(linker);
+          e1.WritePlatformConfigTag("LinkToolExe", cond, linker);
+        }
+      }
+
       std::string intermediateDir = cmStrCat(
         this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget), '/',
         config, '/');

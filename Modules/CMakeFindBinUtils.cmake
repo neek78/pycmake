@@ -60,6 +60,13 @@ endfunction()
 __resolve_tool_path(CMAKE_LINKER "${_CMAKE_TOOLCHAIN_LOCATION}" "Default Linker")
 __resolve_tool_path(CMAKE_MT     "${_CMAKE_TOOLCHAIN_LOCATION}" "Default Manifest Tool")
 
+macro(__resolve_linker_path __linker_type __name __search_path __doc)
+  if(NOT CMAKE_LINKER_${__linker_type})
+    set( CMAKE_LINKER_${__linker_type} "${__name}")
+  endif()
+  __resolve_tool_path(CMAKE_LINKER_${__linker_type} "${__search_path}" "${__doc}")
+endmacro()
+
 set(_CMAKE_TOOL_VARS "")
 
 # if it's the MS C/CXX compiler, search for link
@@ -79,7 +86,7 @@ if(("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_SIMULATE_ID}" STREQUAL "xMSVC" AND
   set(_CMAKE_MT_NAMES "mt")
 
   # Prepend toolchain-specific names.
-  if("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" STREQUAL "xClang")
+  if("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^x(Clang|LLVMFlang)$")
     set(_CMAKE_NM_NAMES "llvm-nm" "nm")
     list(PREPEND _CMAKE_AR_NAMES "llvm-lib")
     # llvm-mt is not ready to be used as a replacement for mt.exe
@@ -92,6 +99,10 @@ if(("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_SIMULATE_ID}" STREQUAL "xMSVC" AND
   endif()
 
   list(APPEND _CMAKE_TOOL_VARS LINKER MT AR)
+
+  # look-up for possible usable linker
+  __resolve_linker_path(LINK "link" "${_CMAKE_TOOLCHAIN_LOCATION}" "link Linker")
+  __resolve_linker_path(LLD "lld-link" "${_CMAKE_TOOLCHAIN_LOCATION}" "lld-link Linker")
 
 elseif("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^x(Open)?Watcom$")
   set(_CMAKE_LINKER_NAMES "wlink")

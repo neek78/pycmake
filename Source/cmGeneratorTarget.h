@@ -21,6 +21,7 @@
 #include "cmLinkItem.h"
 #include "cmListFileCache.h"
 #include "cmPolicies.h"
+#include "cmStandardLevel.h"
 #include "cmStateTypes.h"
 #include "cmValue.h"
 
@@ -203,6 +204,9 @@ public:
 
   cmValue GetFeature(const std::string& feature,
                      const std::string& config) const;
+
+  std::string GetLinkerTypeProperty(std::string const& lang,
+                                    std::string const& config) const;
 
   const char* GetLinkPIEProperty(const std::string& config) const;
 
@@ -613,12 +617,11 @@ public:
   /** Add the target output files to the global generator manifest.  */
   void ComputeTargetManifest(const std::string& config) const;
 
-  bool ComputeCompileFeatures(std::string const& config) const;
+  bool ComputeCompileFeatures(std::string const& config);
 
   using LanguagePair = std::pair<std::string, std::string>;
-  bool ComputeCompileFeatures(
-    std::string const& config,
-    std::set<LanguagePair> const& languagePairs) const;
+  bool ComputeCompileFeatures(std::string const& config,
+                              std::set<LanguagePair> const& languagePairs);
 
   /**
    * Trace through the source files in this target and add al source files
@@ -788,6 +791,10 @@ public:
 
   //! Return the preferred linker language for this target
   std::string GetLinkerLanguage(const std::string& config) const;
+  //! Return the preferred linker tool for this target
+  std::string GetLinkerTool(const std::string& config) const;
+  std::string GetLinkerTool(const std::string& lang,
+                            const std::string& config) const;
 
   /** Does this target have a GNU implib to convert to MS format?  */
   bool HasImplibGNUtoMS(std::string const& config) const;
@@ -1241,7 +1248,14 @@ private:
   bool GetRPATH(const std::string& config, const std::string& prop,
                 std::string& rpath) const;
 
-  mutable std::map<std::string, BTs<std::string>> LanguageStandardMap;
+  std::map<std::string, BTs<std::string>> LanguageStandardMap;
+
+  cm::optional<cmStandardLevel> GetExplicitStandardLevel(
+    std::string const& lang, std::string const& config) const;
+  void UpdateExplicitStandardLevel(std::string const& lang,
+                                   std::string const& config,
+                                   cmStandardLevel level);
+  std::map<std::string, cmStandardLevel> ExplicitStandardLevel;
 
   cmValue GetPropertyWithPairedLanguageSupport(std::string const& lang,
                                                const char* suffix) const;
@@ -1288,10 +1302,10 @@ public:
   {
     // C++ is not available.
     MissingCxx,
-    // The experimental feature is not available.
-    MissingExperimentalFlag,
     // The target does not require at least C++20.
     NoCxx20,
+    // C++20 module scanning rules are not present.
+    MissingRule,
     // C++20 modules are available and working.
     Supported,
   };

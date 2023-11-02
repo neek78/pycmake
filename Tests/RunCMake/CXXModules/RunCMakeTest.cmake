@@ -3,8 +3,8 @@ include(RunCMake)
 # For `if (IN_LIST)`
 cmake_policy(SET CMP0057 NEW)
 
-run_cmake(compiler_introspection)
-include("${RunCMake_BINARY_DIR}/compiler_introspection-build/info.cmake")
+run_cmake(Inspect)
+include("${RunCMake_BINARY_DIR}/Inspect-build/info.cmake")
 
 # Test negative cases where C++20 modules do not work.
 run_cmake(NoCXX)
@@ -13,11 +13,17 @@ if ("cxx_std_20" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
   # standard. If the compiler forces a standard to be used, skip it.
   if (NOT forced_cxx_standard)
     run_cmake(NoCXX20)
+    if(CMAKE_CXX_STANDARD_DEFAULT AND CMAKE_CXX20_STANDARD_COMPILE_OPTION)
+      run_cmake_with_options(ImplicitCXX20 -DCMAKE_CXX20_STANDARD_COMPILE_OPTION=${CMAKE_CXX20_STANDARD_COMPILE_OPTION})
+    endif()
   endif ()
 
-  # This test uses C++20, but another prerequisite is missing, so forced
-  # standards don't matter.
-  run_cmake(NoCXX20ModuleFlag)
+  run_cmake(NoScanningSourceFileProperty)
+  run_cmake(NoScanningTargetProperty)
+  run_cmake(NoScanningVariable)
+  run_cmake(CMP0155-OLD)
+  run_cmake(CMP0155-NEW)
+  run_cmake(CMP0155-NEW-with-rule)
 endif ()
 
 if (RunCMake_GENERATOR MATCHES "Ninja")
@@ -89,8 +95,9 @@ if (RunCMake_GENERATOR MATCHES "Ninja")
   run_cmake(NinjaDependInfoFileSet)
   run_cmake(NinjaDependInfoExport)
   run_cmake(NinjaDependInfoBMIInstall)
+  run_cmake(NinjaForceResponseFile) # issue#25367
 elseif (RunCMake_GENERATOR MATCHES "Visual Studio")
-  # Not supported yet.
+  run_cmake(VisualStudioNoSyntheticTargets)
 else ()
   message(FATAL_ERROR
     "Please add 'DependInfo' tests for the '${RunCMake_GENERATOR}' generator.")
@@ -128,7 +135,11 @@ function (run_cxx_module_test directory)
     ${ARGN})
   run_cmake("examples/${test_name}")
   set(RunCMake_TEST_NO_CLEAN 1)
-  run_cmake_command("examples/${test_name}-build" "${CMAKE_COMMAND}" --build . --config Debug)
+  if (RunCMake_CXXModules_TARGET)
+    run_cmake_command("examples/${test_name}-build" "${CMAKE_COMMAND}" --build . --config Debug --target "${RunCMake_CXXModules_TARGET}")
+  else ()
+    run_cmake_command("examples/${test_name}-build" "${CMAKE_COMMAND}" --build . --config Debug)
+  endif ()
   if (RunCMake_CXXModules_INSTALL)
     run_cmake_command("examples/${test_name}-install" "${CMAKE_COMMAND}" --build . --target install --config Debug)
   endif ()
@@ -137,7 +148,22 @@ function (run_cxx_module_test directory)
   endif ()
 endfunction ()
 
+function (run_cxx_module_test_target directory target)
+  set(RunCMake_CXXModules_TARGET "${target}")
+  set(RunCMake_CXXModules_NO_TEST 1)
+  run_cxx_module_test("${directory}" ${ARGN})
+endfunction ()
+
 string(REPLACE "," ";" CMake_TEST_MODULE_COMPILATION "${CMake_TEST_MODULE_COMPILATION}")
+
+if (RunCMake_GENERATOR MATCHES "Ninja")
+  if (RunCMake_GENERATOR_IS_MULTI_CONFIG)
+    set(ninja_cmp0154_target "CMakeFiles/ninja_cmp0154.dir/Debug/unrelated.cxx${CMAKE_CXX_OUTPUT_EXTENSION}")
+  else ()
+    set(ninja_cmp0154_target "CMakeFiles/ninja_cmp0154.dir/unrelated.cxx${CMAKE_CXX_OUTPUT_EXTENSION}")
+  endif ()
+  run_cxx_module_test_target(ninja-cmp0154 "${ninja_cmp0154_target}")
+endif ()
 
 # Tests which use named modules.
 if ("named" IN_LIST CMake_TEST_MODULE_COMPILATION)

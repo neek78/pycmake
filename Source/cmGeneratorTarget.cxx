@@ -31,7 +31,6 @@
 #include "cmCustomCommandGenerator.h"
 #include "cmCxxModuleUsageEffects.h"
 #include "cmEvaluatedTargetProperty.h"
-#include "cmExperimental.h"
 #include "cmFileSet.h"
 #include "cmFileTimes.h"
 #include "cmGeneratedFileStream.h"
@@ -51,6 +50,7 @@
 #include "cmSourceFileLocation.h"
 #include "cmSourceFileLocationKind.h"
 #include "cmSourceGroup.h"
+#include "cmStandardLevel.h"
 #include "cmStandardLevelResolver.h"
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
@@ -866,6 +866,31 @@ cmValue cmGeneratorTarget::GetFeature(const std::string& feature,
     return value;
   }
   return this->LocalGenerator->GetFeature(feature, config);
+}
+
+std::string cmGeneratorTarget::GetLinkerTypeProperty(
+  std::string const& lang, std::string const& config) const
+{
+  std::string propName{ "LINKER_TYPE" };
+  auto linkerType = this->GetProperty(propName);
+  if (!linkerType.IsEmpty()) {
+    cmGeneratorExpressionDAGChecker dagChecker(this, propName, nullptr,
+                                               nullptr);
+    auto ltype =
+      cmGeneratorExpression::Evaluate(*linkerType, this->GetLocalGenerator(),
+                                      config, this, &dagChecker, this, lang);
+    if (this->IsDeviceLink()) {
+      cmList list{ ltype };
+      const auto DL_BEGIN = "<DEVICE_LINK>"_s;
+      const auto DL_END = "</DEVICE_LINK>"_s;
+      cm::erase_if(list, [&](const std::string& item) {
+        return item == DL_BEGIN || item == DL_END;
+      });
+      return list.to_string();
+    }
+    return ltype;
+  }
+  return std::string{};
 }
 
 const char* cmGeneratorTarget::GetLinkPIEProperty(
@@ -5025,10 +5050,44 @@ void cmGeneratorTarget::ComputeTargetManifest(const std::string& config) const
   }
 }
 
-bool cmGeneratorTarget::ComputeCompileFeatures(std::string const& config) const
+cm::optional<cmStandardLevel> cmGeneratorTarget::GetExplicitStandardLevel(
+  std::string const& lang, std::string const& config) const
 {
-  // Compute the language standard based on the compile features.
+  cm::optional<cmStandardLevel> level;
+  std::string key = cmStrCat(cmSystemTools::UpperCase(config), '-', lang);
+  auto i = this->ExplicitStandardLevel.find(key);
+  if (i != this->ExplicitStandardLevel.end()) {
+    level = i->second;
+  }
+  return level;
+}
+
+void cmGeneratorTarget::UpdateExplicitStandardLevel(std::string const& lang,
+                                                    std::string const& config,
+                                                    cmStandardLevel level)
+{
+  auto e = this->ExplicitStandardLevel.emplace(
+    cmStrCat(cmSystemTools::UpperCase(config), '-', lang), level);
+  if (!e.second && e.first->second < level) {
+    e.first->second = level;
+  }
+}
+
+bool cmGeneratorTarget::ComputeCompileFeatures(std::string const& config)
+{
   cmStandardLevelResolver standardResolver(this->Makefile);
+
+  for (std::string const& lang :
+       this->Makefile->GetState()->GetEnabledLanguages()) {
+    if (cmValue languageStd = this->GetLanguageStandard(lang, config)) {
+      if (cm::optional<cmStandardLevel> langLevel =
+            standardResolver.LanguageStandardLevel(lang, *languageStd)) {
+        this->UpdateExplicitStandardLevel(lang, config, *langLevel);
+      }
+    }
+  }
+
+  // Compute the language standard based on the compile features.
   std::vector<BT<std::string>> features = this->GetCompileFeatures(config);
   for (BT<std::string> const& f : features) {
     std::string lang;
@@ -5040,11 +5099,16 @@ bool cmGeneratorTarget::ComputeCompileFeatures(std::string const& config) const
     std::string key = cmStrCat(cmSystemTools::UpperCase(config), '-', lang);
     cmValue currentLanguageStandard = this->GetLanguageStandard(lang, config);
 
+    cm::optional<cmStandardLevel> featureLevel;
     std::string newRequiredStandard;
     if (!standardResolver.GetNewRequiredStandard(
           this->Target->GetName(), f.Value, currentLanguageStandard,
-          newRequiredStandard)) {
+          featureLevel, newRequiredStandard)) {
       return false;
+    }
+
+    if (featureLevel) {
+      this->UpdateExplicitStandardLevel(lang, config, *featureLevel);
     }
 
     if (!newRequiredStandard.empty()) {
@@ -5062,7 +5126,7 @@ bool cmGeneratorTarget::ComputeCompileFeatures(std::string const& config) const
 }
 
 bool cmGeneratorTarget::ComputeCompileFeatures(
-  std::string const& config, std::set<LanguagePair> const& languagePairs) const
+  std::string const& config, std::set<LanguagePair> const& languagePairs)
 {
   for (const auto& language : languagePairs) {
     BTs<std::string> const* generatorTargetLanguageStandard =
@@ -5474,6 +5538,50 @@ std::string cmGeneratorTarget::GetLinkerLanguage(
   const std::string& config) const
 {
   return this->GetLinkClosure(config)->LinkerLanguage;
+}
+
+std::string cmGeneratorTarget::GetLinkerTool(const std::string& config) const
+{
+  return this->GetLinkerTool(this->GetLinkerLanguage(config), config);
+}
+
+std::string cmGeneratorTarget::GetLinkerTool(const std::string& lang,
+                                             const std::string& config) const
+{
+  auto usingLinker =
+    cmStrCat("CMAKE_", lang, "_USING_", this->IsDeviceLink() ? "DEVICE_" : "",
+             "LINKER_");
+  auto format = this->Makefile->GetDefinition(cmStrCat(usingLinker, "MODE"));
+  if (!format || format != "TOOL"_s) {
+    return this->Makefile->GetDefinition("CMAKE_LINKER");
+  }
+
+  auto linkerType = this->GetLinkerTypeProperty(lang, config);
+  if (linkerType.empty()) {
+    linkerType = "DEFAULT";
+  }
+  usingLinker = cmStrCat(usingLinker, linkerType);
+  auto linkerTool = this->Makefile->GetDefinition(usingLinker);
+
+  if (!linkerTool) {
+    if (this->GetGlobalGenerator()->IsVisualStudio() &&
+        linkerType == "DEFAULT"_s) {
+      return std::string{};
+    }
+
+    // fall-back to generic definition
+    linkerTool = this->Makefile->GetDefinition("CMAKE_LINKER");
+
+    if (linkerType != "DEFAULT"_s) {
+      this->LocalGenerator->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("LINKER_TYPE '", linkerType,
+                 "' is unknown. Did you forgot to define '", usingLinker,
+                 "' variable?"));
+    }
+  }
+
+  return linkerTool;
 }
 
 std::string cmGeneratorTarget::GetPDBOutputName(
@@ -9047,7 +9155,7 @@ std::string cmGeneratorTarget::GetImportedXcFrameworkPath(
 
 bool cmGeneratorTarget::HaveFortranSources(std::string const& config) const
 {
-  auto sources = cmGeneratorTarget::GetSourceFiles(config);
+  auto sources = this->GetSourceFiles(config);
   return std::any_of(sources.begin(), sources.end(),
                      [](BT<cmSourceFile*> const& sf) -> bool {
                        return sf.Value->GetLanguage() == "Fortran"_s;
@@ -9094,65 +9202,112 @@ cmGeneratorTarget::Cxx20SupportLevel cmGeneratorTarget::HaveCxxModuleSupport(
   if (!state->GetLanguageEnabled("CXX")) {
     return Cxx20SupportLevel::MissingCxx;
   }
+
   cmValue standardDefault =
-    this->Target->GetMakefile()->GetDefinition("CMAKE_CXX_STANDARD_DEFAULT");
-  if (standardDefault && !standardDefault->empty()) {
-    cmStandardLevelResolver standardResolver(this->Makefile);
-    if (!standardResolver.HaveStandardAvailable(this, "CXX", config,
-                                                "cxx_std_20")) {
-      return Cxx20SupportLevel::NoCxx20;
-    }
+    this->Makefile->GetDefinition("CMAKE_CXX_STANDARD_DEFAULT");
+  if (!standardDefault || standardDefault->empty()) {
+    // We do not know any meaningful C++ standard levels for this compiler.
+    return Cxx20SupportLevel::NoCxx20;
   }
-  // Else, an empty CMAKE_CXX_STANDARD_DEFAULT means CMake does not detect and
-  // set a default standard level for this compiler, so assume all standards
-  // are available.
-  if (!cmExperimental::HasSupportEnabled(
-        *this->Makefile, cmExperimental::Feature::CxxModuleCMakeApi)) {
-    return Cxx20SupportLevel::MissingExperimentalFlag;
+
+  cmStandardLevelResolver standardResolver(this->Makefile);
+  cmStandardLevel const cxxStd20 =
+    *standardResolver.LanguageStandardLevel("CXX", "20");
+  cm::optional<cmStandardLevel> explicitLevel =
+    this->GetExplicitStandardLevel("CXX", config);
+  if (!explicitLevel || *explicitLevel < cxxStd20) {
+    return Cxx20SupportLevel::NoCxx20;
+  }
+
+  cmValue scandepRule =
+    this->Makefile->GetDefinition("CMAKE_CXX_SCANDEP_SOURCE");
+  if (!scandepRule) {
+    return Cxx20SupportLevel::MissingRule;
   }
   return Cxx20SupportLevel::Supported;
 }
 
 void cmGeneratorTarget::CheckCxxModuleStatus(std::string const& config) const
 {
+  bool haveScannableSources = false;
+
   // Check for `CXX_MODULE*` file sets and a lack of support.
   if (this->HaveCxx20ModuleSources()) {
-    switch (this->HaveCxxModuleSupport(config)) {
-      case cmGeneratorTarget::Cxx20SupportLevel::MissingCxx:
-        this->Makefile->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmStrCat("The target named \"", this->GetName(),
-                   "\" has C++ sources that export modules but the \"CXX\" "
-                   "language has not been enabled"));
-        break;
-      case cmGeneratorTarget::Cxx20SupportLevel::MissingExperimentalFlag:
-        this->Makefile->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmStrCat("The target named \"", this->GetName(),
-                   "\" has C++ sources that export modules but its "
-                   "experimental support has not been requested"));
-        break;
-      case cmGeneratorTarget::Cxx20SupportLevel::NoCxx20: {
-        cmStandardLevelResolver standardResolver(this->Makefile);
-        auto effStandard =
-          standardResolver.GetEffectiveStandard(this, "CXX", config);
-        if (effStandard.empty()) {
-          effStandard = "; no C++ standard found";
-        } else {
-          effStandard = cmStrCat("; found \"cxx_std_", effStandard, '"');
-        }
-        this->Makefile->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmStrCat(
-            "The target named \"", this->GetName(),
-            "\" has C++ sources that export modules but does not include "
-            "\"cxx_std_20\" (or newer) among its `target_compile_features`",
-            effStandard));
-      } break;
-      case cmGeneratorTarget::Cxx20SupportLevel::Supported:
-        // All is well.
-        break;
+    haveScannableSources = true;
+  }
+
+  if (!haveScannableSources) {
+    // Check to see if there are regular sources that have requested scanning.
+    auto sources = this->GetSourceFiles(config);
+    for (auto const& source : sources) {
+      auto const* sf = source.Value;
+      auto const& lang = sf->GetLanguage();
+      if (lang != "CXX"_s) {
+        continue;
+      }
+      // Ignore sources which do not need dyndep.
+      if (this->NeedDyndepForSource(lang, config, sf)) {
+        haveScannableSources = true;
+      }
     }
+  }
+
+  // If there isn't anything scannable, ignore it.
+  if (!haveScannableSources) {
+    return;
+  }
+
+  // If the generator doesn't support modules at all, error that we have
+  // sources that require the support.
+  if (!this->GetGlobalGenerator()->CheckCxxModuleSupport(
+        cmGlobalGenerator::CxxModuleSupportQuery::Expected)) {
+    this->Makefile->IssueMessage(
+      MessageType::FATAL_ERROR,
+      cmStrCat(
+        "The target named \"", this->GetName(),
+        "\" has C++ sources that may use modules, but modules are not "
+        "supported by this generator.  See the cmake-cxxmodules(7) manual "
+        "and the CMAKE_CXX_SCAN_FOR_MODULES variable."));
+    return;
+  }
+
+  switch (this->HaveCxxModuleSupport(config)) {
+    case cmGeneratorTarget::Cxx20SupportLevel::MissingCxx:
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("The target named \"", this->GetName(),
+                 "\" has C++ sources that use modules, but the \"CXX\" "
+                 "language has not been enabled."));
+      break;
+    case cmGeneratorTarget::Cxx20SupportLevel::NoCxx20: {
+      cmStandardLevelResolver standardResolver(this->Makefile);
+      auto effStandard =
+        standardResolver.GetEffectiveStandard(this, "CXX", config);
+      if (effStandard.empty()) {
+        effStandard = "; no C++ standard found";
+      } else {
+        effStandard = cmStrCat("; found \"cxx_std_", effStandard, '"');
+      }
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat(
+          "The target named \"", this->GetName(),
+          "\" has C++ sources that use modules, but does not include "
+          "\"cxx_std_20\" (or newer) among its `target_compile_features`",
+          effStandard, '.'));
+    } break;
+    case cmGeneratorTarget::Cxx20SupportLevel::MissingRule: {
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("The target named \"", this->GetName(),
+                 "\" has C++ sources that may use modules, but the compiler "
+                 "does not provide a way to discover the import graph "
+                 "dependencies.  See the cmake-cxxmodules(7) manual "
+                 "and the CMAKE_CXX_SCAN_FOR_MODULES variable."));
+    } break;
+    case cmGeneratorTarget::Cxx20SupportLevel::Supported:
+      // All is well.
+      break;
   }
 }
 
@@ -9163,7 +9318,8 @@ bool cmGeneratorTarget::NeedCxxModuleSupport(std::string const& lang,
     return false;
   }
   return this->HaveCxxModuleSupport(config) == Cxx20SupportLevel::Supported &&
-    this->GetGlobalGenerator()->CheckCxxModuleSupport();
+    this->GetGlobalGenerator()->CheckCxxModuleSupport(
+      cmGlobalGenerator::CxxModuleSupportQuery::Inspect);
 }
 
 bool cmGeneratorTarget::NeedDyndep(std::string const& lang,
@@ -9191,14 +9347,36 @@ bool cmGeneratorTarget::NeedDyndepForSource(std::string const& lang,
                                             std::string const& config,
                                             cmSourceFile const* sf) const
 {
-  bool const needDyndep = this->NeedDyndep(lang, config);
-  if (!needDyndep) {
+  // Fortran always needs to be scanned.
+  if (lang == "Fortran"_s) {
+    return true;
+  }
+  // Only C++ code needs scanned otherwise.
+  if (lang != "CXX"_s) {
     return false;
   }
+
+  // Any file in `CXX_MODULES` file sets need scanned (it being `CXX` is
+  // enforced elsewhere).
   auto const* fs = this->GetFileSetForSource(config, sf);
   if (fs && fs->GetType() == "CXX_MODULES"_s) {
     return true;
   }
+
+  bool haveRule = false;
+  switch (this->HaveCxxModuleSupport(config)) {
+    case Cxx20SupportLevel::MissingCxx:
+    case Cxx20SupportLevel::NoCxx20:
+      return false;
+    case Cxx20SupportLevel::MissingRule:
+      break;
+    case Cxx20SupportLevel::Supported:
+      haveRule = true;
+      break;
+  }
+  bool haveGeneratorSupport =
+    this->GetGlobalGenerator()->CheckCxxModuleSupport(
+      cmGlobalGenerator::CxxModuleSupportQuery::Inspect);
   auto const sfProp = sf->GetProperty("CXX_SCAN_FOR_MODULES");
   if (sfProp.IsSet()) {
     return sfProp.IsOn();
@@ -9207,7 +9385,23 @@ bool cmGeneratorTarget::NeedDyndepForSource(std::string const& lang,
   if (tgtProp.IsSet()) {
     return tgtProp.IsOn();
   }
-  return true;
+
+  bool policyAnswer = false;
+  switch (this->GetPolicyStatusCMP0155()) {
+    case cmPolicies::WARN:
+    case cmPolicies::OLD:
+      // The OLD behavior is to not scan the source.
+      policyAnswer = false;
+      break;
+    case cmPolicies::REQUIRED_ALWAYS:
+    case cmPolicies::REQUIRED_IF_USED:
+    case cmPolicies::NEW:
+      // The NEW behavior is to scan the source if the compiler supports
+      // scanning and the generator supports it.
+      policyAnswer = haveRule && haveGeneratorSupport;
+      break;
+  }
+  return policyAnswer;
 }
 
 void cmGeneratorTarget::BuildFileSetInfoCache(std::string const& config) const

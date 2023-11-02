@@ -535,7 +535,7 @@ add_RunCMake_test(function)
 add_RunCMake_test(block)
 add_RunCMake_test(get_filename_component)
 add_RunCMake_test(get_property)
-add_RunCMake_test(if)
+add_RunCMake_test(if -DMSYS=${MSYS})
 add_RunCMake_test(include)
 add_RunCMake_test(include_directories)
 add_RunCMake_test(include_guard)
@@ -583,7 +583,9 @@ endfunction()
 add_RunCMake_test_try_compile()
 
 add_RunCMake_test(try_run -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                          -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
+                          -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+                          -DCMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}
+                          -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
 add_RunCMake_test(set)
 add_RunCMake_test(variable_watch)
 add_RunCMake_test(while)
@@ -735,6 +737,14 @@ if((CMAKE_C_COMPILER_ID STREQUAL "AppleClang"
       RUN_SERIAL TRUE
       )
   endif()
+endif()
+
+if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin|Windows)"
+    AND CMAKE_C_COMPILER_ID MATCHES "^(AppleClang|Clang|GNU|MSVC|NVIDIA)$"
+    AND NOT CMAKE_GENERATOR STREQUAL "Green Hills MULTI")
+  add_RunCMake_test(LinkerSelection -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+                                    -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+                                    -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
 endif()
 
 add_RunCMake_test(File_Archive)
@@ -1054,7 +1064,7 @@ add_RunCMake_test(PrecompileHeaders -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMAKE_C_SIMULATE_ID=${CMAKE_C_SIMULATE_ID}
   -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
 
-add_RunCMake_test("UnityBuild")
+add_RunCMake_test(UnityBuild -DCMake_TEST_OBJC=${CMake_TEST_OBJC})
 add_RunCMake_test(CMakePresets
   -DPython_EXECUTABLE=${Python_EXECUTABLE}
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
@@ -1086,4 +1096,9 @@ endif()
 
 if(WIN32)
   add_RunCMake_test(Win32GenEx)
+endif()
+
+if(CMake_TEST_IAR_TOOLCHAINS)
+  add_RunCMake_test(IAR -DCMake_TEST_IAR_TOOLCHAINS=${CMake_TEST_IAR_TOOLCHAINS})
+  set_property(TEST RunCMake.IAR APPEND PROPERTY LABELS "IAR")
 endif()

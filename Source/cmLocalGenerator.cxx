@@ -82,7 +82,6 @@ static auto ruleReplaceVars = { "CMAKE_${LANG}_COMPILER",
                                 "CMAKE_CURRENT_SOURCE_DIR",
                                 "CMAKE_CURRENT_BINARY_DIR",
                                 "CMAKE_RANLIB",
-                                "CMAKE_LINKER",
                                 "CMAKE_MT",
                                 "CMAKE_TAPI",
                                 "CMAKE_CUDA_HOST_COMPILER",
@@ -1604,6 +1603,7 @@ void cmLocalGenerator::GetTargetFlags(
   }
 
   std::string extraLinkFlags;
+  this->AppendLinkerTypeFlags(extraLinkFlags, target, config, linkLanguage);
   this->AppendPositionIndependentLinkerFlags(extraLinkFlags, target, config,
                                              linkLanguage);
   this->AppendIPOLinkerFlags(extraLinkFlags, target, config, linkLanguage);
@@ -3063,8 +3063,17 @@ cmLocalGenerator::AddUnityFilesModeAuto(
 
     chunk = std::min(itemsLeft, batchSize);
 
-    std::string filename = cmStrCat(filename_base, "unity_", batch,
-                                    (lang == "C") ? "_c.c" : "_cxx.cxx");
+    std::string extension;
+    if (lang == "C") {
+      extension = "_c.c";
+    } else if (lang == "CXX") {
+      extension = "_cxx.cxx";
+    } else if (lang == "OBJC") {
+      extension = "_m.m";
+    } else if (lang == "OBJCXX") {
+      extension = "_mm.mm";
+    }
+    std::string filename = cmStrCat(filename_base, "unity_", batch, extension);
     auto const begin = filtered_sources.begin() + batch * batchSize;
     auto const end = begin + chunk;
     unity_files.emplace_back(this->WriteUnitySource(
@@ -3155,7 +3164,7 @@ void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
   cmValue afterInclude = target->GetProperty("UNITY_BUILD_CODE_AFTER_INCLUDE");
   cmValue unityMode = target->GetProperty("UNITY_BUILD_MODE");
 
-  for (std::string lang : { "C", "CXX" }) {
+  for (std::string lang : { "C", "CXX", "OBJC", "OBJCXX" }) {
     std::vector<UnityBatchedSource> filtered_sources;
     std::copy_if(unitySources.begin(), unitySources.end(),
                  std::back_inserter(filtered_sources),
@@ -3197,6 +3206,49 @@ void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
                            "CMAKE_UNITY_CONFIG_$<UPPER_CASE:$<CONFIG>>");
       }
     }
+  }
+}
+
+void cmLocalGenerator::AppendLinkerTypeFlags(std::string& flags,
+                                             cmGeneratorTarget* target,
+                                             const std::string& config,
+                                             const std::string& linkLanguage)
+{
+  switch (target->GetType()) {
+    case cmStateEnums::EXECUTABLE:
+    case cmStateEnums::SHARED_LIBRARY:
+    case cmStateEnums::MODULE_LIBRARY:
+      break;
+    default:
+      return;
+  }
+
+  auto usingLinker =
+    cmStrCat("CMAKE_", linkLanguage, "_USING_",
+             target->IsDeviceLink() ? "DEVICE_" : "", "LINKER_");
+
+  auto format = this->Makefile->GetDefinition(cmStrCat(usingLinker, "MODE"));
+  if (format && format != "FLAG"_s) {
+    return;
+  }
+
+  auto linkerType = target->GetLinkerTypeProperty(linkLanguage, config);
+  if (linkerType.empty()) {
+    linkerType = "DEFAULT";
+  }
+  usingLinker = cmStrCat(usingLinker, linkerType);
+  auto linkerTypeFlags = this->Makefile->GetDefinition(usingLinker);
+  if (linkerTypeFlags) {
+    if (!linkerTypeFlags.IsEmpty()) {
+      auto linkerFlags = cmExpandListWithBacktrace(linkerTypeFlags);
+      target->ResolveLinkerWrapper(linkerFlags, linkLanguage);
+      this->AppendFlags(flags, linkerFlags);
+    }
+  } else if (linkerType != "DEFAULT"_s) {
+    this->IssueMessage(MessageType::FATAL_ERROR,
+                       cmStrCat("LINKER_TYPE '", linkerType,
+                                "' is unknown. Did you forgot to define '",
+                                usingLinker, "' variable?"));
   }
 }
 

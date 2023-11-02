@@ -1384,14 +1384,6 @@ bool cmGlobalXCodeGenerator::CreateXCodeTarget(
     gtgt->CheckCxxModuleStatus(configName);
   }
 
-  if (gtgt->HaveCxx20ModuleSources()) {
-    gtgt->Makefile->IssueMessage(
-      MessageType::FATAL_ERROR,
-      cmStrCat("The target named \"", gtgt->GetName(),
-               "\" contains C++ sources that export modules which is not "
-               "supported by the generator"));
-  }
-
   auto& gtgt_visited = this->CommandsVisited[gtgt];
   auto const& deps = this->GetTargetDirectDepends(gtgt);
   for (auto const& d : deps) {
@@ -2508,6 +2500,9 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmGeneratorTarget* gtgt,
     this->CurrentLocalGenerator->GetStaticLibraryFlags(
       extraLinkOptions, configName, llang, gtgt);
   } else {
+    this->CurrentLocalGenerator->AppendLinkerTypeFlags(extraLinkOptions, gtgt,
+                                                       configName, llang);
+
     cmValue targetLinkFlags = gtgt->GetProperty("LINK_FLAGS");
     if (targetLinkFlags) {
       this->CurrentLocalGenerator->AppendFlags(extraLinkOptions,
