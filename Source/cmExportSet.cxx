@@ -20,6 +20,17 @@ cmExportSet::cmExportSet(std::string name)
 
 cmExportSet::~cmExportSet() = default;
 
+cmExportSet::PackageDependency& cmExportSet::GetPackageDependencyForSetup(
+  const std::string& name)
+{
+  auto& dep = this->PackageDependencies[name];
+  if (!dep.SpecifiedIndex) {
+    dep.SpecifiedIndex = this->NextPackageDependencyIndex;
+    this->NextPackageDependencyIndex++;
+  }
+  return dep;
+}
+
 bool cmExportSet::Compute(cmLocalGenerator* lg)
 {
   for (std::unique_ptr<cmTargetExport>& tgtExport : this->TargetExports) {
@@ -59,6 +70,16 @@ void cmExportSet::AddTargetExport(std::unique_ptr<cmTargetExport> te)
 void cmExportSet::AddInstallation(cmInstallExportGenerator const* installation)
 {
   this->Installations.push_back(installation);
+}
+
+void cmExportSet::SetXcFrameworkLocation(const std::string& name,
+                                         const std::string& location)
+{
+  for (auto& te : this->TargetExports) {
+    if (name == te->TargetName) {
+      te->XcFrameworkLocation = location;
+    }
+  }
 }
 
 cmExportSet& cmExportSetMap::operator[](const std::string& name)

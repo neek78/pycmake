@@ -86,7 +86,6 @@
             - ${CMAKE_CI_BUILD_DIR}/cmake-*.zip
             # Any unsigned packages made.
             - ${CMAKE_CI_BUILD_DIR}/unsigned/cmake-*
-            - ${CMAKE_CI_BUILD_DIR}/cdash-build-id
         reports:
             annotations:
                 - ${CMAKE_CI_BUILD_DIR}/annotations.json
@@ -120,6 +119,8 @@
             # Take the sphinx logs.
             - ${CMAKE_CI_BUILD_DIR}/build-*.log
             - ${CMAKE_CI_BUILD_DIR}/linkcheck/output.*
+            # Take the HTML output.
+            - ${CMAKE_CI_BUILD_DIR}/html/
 
 .cmake_test_artifacts:
     artifacts:

@@ -450,7 +450,6 @@ add_library(
   cmUVProcessChain.h
   cmUVStream.h
   cmUVStreambuf.h
-  cmUVSignalHackRAII.h
   cmVariableWatch.cxx
   cmVariableWatch.h
   cmVersion.cxx
@@ -558,6 +557,8 @@ add_library(
   cmFindLibraryCommand.h
   cmFindPackageCommand.cxx
   cmFindPackageCommand.h
+  cmFindPackageStack.cxx
+  cmFindPackageStack.h
   cmFindPathCommand.cxx
   cmFindPathCommand.h
   cmFindProgramCommand.cxx

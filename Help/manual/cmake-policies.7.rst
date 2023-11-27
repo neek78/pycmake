@@ -51,6 +51,15 @@ The :variable:`CMAKE_MINIMUM_REQUIRED_VERSION` variable may also be used
 to determine whether to report an error on use of deprecated macros or
 functions.
 
+Policies Introduced by CMake 3.29
+=================================
+
+.. toctree::
+   :maxdepth: 1
+
+   CMP0157: Swift compilation mode is selected by an abstraction. </policy/CMP0157>
+   CMP0156: De-duplicate libraries on link lines based on linker capabilities. </policy/CMP0156>
+
 Policies Introduced by CMake 3.28
 =================================
 

@@ -1884,7 +1884,7 @@ bool cmGlobalGenerator::AddAutomaticSources()
       }
       lg->AddUnityBuild(gt.get());
       lg->AddISPCDependencies(gt.get());
-      // Targets that re-use a PCH are handled below.
+      // Targets that reuse a PCH are handled below.
       if (!gt->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM")) {
         lg->AddPchDependencies(gt.get());
       }
@@ -1896,7 +1896,7 @@ bool cmGlobalGenerator::AddAutomaticSources()
       if (!gt->CanCompileSources()) {
         continue;
       }
-      // Handle targets that re-use a PCH from an above-handled target.
+      // Handle targets that reuse a PCH from an above-handled target.
       if (gt->GetProperty("PRECOMPILE_HEADERS_REUSE_FROM")) {
         lg->AddPchDependencies(gt.get());
       }
@@ -2865,6 +2865,14 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
   gti.Name = this->GetTestTargetName();
   gti.Message = "Running tests...";
   gti.UsesTerminal = true;
+  // Unlike the 'install' target, the 'test' target does not depend on 'all'
+  // by default.  Enable it only if CMAKE_SKIP_TEST_ALL_DEPENDENCY is
+  // explicitly set to OFF.
+  if (cmValue noall = mf->GetDefinition("CMAKE_SKIP_TEST_ALL_DEPENDENCY")) {
+    if (cmIsOff(noall)) {
+      gti.Depends.emplace_back(this->GetAllTargetName());
+    }
+  }
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCTestCommand());
   singleLine.push_back("--force-new-ctest-process");

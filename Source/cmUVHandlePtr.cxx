@@ -44,7 +44,7 @@ void uv_loop_ptr::reset()
   this->loop.reset();
 }
 
-uv_loop_ptr::operator uv_loop_t*()
+uv_loop_ptr::operator uv_loop_t*() const
 {
   return this->loop.get();
 }
@@ -97,13 +97,19 @@ void uv_handle_ptr_base_<T>::allocate(void* data)
 }
 
 template <typename T>
+uv_handle_ptr_base_<T>::operator bool() const
+{
+  return this->handle.get();
+}
+
+template <typename T>
 void uv_handle_ptr_base_<T>::reset()
 {
   this->handle.reset();
 }
 
 template <typename T>
-uv_handle_ptr_base_<T>::operator uv_handle_t*()
+uv_handle_ptr_base_<T>::operator uv_handle_t*() const
 {
   return reinterpret_cast<uv_handle_t*>(this->handle.get());
 }
@@ -235,6 +241,12 @@ int uv_timer_ptr::start(uv_timer_cb cb, uint64_t timeout, uint64_t repeat)
   return uv_timer_start(*this, cb, timeout, repeat);
 }
 
+void uv_timer_ptr::stop()
+{
+  assert(this->handle);
+  uv_timer_stop(*this);
+}
+
 #ifndef CMAKE_BOOTSTRAP
 uv_tty_ptr::operator uv_stream_t*() const
 {
@@ -248,11 +260,31 @@ int uv_tty_ptr::init(uv_loop_t& loop, int fd, int readable, void* data)
 }
 #endif
 
+int uv_idle_ptr::init(uv_loop_t& loop, void* data)
+{
+  this->allocate(data);
+  return uv_idle_init(&loop, *this);
+}
+
+int uv_idle_ptr::start(uv_idle_cb cb)
+{
+  assert(this->handle);
+  return uv_idle_start(*this, cb);
+}
+
+void uv_idle_ptr::stop()
+{
+  assert(this->handle);
+  uv_idle_stop(*this);
+}
+
 template class uv_handle_ptr_base_<uv_handle_t>;
 
 #define UV_HANDLE_PTR_INSTANTIATE_EXPLICIT(NAME)                              \
   template class uv_handle_ptr_base_<uv_##NAME##_t>;                          \
   template class uv_handle_ptr_<uv_##NAME##_t>;
+
+UV_HANDLE_PTR_INSTANTIATE_EXPLICIT(idle)
 
 UV_HANDLE_PTR_INSTANTIATE_EXPLICIT(signal)
 

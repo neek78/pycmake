@@ -20,6 +20,7 @@
 #include "cmAlgorithms.h"
 #include "cmCustomCommand.h"
 #include "cmFileSet.h"
+#include "cmFindPackageStack.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
@@ -438,6 +439,7 @@ TargetProperty const StaticTargetProperties[] = {
   // ---- Swift
   { "Swift_LANGUAGE_VERSION"_s, IC::CanCompileSources },
   { "Swift_MODULE_DIRECTORY"_s, IC::CanCompileSources },
+  { "Swift_COMPILATION_MODE"_s, IC::CanCompileSources },
   // ---- moc
   { "AUTOMOC"_s, IC::CanCompileSources },
   { "AUTOMOC_COMPILER_PREDEFINES"_s, IC::CanCompileSources },
@@ -550,6 +552,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "ANDROID_PROCESS_MAX"_s, IC::CanCompileSources },
   { "ANDROID_SKIP_ANT_STEP"_s, IC::CanCompileSources },
   // -- Autogen
+  { "AUTOGEN_COMMAND_LINE_LENGTH_MAX"_s, IC::CanCompileSources },
   { "AUTOGEN_ORIGIN_DEPENDS"_s, IC::CanCompileSources },
   { "AUTOGEN_PARALLEL"_s, IC::CanCompileSources },
   { "AUTOGEN_USE_SYSTEM_INCLUDE"_s, IC::CanCompileSources },
@@ -585,6 +588,7 @@ TargetProperty const StaticTargetProperties[] = {
   // Usage requirement properties
   { "LINK_INTERFACE_LIBRARIES"_s, IC::CanCompileSources },
   { "MAP_IMPORTED_CONFIG_"_s, IC::NormalTarget, R::PerConfig },
+  { "EXPORT_FIND_PACKAGE_NAME"_s, IC::NormalTarget },
 
   // Metadata
   { "CROSSCOMPILING_EMULATOR"_s, IC::ExecutableTarget },
@@ -661,6 +665,7 @@ public:
     TLLCommands;
   std::map<std::string, cmFileSet> FileSets;
   cmListFileBacktrace Backtrace;
+  cmFindPackageStack FindPackageStack;
 
   UsageRequirementProperty IncludeDirectories;
   UsageRequirementProperty CompileOptions;
@@ -961,6 +966,9 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
 
   // Save the backtrace of target construction.
   this->impl->Backtrace = this->impl->Makefile->GetBacktrace();
+  if (this->impl->IsImported()) {
+    this->impl->FindPackageStack = this->impl->Makefile->GetFindPackageStack();
+  }
 
   if (this->IsNormal()) {
     // Initialize the INCLUDE_DIRECTORIES property based on the current value
@@ -1246,6 +1254,11 @@ std::set<BT<std::pair<std::string, bool>>> const& cmTarget::GetUtilities()
 cmListFileBacktrace const& cmTarget::GetBacktrace() const
 {
   return this->impl->Backtrace;
+}
+
+cmFindPackageStack const& cmTarget::GetFindPackageStack() const
+{
+  return this->impl->FindPackageStack;
 }
 
 bool cmTarget::IsExecutableWithExports() const

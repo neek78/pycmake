@@ -25,6 +25,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmCustomCommand.h"
+#include "cmFindPackageStack.h"
 #include "cmFunctionBlocker.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h" // IWYU pragma: keep
@@ -661,6 +662,11 @@ public:
   cmListFileBacktrace GetBacktrace() const;
 
   /**
+   * Get the current stack of find_package calls.
+   */
+  cmFindPackageStack GetFindPackageStack() const;
+
+  /**
    * Get the vector of  files created by this makefile
    */
   const std::vector<std::string>& GetOutputFiles() const
@@ -1021,6 +1027,15 @@ public:
   // searches
   std::deque<std::vector<std::string>> FindPackageRootPathStack;
 
+  class FindPackageStackRAII
+  {
+    cmMakefile* Makefile;
+
+  public:
+    FindPackageStackRAII(cmMakefile* mf, std::string const& pkg);
+    ~FindPackageStackRAII();
+  };
+
   class DebugFindPkgRAII
   {
     cmMakefile* Makefile;
@@ -1222,6 +1237,9 @@ private:
 
   std::vector<BT<GeneratorAction>> GeneratorActions;
   bool GeneratorActionsInvoked = false;
+
+  cmFindPackageStack FindPackageStack;
+  unsigned int FindPackageStackNextIndex = 0;
 
   bool DebugFindPkg = false;
 

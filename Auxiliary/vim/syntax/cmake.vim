@@ -70,6 +70,7 @@ syn keyword cmakeProperty contained
             \ ATTACHED_FILES
             \ ATTACHED_FILES_ON_FAIL
             \ AUTOGEN_BUILD_DIR
+            \ AUTOGEN_COMMAND_LINE_LENGTH_MAX
             \ AUTOGEN_ORIGIN_DEPENDS
             \ AUTOGEN_PARALLEL
             \ AUTOGEN_SOURCE_GROUP
@@ -374,6 +375,7 @@ syn keyword cmakeProperty contained
             \ Swift_LANGUAGE_VERSION
             \ Swift_MODULE_DIRECTORY
             \ Swift_MODULE_NAME
+            \ Swift_COMPILATION_MODE
             \ TARGET_ARCHIVES_MAY_BE_SHARED_LIBS
             \ TARGET_MESSAGES
             \ TARGET_SUPPORTS_SHARED_LIBS
@@ -764,6 +766,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_ASM_STANDARD_REQUIRED
             \ CMAKE_ASM_SUPPORTED
             \ CMAKE_ASM_VISIBILITY_PRESET
+            \ CMAKE_AUTOGEN_COMMAND_LINE_LENGTH_MAX
             \ CMAKE_AUTOGEN_ORIGIN_DEPENDS
             \ CMAKE_AUTOGEN_PARALLEL
             \ CMAKE_AUTOGEN_USE_SYSTEM_INCLUDE
@@ -1656,6 +1659,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_SKIP_INSTALL_RPATH
             \ CMAKE_SKIP_INSTALL_RULES
             \ CMAKE_SKIP_RPATH
+            \ CMAKE_SKIP_TEST_ALL_DEPENDENCY
             \ CMAKE_SOURCE_DIR
             \ CMAKE_STAGING_PREFIX
             \ CMAKE_STATIC_LIBRARY_PREFIX

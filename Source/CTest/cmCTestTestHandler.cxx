@@ -1381,15 +1381,15 @@ bool cmCTestTestHandler::ProcessDirectory(std::vector<std::string>& passed,
         }
       }
     }
-    tests[p.Index] = depends;
+    tests[p.Index].Depends = depends;
     properties[p.Index] = &p;
   }
   parallel->SetResourceSpecFile(this->ResourceSpecFile);
-  parallel->SetTests(tests, properties);
+  parallel->SetTests(std::move(tests), std::move(properties));
   parallel->SetPassFailVectors(&passed, &failed);
   this->TestResults.clear();
   parallel->SetTestResults(&this->TestResults);
-  parallel->CheckResourcesAvailable();
+  parallel->CheckResourceAvailability();
 
   if (this->CTest->ShouldPrintLabels()) {
     parallel->PrintLabels();
@@ -2233,7 +2233,7 @@ bool cmCTestTestHandler::SetTestsProperties(
           } else if (key == "RESOURCE_LOCK"_s) {
             cmList lval{ val };
 
-            rt.LockedResources.insert(lval.begin(), lval.end());
+            rt.ProjectResources.insert(lval.begin(), lval.end());
           } else if (key == "FIXTURES_SETUP"_s) {
             cmList lval{ val };
 

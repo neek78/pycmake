@@ -115,6 +115,7 @@ Variables that Provide Information
    /variable/CMAKE_SOURCE_DIR
    /variable/CMAKE_STATIC_LIBRARY_PREFIX
    /variable/CMAKE_STATIC_LIBRARY_SUFFIX
+   /variable/CMAKE_Swift_COMPILATION_MODE
    /variable/CMAKE_Swift_MODULE_DIRECTORY
    /variable/CMAKE_Swift_NUM_THREADS
    /variable/CMAKE_TOOLCHAIN_FILE
@@ -255,6 +256,7 @@ Variables that Change Behavior
    /variable/CMAKE_PROJECT_TOP_LEVEL_INCLUDES
    /variable/CMAKE_REQUIRE_FIND_PACKAGE_PackageName
    /variable/CMAKE_SKIP_INSTALL_ALL_DEPENDENCY
+   /variable/CMAKE_SKIP_TEST_ALL_DEPENDENCY
    /variable/CMAKE_STAGING_PREFIX
    /variable/CMAKE_SUBLIME_TEXT_2_ENV_SETTINGS
    /variable/CMAKE_SUBLIME_TEXT_2_EXCLUDE_BUILD_TREE
@@ -399,6 +401,7 @@ Variables that Control the Build
    /variable/CMAKE_APPLE_SILICON_PROCESSOR
    /variable/CMAKE_ARCHIVE_OUTPUT_DIRECTORY
    /variable/CMAKE_ARCHIVE_OUTPUT_DIRECTORY_CONFIG
+   /variable/CMAKE_AUTOGEN_COMMAND_LINE_LENGTH_MAX
    /variable/CMAKE_AUTOGEN_ORIGIN_DEPENDS
    /variable/CMAKE_AUTOGEN_PARALLEL
    /variable/CMAKE_AUTOGEN_USE_SYSTEM_INCLUDE
@@ -443,6 +446,7 @@ Variables that Control the Build
    /variable/CMAKE_EXE_LINKER_FLAGS_CONFIG
    /variable/CMAKE_EXE_LINKER_FLAGS_CONFIG_INIT
    /variable/CMAKE_EXE_LINKER_FLAGS_INIT
+   /variable/CMAKE_EXPORT_FIND_PACKAGE_NAME
    /variable/CMAKE_FOLDER
    /variable/CMAKE_Fortran_FORMAT
    /variable/CMAKE_Fortran_MODULE_DIRECTORY
