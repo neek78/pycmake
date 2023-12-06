@@ -40,6 +40,7 @@
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmUVJobServerClient.h"
 #include "cmWorkingDirectory.h"
 
 namespace cmsys {
@@ -130,10 +131,19 @@ void cmCTestMultiProcessHandler::InitializeLoop()
   this->Loop.init();
   this->StartNextTestsOnIdle_.init(*this->Loop, this);
   this->StartNextTestsOnTimer_.init(*this->Loop, this);
+
+  this->JobServerClient = cmUVJobServerClient::Connect(
+    *this->Loop, /*onToken=*/[this]() { this->JobServerReceivedToken(); },
+    /*onDisconnect=*/nullptr);
+  if (this->JobServerClient) {
+    cmCTestLog(this->CTest, OUTPUT,
+               "Connected to MAKE jobserver" << std::endl);
+  }
 }
 
 void cmCTestMultiProcessHandler::FinalizeLoop()
 {
+  this->JobServerClient.reset();
   this->StartNextTestsOnTimer_.reset();
   this->StartNextTestsOnIdle_.reset();
   this->Loop.reset();
@@ -164,24 +174,8 @@ void cmCTestMultiProcessHandler::RunTests()
 
 void cmCTestMultiProcessHandler::StartTestProcess(int test)
 {
-  if (this->HaveAffinity && this->Properties[test]->WantAffinity) {
-    size_t needProcessors = this->GetProcessorsUsed(test);
-    assert(needProcessors <= this->ProcessorsAvailable.size());
-    std::vector<size_t> affinity;
-    affinity.reserve(needProcessors);
-    for (size_t i = 0; i < needProcessors; ++i) {
-      auto p = this->ProcessorsAvailable.begin();
-      affinity.push_back(*p);
-      this->ProcessorsAvailable.erase(p);
-    }
-    this->Properties[test]->Affinity = std::move(affinity);
-  }
-
   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                      "test " << test << "\n", this->Quiet);
-  // now remove the test itself
-  this->ErasePendingTest(test);
-  this->RunningCount += this->GetProcessorsUsed(test);
 
   auto testRun = cm::make_unique<cmCTestRunTest>(*this, test);
 
@@ -201,10 +195,6 @@ void cmCTestMultiProcessHandler::StartTestProcess(int test)
       testRun->AddFailedDependency(f);
     }
   }
-
-  // Always lock the resources we'll be using, even if we fail to set the
-  // working directory because FinishTestProcess() will try to unlock them
-  this->LockResources(test);
 
   if (!this->ResourceAvailabilityErrors[test].empty()) {
     std::ostringstream e;
@@ -413,30 +403,49 @@ void cmCTestMultiProcessHandler::SetStopTimePassed()
 
 void cmCTestMultiProcessHandler::LockResources(int index)
 {
+  this->RunningCount += this->GetProcessorsUsed(index);
+
   auto* properties = this->Properties[index];
+
   this->ProjectResourcesLocked.insert(properties->ProjectResources.begin(),
                                       properties->ProjectResources.end());
+
   if (properties->RunSerial) {
     this->SerialTestRunning = true;
+  }
+
+  if (this->HaveAffinity && properties->WantAffinity) {
+    size_t needProcessors = this->GetProcessorsUsed(index);
+    assert(needProcessors <= this->ProcessorsAvailable.size());
+    std::vector<size_t> affinity;
+    affinity.reserve(needProcessors);
+    for (size_t i = 0; i < needProcessors; ++i) {
+      auto p = this->ProcessorsAvailable.begin();
+      affinity.push_back(*p);
+      this->ProcessorsAvailable.erase(p);
+    }
+    properties->Affinity = std::move(affinity);
   }
 }
 
 void cmCTestMultiProcessHandler::UnlockResources(int index)
 {
   auto* properties = this->Properties[index];
+
+  for (auto p : properties->Affinity) {
+    this->ProcessorsAvailable.insert(p);
+  }
+  properties->Affinity.clear();
+
   for (std::string const& i : properties->ProjectResources) {
     this->ProjectResourcesLocked.erase(i);
   }
+
   if (properties->RunSerial) {
     this->SerialTestRunning = false;
   }
-}
 
-void cmCTestMultiProcessHandler::ErasePendingTest(int test)
-{
-  this->PendingTests.erase(test);
-  this->OrderedTests.erase(
-    std::find(this->OrderedTests.begin(), this->OrderedTests.end(), test));
+  this->RunningCount -= this->GetProcessorsUsed(index);
 }
 
 inline size_t cmCTestMultiProcessHandler::GetProcessorsUsed(int test)
@@ -462,6 +471,26 @@ std::string cmCTestMultiProcessHandler::GetName(int test)
 
 void cmCTestMultiProcessHandler::StartTest(int test)
 {
+  if (this->JobServerClient) {
+    // There is a job server.  Request a token and queue the test to run
+    // when a token is received.  Note that if we do not get a token right
+    // away it's possible that the system load will be higher when the
+    // token is received and we may violate the test-load limit.  However,
+    // this is unlikely because if we do not get a token right away, some
+    // other job that's currently running must finish before we get one.
+    this->JobServerClient->RequestToken();
+    this->JobServerQueuedTests.emplace_back(test);
+  } else {
+    // There is no job server.  Start the test now.
+    this->StartTestProcess(test);
+  }
+}
+
+void cmCTestMultiProcessHandler::JobServerReceivedToken()
+{
+  assert(!this->JobServerQueuedTests.empty());
+  int test = this->JobServerQueuedTests.front();
+  this->JobServerQueuedTests.pop_front();
   this->StartTestProcess(test);
 }
 
@@ -531,7 +560,8 @@ void cmCTestMultiProcessHandler::StartNextTests()
          ti != this->OrderedTests.end()) {
     // Increment the test iterator now because the current list
     // entry may be deleted below.
-    int test = *ti++;
+    auto cti = ti++;
+    int test = *cti;
 
     // We can only start a RUN_SERIAL test if no other tests are also
     // running.
@@ -581,8 +611,13 @@ void cmCTestMultiProcessHandler::StartNextTests()
       continue;
     }
 
+    // Lock resources needed by this test.
+    this->LockResources(test);
+
     // The test is ready to run.
     numToStart -= processors;
+    this->OrderedTests.erase(cti);
+    this->PendingTests.erase(test);
     this->StartTest(test);
   }
 
@@ -684,15 +719,12 @@ void cmCTestMultiProcessHandler::FinishTestProcess(
   this->WriteCheckpoint(test);
   this->DeallocateResources(test);
   this->UnlockResources(test);
-  this->RunningCount -= this->GetProcessorsUsed(test);
-
-  for (auto p : properties->Affinity) {
-    this->ProcessorsAvailable.insert(p);
-  }
-  properties->Affinity.clear();
 
   runner.reset();
 
+  if (this->JobServerClient) {
+    this->JobServerClient->ReleaseToken();
+  }
   this->StartNextTestsOnIdle();
 }
 
@@ -1407,7 +1439,9 @@ void cmCTestMultiProcessHandler::CheckResume()
 
 void cmCTestMultiProcessHandler::RemoveTest(int index)
 {
-  this->ErasePendingTest(index);
+  this->OrderedTests.erase(
+    std::find(this->OrderedTests.begin(), this->OrderedTests.end(), index));
+  this->PendingTests.erase(index);
   this->Properties.erase(index);
   this->Completed++;
 }

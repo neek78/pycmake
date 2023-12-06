@@ -41,6 +41,12 @@ The supported values for ``<type>`` are:
   .. versionadded:: 3.28
 
   The specified items will be added to the ``Embed Resources`` build phase.
+  They must be CMake target names or folder paths.
+
+``XPC_SERVICES``
+  .. versionadded:: 3.29
+
+  The specified items will be added to the ``Embed XPC Services`` build phase.
   They must be CMake target names.
 
 See also :prop_tgt:`XCODE_EMBED_<type>_PATH`,

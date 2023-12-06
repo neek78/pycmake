@@ -58,6 +58,7 @@ public:
   bool IsImported() const;
   bool IsImportedGloballyVisible() const;
   bool CanCompileSources() const;
+  bool HasKnownRuntimeArtifactLocation(std::string const& config) const;
   const std::string& GetLocation(const std::string& config) const;
 
   /** Get the full path to the target's main artifact, if known.  */
@@ -449,9 +450,12 @@ public:
   TargetOrString ResolveTargetReference(std::string const& name,
                                         cmLocalGenerator const* lg) const;
 
-  cmLinkItem ResolveLinkItem(BT<std::string> const& name) const;
-  cmLinkItem ResolveLinkItem(BT<std::string> const& name,
-                             cmLocalGenerator const* lg) const;
+  cmLinkItem ResolveLinkItem(
+    BT<std::string> const& name,
+    std::string const& linkFeature = cmLinkItem::DEFAULT) const;
+  cmLinkItem ResolveLinkItem(
+    BT<std::string> const& name, cmLocalGenerator const* lg,
+    std::string const& linkFeature = cmLinkItem::DEFAULT) const;
 
   bool HasPackageReferences() const;
   std::vector<std::string> GetPackageReferences() const;
@@ -465,6 +469,11 @@ public:
                     std::string const& config) const;
   bool IsLanguageUsed(std::string const& language,
                       std::string const& config) const;
+
+  // Get the set of targets directly referenced via `TARGET_OBJECTS` in the
+  // source list for a configuration.
+  std::set<cmGeneratorTarget const*> GetSourceObjectLibraries(
+    std::string const& config) const;
 
   bool IsCSharpOnly() const;
 
@@ -1099,7 +1108,6 @@ private:
     std::string SharedDeps;
   };
 
-  friend cmComputeLinkInformation;
   using ImportInfoMapType = std::map<std::string, ImportInfo>;
   mutable ImportInfoMapType ImportInfoMap;
   void ComputeImportInfo(std::string const& desired_config,
@@ -1177,6 +1185,7 @@ private:
   };
   cm::optional<cmLinkItem> LookupLinkItem(std::string const& n,
                                           cmListFileBacktrace const& bt,
+                                          std::string const& linkFeature,
                                           LookupLinkItemScope* scope,
                                           LookupSelf lookupSelf) const;
 

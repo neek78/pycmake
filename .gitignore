@@ -38,3 +38,5 @@
 
 build
 compile_commands.json
+# clang-tidy output
+/clang-tidy-fixes.patch

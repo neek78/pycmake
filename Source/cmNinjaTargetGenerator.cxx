@@ -1175,6 +1175,15 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
     }
   }
 
+  // Check if there are Fortran objects which need to participate in forwarding
+  // module requirements.
+  if (this->GeneratorTarget->HaveFortranSources(config) &&
+      !this->Configs[config].ScanningInfo.count("Fortran")) {
+    ScanningFiles files;
+    this->Configs[config].ScanningInfo["Fortran"].emplace_back(files);
+    this->WriteCompileRule("Fortran", config, WithScanning::Yes);
+  }
+
   for (auto const& langScanningFiles : this->Configs[config].ScanningInfo) {
     std::string const& language = langScanningFiles.first;
     std::vector<ScanningFiles> const& scanningFiles = langScanningFiles.second;
@@ -1197,10 +1206,13 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
 
     this->WriteTargetDependInfo(language, config);
 
-    for (std::string const& l :
-         this->GetLinkedTargetDirectories(language, config)) {
-      build.ImplicitDeps.emplace_back(
-        cmStrCat(l, '/', language, "Modules.json"));
+    auto const linked_directories =
+      this->GetLinkedTargetDirectories(language, config);
+    for (std::string const& l : linked_directories.Direct) {
+      build.ImplicitDeps.push_back(cmStrCat(l, '/', language, "Modules.json"));
+    }
+    for (std::string const& l : linked_directories.Forward) {
+      build.ImplicitDeps.push_back(cmStrCat(l, '/', language, "Modules.json"));
     }
 
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
@@ -1355,7 +1367,10 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
     !(language == "RC" || (language == "CUDA" && !flag));
   int const commandLineLengthLimit =
     ((lang_supports_response && this->ForceResponseFile())) ? -1 : 0;
-  bool const needDyndep =
+  cmValue pchExtension =
+    this->GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
+  bool const isPch = cmHasSuffix(objectFileName, pchExtension);
+  bool const needDyndep = !isPch &&
     this->GeneratorTarget->NeedDyndepForSource(language, config, source);
 
   cmNinjaBuild objBuild(this->LanguageCompilerRule(
@@ -1426,13 +1441,9 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   }
 
   objBuild.Outputs.push_back(objectFileName);
-  if (firstForConfig) {
-    cmValue pchExtension =
-      this->GetMakefile()->GetDefinition("CMAKE_PCH_EXTENSION");
-    if (!cmHasSuffix(objectFileName, pchExtension)) {
-      // Add this object to the list of object files.
-      this->Configs[config].Objects.push_back(objectFileName);
-    }
+  if (firstForConfig && !isPch) {
+    // Add this object to the list of object files.
+    this->Configs[config].Objects.push_back(objectFileName);
   }
 
   objBuild.ExplicitDeps.push_back(sourceFilePath);
@@ -1902,8 +1913,16 @@ void cmNinjaTargetGenerator::WriteTargetDependInfo(std::string const& lang,
 
   Json::Value& tdi_linked_target_dirs = tdi["linked-target-dirs"] =
     Json::arrayValue;
-  for (std::string const& l : this->GetLinkedTargetDirectories(lang, config)) {
+  auto const linked_directories =
+    this->GetLinkedTargetDirectories(lang, config);
+  for (std::string const& l : linked_directories.Direct) {
     tdi_linked_target_dirs.append(l);
+  }
+
+  Json::Value& tdi_forward_modules_from_target_dirs =
+    tdi["forward-modules-from-target-dirs"] = Json::arrayValue;
+  for (std::string const& l : linked_directories.Forward) {
+    tdi_forward_modules_from_target_dirs.append(l);
   }
 
   cmDyndepGeneratorCallbacks cb;

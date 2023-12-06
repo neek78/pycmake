@@ -1714,10 +1714,8 @@ void cmake::SetTraceFile(const std::string& file)
   this->TraceFile.close();
   this->TraceFile.open(file.c_str());
   if (!this->TraceFile) {
-    std::stringstream ss;
-    ss << "Error opening trace file " << file << ": "
-       << cmSystemTools::GetLastSystemError();
-    cmSystemTools::Error(ss.str());
+    cmSystemTools::Error(cmStrCat("Error opening trace file ", file, ": ",
+                                  cmSystemTools::GetLastSystemError()));
     return;
   }
   std::cout << "Trace will be written to " << file << '\n';
@@ -2415,8 +2413,15 @@ int cmake::ActualConfigure()
   cmSystemTools::RemoveADirectory(redirectsDir);
   if (!cmSystemTools::MakeDirectory(redirectsDir)) {
     cmSystemTools::Error(
-      "Unable to (re)create the private pkgRedirects directory:\n" +
-      redirectsDir);
+      cmStrCat("Unable to (re)create the private pkgRedirects directory:\n  ",
+               redirectsDir,
+               "\n"
+               "This may be caused by not having read/write access to "
+               "the build directory.\n"
+               "Try specifying a location with read/write access like:\n"
+               "  cmake -B build\n"
+               "If using a CMake presets file, ensure that preset parameter\n"
+               "'binaryDir' expands to a writable directory.\n"));
     return -1;
   }
   this->AddCacheEntry("CMAKE_FIND_PACKAGE_REDIRECTS_DIR", redirectsDir,

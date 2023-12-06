@@ -1283,6 +1283,19 @@ bool cmGeneratorTarget::CanCompileSources() const
   return this->Target->CanCompileSources();
 }
 
+bool cmGeneratorTarget::HasKnownRuntimeArtifactLocation(
+  std::string const& config) const
+{
+  if (!this->IsRuntimeBinary()) {
+    return false;
+  }
+  if (!this->IsImported()) {
+    return true;
+  }
+  ImportInfo const* info = this->GetImportInfo(config);
+  return info && !info->Location.empty();
+}
+
 const std::string& cmGeneratorTarget::GetLocationForBuild() const
 {
   static std::string location;
@@ -6901,7 +6914,8 @@ bool cmGeneratorTarget::IsLinkLookupScope(std::string const& n,
 
 cm::optional<cmLinkItem> cmGeneratorTarget::LookupLinkItem(
   std::string const& n, cmListFileBacktrace const& bt,
-  LookupLinkItemScope* scope, LookupSelf lookupSelf) const
+  std::string const& linkFeature, LookupLinkItemScope* scope,
+  LookupSelf lookupSelf) const
 {
   cm::optional<cmLinkItem> maybeItem;
   if (this->IsLinkLookupScope(n, scope->LG)) {
@@ -6913,7 +6927,8 @@ cm::optional<cmLinkItem> cmGeneratorTarget::LookupLinkItem(
       (lookupSelf == LookupSelf::No && name == this->GetName())) {
     return maybeItem;
   }
-  maybeItem = this->ResolveLinkItem(BT<std::string>(name, bt), scope->LG);
+  maybeItem =
+    this->ResolveLinkItem(BT<std::string>(name, bt), scope->LG, linkFeature);
   return maybeItem;
 }
 
@@ -6944,9 +6959,16 @@ void cmGeneratorTarget::ExpandLinkItems(
     cmList libs{ cge->Evaluate(this->LocalGenerator, config, headTarget,
                                &dagChecker, this,
                                headTarget->LinkerLanguage) };
+
+    auto linkFeature = cmLinkItem::DEFAULT;
     for (auto const& lib : libs) {
+      if (auto maybeLinkFeature = ParseLinkFeature(lib)) {
+        linkFeature = std::move(*maybeLinkFeature);
+        continue;
+      }
+
       if (cm::optional<cmLinkItem> maybeItem = this->LookupLinkItem(
-            lib, cge->GetBacktrace(), &scope,
+            lib, cge->GetBacktrace(), linkFeature, &scope,
             field == LinkInterfaceField::Libraries ? LookupSelf::No
                                                    : LookupSelf::Yes)) {
         cmLinkItem item = std::move(*maybeItem);
@@ -6966,6 +6988,7 @@ void cmGeneratorTarget::ExpandLinkItems(
             cmSourceFile const* sf =
               mf->GetSource(maybeObj, cmSourceFileLocationKind::Known);
             if (sf && sf->GetPropertyAsBool("EXTERNAL_OBJECT")) {
+              item.ObjectSource = sf;
               iface.Objects.emplace_back(std::move(item));
               continue;
             }
@@ -7691,9 +7714,16 @@ const cmLinkInterface* cmGeneratorTarget::GetImportLinkInterface(
                           LinkInterfaceField::Libraries, iface);
     cmList deps{ info->SharedDeps };
     LookupLinkItemScope scope{ this->LocalGenerator };
+
+    auto linkFeature = cmLinkItem::DEFAULT;
     for (auto const& dep : deps) {
+      if (auto maybeLinkFeature = ParseLinkFeature(dep)) {
+        linkFeature = std::move(*maybeLinkFeature);
+        continue;
+      }
+
       if (cm::optional<cmLinkItem> maybeItem = this->LookupLinkItem(
-            dep, cmListFileBacktrace(), &scope, LookupSelf::No)) {
+            dep, cmListFileBacktrace(), linkFeature, &scope, LookupSelf::No)) {
         iface.SharedDeps.emplace_back(std::move(*maybeItem));
       }
     }
@@ -8112,33 +8142,36 @@ void cmGeneratorTarget::GetLanguages(std::set<std::string>& languages,
     }
   }
 
-  std::vector<cmGeneratorTarget*> objectLibraries;
-  std::vector<cmSourceFile const*> externalObjects;
+  std::set<cmGeneratorTarget const*> objectLibraries;
   if (!this->GlobalGenerator->GetConfigureDoneCMP0026()) {
     std::vector<cmGeneratorTarget*> objectTargets;
     this->GetObjectLibrariesCMP0026(objectTargets);
-    objectLibraries.reserve(objectTargets.size());
     for (cmGeneratorTarget* gt : objectTargets) {
-      objectLibraries.push_back(gt);
+      objectLibraries.insert(gt);
     }
   } else {
-    this->GetExternalObjects(externalObjects, config);
-    for (cmSourceFile const* extObj : externalObjects) {
-      std::string objLib = extObj->GetObjectLibrary();
-      if (cmGeneratorTarget* tgt =
-            this->LocalGenerator->FindGeneratorTargetToUse(objLib)) {
-        auto const objLibIt =
-          std::find_if(objectLibraries.cbegin(), objectLibraries.cend(),
-                       [tgt](cmGeneratorTarget* t) { return t == tgt; });
-        if (objectLibraries.cend() == objLibIt) {
-          objectLibraries.push_back(tgt);
-        }
-      }
-    }
+    objectLibraries = this->GetSourceObjectLibraries(config);
   }
-  for (cmGeneratorTarget* objLib : objectLibraries) {
+  for (cmGeneratorTarget const* objLib : objectLibraries) {
     objLib->GetLanguages(languages, config);
   }
+}
+
+std::set<cmGeneratorTarget const*> cmGeneratorTarget::GetSourceObjectLibraries(
+  std::string const& config) const
+{
+  std::set<cmGeneratorTarget const*> objectLibraries;
+  std::vector<cmSourceFile const*> externalObjects;
+  this->GetExternalObjects(externalObjects, config);
+  for (cmSourceFile const* extObj : externalObjects) {
+    std::string objLib = extObj->GetObjectLibrary();
+    if (cmGeneratorTarget* tgt =
+          this->LocalGenerator->FindGeneratorTargetToUse(objLib)) {
+      objectLibraries.insert(tgt);
+    }
+  }
+
+  return objectLibraries;
 }
 
 bool cmGeneratorTarget::IsLanguageUsed(std::string const& language,
@@ -8490,7 +8523,13 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       impl.HadLinkLanguageSensitiveCondition = true;
     }
 
+    auto linkFeature = cmLinkItem::DEFAULT;
     for (auto const& lib : llibs) {
+      if (auto maybeLinkFeature = ParseLinkFeature(lib)) {
+        linkFeature = std::move(*maybeLinkFeature);
+        continue;
+      }
+
       if (this->IsLinkLookupScope(lib, lg)) {
         continue;
       }
@@ -8537,8 +8576,8 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       }
 
       // The entry is meant for this configuration.
-      cmLinkItem item =
-        this->ResolveLinkItem(BT<std::string>(name, entry.Backtrace), lg);
+      cmLinkItem item = this->ResolveLinkItem(
+        BT<std::string>(name, entry.Backtrace), lg, linkFeature);
       if (item.Target) {
         auto depsForTarget = synthTargetsForConfig.find(item.Target);
         if (depsForTarget != synthTargetsForConfig.end()) {
@@ -8554,6 +8593,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
           cmSourceFile const* sf =
             mf->GetSource(maybeObj, cmSourceFileLocationKind::Known);
           if (sf && sf->GetPropertyAsBool("EXTERNAL_OBJECT")) {
+            item.ObjectSource = sf;
             impl.Objects.emplace_back(std::move(item));
             continue;
           }
@@ -8585,7 +8625,14 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
     CMP0003_ComputeLinkType(config, debugConfigs);
   cmTarget::LinkLibraryVectorType const& oldllibs =
     this->Target->GetOriginalLinkLibraries();
+
+  auto linkFeature = cmLinkItem::DEFAULT;
   for (cmTarget::LibraryID const& oldllib : oldllibs) {
+    if (auto maybeLinkFeature = ParseLinkFeature(oldllib.first)) {
+      linkFeature = std::move(*maybeLinkFeature);
+      continue;
+    }
+
     if (oldllib.second != GENERAL_LibraryType && oldllib.second != linkType) {
       std::string name = this->CheckCMP0004(oldllib.first);
       if (name == this->GetName() || name.empty()) {
@@ -8593,7 +8640,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       }
       // Support OLD behavior for CMP0003.
       impl.WrongConfigLibraries.push_back(
-        this->ResolveLinkItem(BT<std::string>(name)));
+        this->ResolveLinkItem(BT<std::string>(name), linkFeature));
     }
   }
 }
@@ -8619,19 +8666,20 @@ cmGeneratorTarget::TargetOrString cmGeneratorTarget::ResolveTargetReference(
 }
 
 cmLinkItem cmGeneratorTarget::ResolveLinkItem(
-  BT<std::string> const& name) const
+  BT<std::string> const& name, std::string const& linkFeature) const
 {
-  return this->ResolveLinkItem(name, this->LocalGenerator);
+  return this->ResolveLinkItem(name, this->LocalGenerator, linkFeature);
 }
 
-cmLinkItem cmGeneratorTarget::ResolveLinkItem(BT<std::string> const& name,
-                                              cmLocalGenerator const* lg) const
+cmLinkItem cmGeneratorTarget::ResolveLinkItem(
+  BT<std::string> const& name, cmLocalGenerator const* lg,
+  std::string const& linkFeature) const
 {
   auto bt = name.Backtrace;
   TargetOrString resolved = this->ResolveTargetReference(name.Value, lg);
 
   if (!resolved.Target) {
-    return cmLinkItem(resolved.String, false, bt);
+    return cmLinkItem(resolved.String, false, bt, linkFeature);
   }
 
   // Check deprecation, issue message with `bt` backtrace.
@@ -8652,10 +8700,10 @@ cmLinkItem cmGeneratorTarget::ResolveLinkItem(BT<std::string> const& name,
   // within the project.
   if (resolved.Target->GetType() == cmStateEnums::EXECUTABLE &&
       !resolved.Target->IsExecutableWithExports()) {
-    return cmLinkItem(resolved.Target->GetName(), false, bt);
+    return cmLinkItem(resolved.Target->GetName(), false, bt, linkFeature);
   }
 
-  return cmLinkItem(resolved.Target, false, bt);
+  return cmLinkItem(resolved.Target, false, bt, linkFeature);
 }
 
 bool cmGeneratorTarget::HasPackageReferences() const
@@ -9155,19 +9203,47 @@ std::string cmGeneratorTarget::GetImportedXcFrameworkPath(
 bool cmGeneratorTarget::HaveFortranSources(std::string const& config) const
 {
   auto sources = this->GetSourceFiles(config);
-  return std::any_of(sources.begin(), sources.end(),
-                     [](BT<cmSourceFile*> const& sf) -> bool {
-                       return sf.Value->GetLanguage() == "Fortran"_s;
-                     });
+  bool const have_direct = std::any_of(
+    sources.begin(), sources.end(), [](BT<cmSourceFile*> const& sf) -> bool {
+      return sf.Value->GetLanguage() == "Fortran"_s;
+    });
+  bool have_via_target_objects = false;
+  if (!have_direct) {
+    auto const sourceObjectLibraries = this->GetSourceObjectLibraries(config);
+    have_via_target_objects =
+      std::any_of(sourceObjectLibraries.begin(), sourceObjectLibraries.end(),
+                  [&config](cmGeneratorTarget const* tgt) -> bool {
+                    return tgt->HaveFortranSources(config);
+                  });
+  }
+  return have_direct || have_via_target_objects;
 }
 
 bool cmGeneratorTarget::HaveFortranSources() const
 {
-  auto sources = cmGeneratorTarget::GetAllConfigSources();
-  return std::any_of(sources.begin(), sources.end(),
-                     [](AllConfigSource const& sf) -> bool {
-                       return sf.Source->GetLanguage() == "Fortran"_s;
-                     });
+  auto sources = this->GetAllConfigSources();
+  bool const have_direct = std::any_of(
+    sources.begin(), sources.end(), [](AllConfigSource const& sf) -> bool {
+      return sf.Source->GetLanguage() == "Fortran"_s;
+    });
+  bool have_via_target_objects = false;
+  if (!have_direct) {
+    std::vector<std::string> configs =
+      this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
+    for (auto const& config : configs) {
+      auto const sourceObjectLibraries =
+        this->GetSourceObjectLibraries(config);
+      have_via_target_objects =
+        std::any_of(sourceObjectLibraries.begin(), sourceObjectLibraries.end(),
+                    [&config](cmGeneratorTarget const* tgt) -> bool {
+                      return tgt->HaveFortranSources(config);
+                    });
+      if (have_via_target_objects) {
+        break;
+      }
+    }
+  }
+  return have_direct || have_via_target_objects;
 }
 
 bool cmGeneratorTarget::HaveCxx20ModuleSources(std::string* errorMessage) const
@@ -9262,11 +9338,15 @@ void cmGeneratorTarget::CheckCxxModuleStatus(std::string const& config) const
         cmGlobalGenerator::CxxModuleSupportQuery::Expected)) {
     this->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
-      cmStrCat(
-        "The target named \"", this->GetName(),
-        "\" has C++ sources that may use modules, but modules are not "
-        "supported by this generator.  See the cmake-cxxmodules(7) manual "
-        "and the CMAKE_CXX_SCAN_FOR_MODULES variable."));
+      cmStrCat("The target named \"", this->GetName(),
+               "\" has C++ sources that may use modules, but modules are not "
+               "supported by this generator:\n  ",
+               this->GetGlobalGenerator()->GetName(), '\n',
+               "Modules are supported only by Ninja, Ninja Multi-Config, "
+               "and Visual Studio generators for VS 17.4 and newer.  "
+               "See the cmake-cxxmodules(7) manual for details.  "
+               "Use the CMAKE_CXX_SCAN_FOR_MODULES variable to enable or "
+               "disable scanning."));
     return;
   }
 
@@ -9301,8 +9381,9 @@ void cmGeneratorTarget::CheckCxxModuleStatus(std::string const& config) const
         cmStrCat("The target named \"", this->GetName(),
                  "\" has C++ sources that may use modules, but the compiler "
                  "does not provide a way to discover the import graph "
-                 "dependencies.  See the cmake-cxxmodules(7) manual "
-                 "and the CMAKE_CXX_SCAN_FOR_MODULES variable."));
+                 "dependencies.  See the cmake-cxxmodules(7) manual for "
+                 "details.  Use the CMAKE_CXX_SCAN_FOR_MODULES variable to "
+                 "enable or disable scanning."));
     } break;
     case cmGeneratorTarget::Cxx20SupportLevel::Supported:
       // All is well.

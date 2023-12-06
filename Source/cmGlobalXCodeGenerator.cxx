@@ -4295,9 +4295,17 @@ void cmGlobalXCodeGenerator::AddEmbeddedResources(cmXCodeObject* target)
 {
   static const auto dstSubfolderSpec = "7";
 
-  this->AddEmbeddedObjects(target, "Embed Resources",
-                           "XCODE_EMBED_RESOURCES_PATH", dstSubfolderSpec,
-                           NoActionOnCopyByDefault);
+  this->AddEmbeddedObjects(target, "Embed Resources", "XCODE_EMBED_RESOURCES",
+                           dstSubfolderSpec, NoActionOnCopyByDefault);
+}
+
+void cmGlobalXCodeGenerator::AddEmbeddedXPCServices(cmXCodeObject* target)
+{
+  static const auto dstSubfolderSpec = "16";
+
+  this->AddEmbeddedObjects(
+    target, "Embed XPC Services", "XCODE_EMBED_XPC_SERVICES", dstSubfolderSpec,
+    NoActionOnCopyByDefault, "$(CONTENTS_FOLDER_PATH)/XPCServices");
 }
 
 bool cmGlobalXCodeGenerator::CreateGroups(
@@ -4713,6 +4721,7 @@ bool cmGlobalXCodeGenerator::CreateXCodeObjects(
     this->AddEmbeddedAppExtensions(t);
     this->AddEmbeddedExtensionKitExtensions(t);
     this->AddEmbeddedResources(t);
+    this->AddEmbeddedXPCServices(t);
     // Inherit project-wide values for any target-specific search paths.
     this->InheritBuildSettingAttribute(t, "HEADER_SEARCH_PATHS");
     this->InheritBuildSettingAttribute(t, "SYSTEM_HEADER_SEARCH_PATHS");
