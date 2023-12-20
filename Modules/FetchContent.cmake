@@ -253,7 +253,7 @@ Commands
       If the ``EXCLUDE_FROM_ALL`` argument is provided, then targets in the
       subdirectory added by :command:`FetchContent_MakeAvailable` will not be
       included in the ``ALL`` target by default, and may be excluded from IDE
-      project files. See the `:command:`add_subdirectory` `EXCLUDE_FROM_ALL``
+      project files. See the :command:`add_subdirectory` ``EXCLUDE_FROM_ALL``
       argument documentation for a more detailed discussion of the effects.
 
 .. command:: FetchContent_MakeAvailable
@@ -684,6 +684,17 @@ A number of cache variables can influence the behavior where details from a
   further below).  When the developer knows that no changes have been made to
   any content details, turning this option ``ON`` can significantly speed up
   the configure stage.  It is ``OFF`` by default.
+
+  .. note::
+
+    The ``FETCHCONTENT_FULLY_DISCONNECTED`` variable is not an appropriate way
+    to prevent any network access on the first run in a build directory.
+    Doing so can break projects, lead to misleading error messages, and hide
+    subtle population failures.  This variable is specifically intended to
+    only be turned on *after* the first time CMake has been run.
+    If you want to prevent network access even on the first run, use a
+    :ref:`dependency provider <dependency_providers>` and populate the
+    dependency from local content instead.
 
 .. variable:: FETCHCONTENT_UPDATES_DISCONNECTED
 
@@ -1975,12 +1986,12 @@ macro(FetchContent_MakeAvailable)
         # This property might be defined but empty. As long as it is defined,
         # find_package() can be called.
         get_property(__cmake_addfpargs GLOBAL PROPERTY
-          _FetchContent_${contentNameLower}_find_package_args
+          _FetchContent_${__cmake_contentNameLower}_find_package_args
           DEFINED
         )
         if(__cmake_addfpargs)
           get_property(__cmake_fpargs GLOBAL PROPERTY
-            _FetchContent_${contentNameLower}_find_package_args
+            _FetchContent_${__cmake_contentNameLower}_find_package_args
           )
           string(APPEND __cmake_providerArgs " FIND_PACKAGE_ARGS")
           foreach(__cmake_item IN LISTS __cmake_fpargs)

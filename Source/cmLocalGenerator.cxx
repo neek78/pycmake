@@ -1366,7 +1366,7 @@ std::vector<BT<std::string>> cmLocalGenerator::GetStaticLibraryFlags(
 {
   const std::string configUpper = cmSystemTools::UpperCase(config);
   std::vector<BT<std::string>> flags;
-  if (linkLanguage != "Swift") {
+  if (linkLanguage != "Swift" && !this->IsSplitSwiftBuild()) {
     std::string staticLibFlags;
     this->AppendFlags(
       staticLibFlags,
@@ -2961,6 +2961,7 @@ void cmLocalGenerator::CopyPchCompilePdb(
   } else {
     cc->SetOutputs(outputs);
     cmSourceFile* copy_rule = this->AddCustomCommandToOutput(std::move(cc));
+    copy_rule->SetProperty("CXX_SCAN_FOR_MODULES", "0");
 
     if (copy_rule) {
       target->AddSource(copy_rule->ResolveFullPath());
@@ -3017,6 +3018,12 @@ cm::optional<cmSwiftCompileMode> cmLocalGenerator::GetSwiftCompileMode(
     return cmSwiftCompileMode::Incremental;
   }
   return cmSwiftCompileMode::Unknown;
+}
+
+bool cmLocalGenerator::IsSplitSwiftBuild() const
+{
+  return cmNonempty(this->GetMakefile()->GetDefinition(
+    "CMAKE_Swift_COMPILATION_MODE_DEFAULT"));
 }
 
 namespace {
@@ -3265,6 +3272,7 @@ void cmLocalGenerator::AddUnityBuild(cmGeneratorTarget* target)
       target->AddSource(file.Path, true);
       unity->SetProperty("SKIP_UNITY_BUILD_INCLUSION", "ON");
       unity->SetProperty("UNITY_SOURCE_FILE", file.Path);
+      unity->SetProperty("CXX_SCAN_FOR_MODULES", "0");
       if (file.PerConfig) {
         unity->SetProperty("COMPILE_DEFINITIONS",
                            "CMAKE_UNITY_CONFIG_$<UPPER_CASE:$<CONFIG>>");

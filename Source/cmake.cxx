@@ -1583,14 +1583,15 @@ void cmake::SetArgs(const std::vector<std::string>& args)
     if (!expandedPreset->ArchitectureStrategy ||
         expandedPreset->ArchitectureStrategy ==
           cmCMakePresetsGraph::ArchToolsetStrategy::Set) {
-      if (!this->GeneratorPlatformSet) {
+      if (!this->GeneratorPlatformSet &&
+          !expandedPreset->Architecture.empty()) {
         this->SetGeneratorPlatform(expandedPreset->Architecture);
       }
     }
     if (!expandedPreset->ToolsetStrategy ||
         expandedPreset->ToolsetStrategy ==
           cmCMakePresetsGraph::ArchToolsetStrategy::Set) {
-      if (!this->GeneratorToolsetSet) {
+      if (!this->GeneratorToolsetSet && !expandedPreset->Toolset.empty()) {
         this->SetGeneratorToolset(expandedPreset->Toolset);
       }
     }
@@ -2531,6 +2532,16 @@ int cmake::ActualConfigure()
   } else {
     this->AddCacheEntry("CMAKE_GENERATOR_TOOLSET", this->GeneratorToolset,
                         "Name of generator toolset.", cmStateEnums::INTERNAL);
+  }
+
+  if (!this->State->GetInitializedCacheValue("CMAKE_TEST_LAUNCHER")) {
+    cm::optional<std::string> testLauncher =
+      cmSystemTools::GetEnvVar("CMAKE_TEST_LAUNCHER");
+    if (testLauncher && !testLauncher->empty()) {
+      std::string message = "Test launcher to run tests executable.";
+      this->AddCacheEntry("CMAKE_TEST_LAUNCHER", *testLauncher, message,
+                          cmStateEnums::STRING);
+    }
   }
 
   if (!this->State->GetInitializedCacheValue(

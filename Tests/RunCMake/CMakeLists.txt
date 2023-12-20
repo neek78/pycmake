@@ -325,6 +325,13 @@ if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(Byproducts)
 endif()
 add_RunCMake_test(CMakeDependentOption)
+if(APPLE # Remove these conditions when the test has non-Apple cases
+    AND CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+  add_RunCMake_test(CMakePackage
+    -DCMake_TEST_XCODE_VERSION=${CMake_TEST_XCODE_VERSION}
+    -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+    )
+endif()
 add_RunCMake_test(CMakeRoleGlobalProperty)
 add_RunCMake_test(CMakeRelease -DCMake_TEST_JQ=${CMake_TEST_JQ})
 if(CMAKE_GENERATOR MATCHES "Make|Ninja")
@@ -529,7 +536,7 @@ endforeach()
 add_RunCMake_test(file-DOWNLOAD)
 add_RunCMake_test(file-RPATH -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
 add_RunCMake_test(find_file -DMINGW=${MINGW})
-add_RunCMake_test(find_library -DMINGW=${MINGW} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS})
+add_RunCMake_test(find_library -DMINGW=${MINGW} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DMSVC=${MSVC})
 add_RunCMake_test(find_package -DMINGW=${MINGW} -DMSYS=${MSYS})
 add_RunCMake_test(find_path -DMINGW=${MINGW})
 add_RunCMake_test(find_program -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
@@ -585,10 +592,10 @@ function(add_RunCMake_test_try_compile)
 endfunction()
 add_RunCMake_test_try_compile()
 
-add_RunCMake_test(try_run -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                          -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
-                          -DCMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}
-                          -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID})
+if(CMAKE_Fortran_COMPILER)
+  list(APPEND try_run_ARGS -DCMake_TEST_Fortran=1)
+endif()
+add_RunCMake_test(try_run)
 add_RunCMake_test(set)
 add_RunCMake_test(variable_watch)
 add_RunCMake_test(while)
