@@ -229,6 +229,8 @@ public:
   bool UseNMake() const;
   void SetMSYSShell(bool mSYSShell);
   bool UseMSYSShell() const;
+  void SetNinja(bool ninja);
+  bool UseNinja() const;
   void SetNinjaMulti(bool ninjaMulti);
   bool UseNinjaMulti() const;
 
@@ -313,6 +315,7 @@ private:
   bool MinGWMake = false;
   bool NMake = false;
   bool MSYSShell = false;
+  bool Ninja = false;
   bool NinjaMulti = false;
   Mode StateMode = Unknown;
   ProjectKind StateProjectKind = ProjectKind::Normal;

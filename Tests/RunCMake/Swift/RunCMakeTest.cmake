@@ -27,6 +27,9 @@ elseif(RunCMake_GENERATOR STREQUAL Ninja)
       set(RunCMake_TEST_OUTPUT_MERGE 1)
       run_cmake_command(NoWorkToDo-build ${CMAKE_COMMAND} --build .)
       run_cmake_command(NoWorkToDo-nowork ${CMAKE_COMMAND} --build . -- -d explain)
+      file(WRITE ${RunCMake_TEST_BINARY_DIR}/hello.swift "//No-op change\n")
+      run_cmake_command(NoWorkToDo-norelink ${CMAKE_COMMAND} --build . -- -d explain)
+      run_cmake_command(NoWorkToDo-nowork ${CMAKE_COMMAND} --build . -- -d explain)
     endblock()
 
     # Test that intermediate static libraries are rebuilt when the public
@@ -61,6 +64,18 @@ elseif(RunCMake_GENERATOR STREQUAL Ninja)
       run_cmake(CMP0157-WARN)
     endblock()
 
+    block()
+      set(CompileCommands_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/CompileCommands-build)
+      run_cmake(CompileCommands)
+      run_cmake_command(CompileCommands-check ${CMAKE_COMMAND} --build ${CompileCommands_TEST_BINARY_DIR})
+    endblock()
+
+    block()
+      set(ForceResponseFile_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/ForceResponseFile-build)
+      run_cmake(ForceResponseFile)
+      # -v: verbose to capture executed commands -n: dry-run to avoid actually compiling
+      run_cmake_command(ForceResponseFile-check ${CMAKE_COMMAND} --build ${ForceResponseFile_TEST_BINARY_DIR} -- -vn)
+    endblock()
   endif()
 elseif(RunCMake_GENERATOR STREQUAL "Ninja Multi-Config")
   if(CMake_TEST_Swift)

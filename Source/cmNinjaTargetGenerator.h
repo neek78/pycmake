@@ -128,6 +128,7 @@ protected:
   /// @return the source file path for the given @a source.
   std::string GetCompiledSourceNinjaPath(cmSourceFile const* source) const;
 
+  std::string GetObjectFileDir(const std::string& config) const;
   /// @return the object file path for the given @a source.
   std::string GetObjectFilePath(cmSourceFile const* source,
                                 const std::string& config) const;
@@ -193,7 +194,13 @@ protected:
     std::string const& objectFileDir, std::string const& flags,
     std::string const& defines, std::string const& includes,
     std::string const& targetCompilePdb, std::string const& targetPdb,
-    std::string const& outputConfig);
+    std::string const& outputConfig, WithScanning withScanning);
+
+  void ExportSwiftObjectCompileCommand(
+    std::vector<cmSourceFile const*> const& moduleSourceFiles,
+    std::string const& moduleObjectFilename, std::string const& flags,
+    std::string const& defines, std::string const& includes,
+    std::string const& outputConfig, bool singleOutput);
 
   void AdditionalCleanFiles(const std::string& config);
 

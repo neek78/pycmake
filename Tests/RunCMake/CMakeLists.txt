@@ -345,7 +345,17 @@ if(DEFINED CMake_TEST_OBJC)
   list(APPEND CompilerTest_ARGS -DCMake_TEST_OBJC=${CMake_TEST_OBJC})
 endif()
 if(CMAKE_Fortran_COMPILER)
-  list(APPEND CompilerTest_ARGS -DCMake_TEST_Fortran=1)
+  # lfortran < 1.24 cannot handle long file names.  Fortran is not
+  # enabled here, so check the C compiler version instead.
+  if(CMAKE_C_COMPILER_ID STREQUAL "LCC" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "1.24")
+    string(LENGTH "${CMAKE_CURRENT_BINARY_DIR}" _CCBD_LEN)
+    if(_CCBD_LEN LESS 35)
+      list(APPEND CompilerTest_ARGS -DCMake_TEST_Fortran=1)
+    endif()
+    unset(_CCBD_LEN)
+  else()
+    list(APPEND CompilerTest_ARGS -DCMake_TEST_Fortran=1)
+  endif()
 endif()
 foreach(lang IN ITEMS CUDA HIP ISPC)
   if(CMake_TEST_${lang})
@@ -434,8 +444,11 @@ endif()
 add_RunCMake_test(ObjectLibrary)
 add_RunCMake_test(ParseImplicitIncludeInfo)
 add_RunCMake_test(ParseImplicitLinkInfo)
-if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG AND CMAKE_EXECUTABLE_FORMAT STREQUAL "ELF")
-  add_RunCMake_test(RuntimePath)
+if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG)
+  add_RunCMake_test(RuntimePath
+    -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+    -DCMAKE_EXECUTABLE_FORMAT=${CMAKE_EXECUTABLE_FORMAT}
+    )
 endif()
 add_RunCMake_test(ScriptMode)
 add_RunCMake_test(Swift -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
@@ -888,6 +901,9 @@ if(CMake_TEST_RunCMake_ExternalProject_DOWNLOAD_SERVER_TIMEOUT)
   list(APPEND ExternalProject_ARGS -DDOWNLOAD_SERVER_TIMEOUT=${CMake_TEST_RunCMake_ExternalProject_DOWNLOAD_SERVER_TIMEOUT})
 endif()
 add_RunCMake_test(ExternalProject -DDETECT_JOBSERVER=$<TARGET_FILE:detect_jobserver>)
+if(CMake_TEST_RunCMake_ExternalProject_RUN_SERIAL)
+  set_property(TEST RunCMake.ExternalProject PROPERTY RUN_SERIAL TRUE)
+endif()
 add_RunCMake_test(FetchContent)
 add_RunCMake_test(FetchContent_find_package)
 set(CTestCommandLine_ARGS -DPython_EXECUTABLE=${Python_EXECUTABLE})
@@ -1034,6 +1050,31 @@ set(cpack_tests
 if(APPLE)
   list(APPEND cpack_tests DragNDrop)
 endif()
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "e2k" AND NOT DEFINED CMake_TEST_E2K_BROKEN_LIBC)
+  # Exclude tests that fail due to a broken libc version on Elbrus.
+  find_program(DPKG_QUERY "dpkg-query" )
+  execute_process(COMMAND "${DPKG_QUERY}" "-f" "\${Version}" "-W" "glibc" OUTPUT_VARIABLE LIBC_VERSION)
+  if(LIBC_VERSION MATCHES "2.29-25.*")
+    list(REMOVE_ITEM cpack_tests
+      DEB.AUTO_SUFFIXES
+      DEB.CUSTOM_NAMES
+      DEB.DEB_PACKAGE_VERSION_BACK_COMPATIBILITY
+      DEB.PROJECT_META DEB.DEPENDENCIES
+      RPM.PARTIALLY_RELOCATABLE_WARNING
+      RPM.PER_COMPONENT_FIELDS
+      RPM.USER_FILELIST
+      RPM.DIST
+      RPM.AUTO_SUFFIXES
+      TGZ
+      ZIP
+      STGZ
+      External
+      )
+    set(CMake_TEST_E2K_BROKEN_LIBC 1)
+  endif()
+endif()
+
 add_RunCMake_test_group(CPack "${cpack_tests}")
 # add a test to make sure symbols are exported from a shared library
 # for MSVC compilers CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS property is used
@@ -1088,14 +1129,16 @@ add_RunCMake_test(CMakePresetsBuild
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
   -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
   )
-add_RunCMake_test(CMakePresetsTest
-  -DPython_EXECUTABLE=${Python_EXECUTABLE}
-  -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
-  )
-add_RunCMake_test(CMakePresetsPackage
-  -DPython_EXECUTABLE=${Python_EXECUTABLE}
-  -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
-  )
+if(NOT CMake_TEST_E2K_BROKEN_LIBC)
+  add_RunCMake_test(CMakePresetsTest
+    -DPython_EXECUTABLE=${Python_EXECUTABLE}
+    -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
+    )
+  add_RunCMake_test(CMakePresetsPackage
+    -DPython_EXECUTABLE=${Python_EXECUTABLE}
+    -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
+    )
+endif()
 add_RunCMake_test(CMakePresetsWorkflow
   -DPython_EXECUTABLE=${Python_EXECUTABLE}
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
