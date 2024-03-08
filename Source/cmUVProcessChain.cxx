@@ -12,6 +12,8 @@
 
 #include <cm3p/uv.h>
 
+#include "cm_fileno.hxx"
+
 #include "cmGetPipes.h"
 #include "cmUVHandlePtr.h"
 
@@ -58,12 +60,7 @@ struct cmUVProcessChain::InternalData
   void Finish();
 };
 
-cmUVProcessChainBuilder::cmUVProcessChainBuilder()
-{
-  this->SetNoStream(Stream_INPUT)
-    .SetNoStream(Stream_OUTPUT)
-    .SetNoStream(Stream_ERROR);
-}
+cmUVProcessChainBuilder::cmUVProcessChainBuilder() = default;
 
 cmUVProcessChainBuilder& cmUVProcessChainBuilder::AddCommand(
   const std::vector<std::string>& arguments)
@@ -134,6 +131,16 @@ cmUVProcessChainBuilder& cmUVProcessChainBuilder::SetExternalStream(
     }
   }
   return *this;
+}
+
+cmUVProcessChainBuilder& cmUVProcessChainBuilder::SetExternalStream(
+  Stream stdio, FILE* stream)
+{
+  int fd = cm_fileno(stream);
+  if (fd >= 0) {
+    return this->SetExternalStream(stdio, fd);
+  }
+  return this->SetNoStream(stdio);
 }
 
 cmUVProcessChainBuilder& cmUVProcessChainBuilder::SetMergedBuiltinStreams()
@@ -330,6 +337,11 @@ void cmUVProcessChain::InternalData::SpawnProcess(
   arguments.push_back(nullptr);
   options.args = const_cast<char**>(arguments.data());
   options.flags = UV_PROCESS_WINDOWS_HIDE;
+#if UV_VERSION_MAJOR > 1 ||                                                   \
+  (UV_VERSION_MAJOR == 1 && UV_VERSION_MINOR >= 48) ||                        \
+  !defined(CMAKE_USE_SYSTEM_LIBUV)
+  options.flags |= UV_PROCESS_WINDOWS_FILE_PATH_EXACT_NAME;
+#endif
   if (!this->Builder->WorkingDirectory.empty()) {
     options.cwd = this->Builder->WorkingDirectory.c_str();
   }

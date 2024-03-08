@@ -1,3 +1,6 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
+
 # See adjacent README.rst for documentation of this test infrastructure.
 
 # Note that the _isMultiConfig variable is set in the parent directory's
@@ -151,6 +154,7 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "LCC" OR
    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "LCC" OR
    "${CMAKE_Fortran_COMPILER_ID}" STREQUAL "LCC")
   add_RunCMake_test("CMP0129")
+  set_property(TEST RunCMake.CMP0129 APPEND PROPERTY LABELS "Fortran")
 endif()
 
 add_RunCMake_test(CMP0132)
@@ -168,6 +172,7 @@ endif()
 add_RunCMake_test(CMP0153)
 add_RunCMake_test(CMP0156 -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                           -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
+add_RunCMake_test(CMP0160)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -224,6 +229,7 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
     endif()
   endif()
   add_RunCMake_test(Ninja)
+  set_property(TEST RunCMake.Ninja APPEND PROPERTY LABELS "Fortran")
   set(NinjaMultiConfig_ARGS
     -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
     )
@@ -320,6 +326,7 @@ add_RunCMake_test(BuildDepends
   -DCMAKE_C_LINK_DEPENDS_USE_COMPILER=${CMAKE_C_LINK_DEPENDS_USE_COMPILER}
   -DCMake_TEST_BuildDepends_GNU_AS=${CMake_TEST_BuildDepends_GNU_AS}
   )
+set_property(TEST RunCMake.BuildDepends APPEND PROPERTY LABELS "Fortran")
 add_RunCMake_test(BuiltinTargets)
 if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(Byproducts)
@@ -363,7 +370,7 @@ foreach(lang IN ITEMS CUDA HIP ISPC)
   endif()
 endforeach()
 add_RunCMake_test(CompilerTest)
-set_property(TEST RunCMake.CompilerTest APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC")
+set_property(TEST RunCMake.CompilerTest APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC" "Fortran")
 add_RunCMake_test(Configure -DMSVC_IDE=${MSVC_IDE})
 add_RunCMake_test(DisallowedCommands)
 if("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
@@ -424,7 +431,11 @@ endif()
 add_RunCMake_test(GeneratorToolset)
 add_RunCMake_test(GetPrerequisites -DSAMPLE_EXE=$<TARGET_FILE:exit_code>)
 add_RunCMake_test(GNUInstallDirs -DSYSTEM_NAME=${CMAKE_SYSTEM_NAME})
-add_RunCMake_test(GoogleTest) # Note: does not actually depend on Google Test
+add_RunCMake_test(GoogleTest # Note: does not actually depend on Google Test
+  -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+  -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
+  -DCMAKE_VS_PLATFORM_NAME=${CMAKE_VS_PLATFORM_NAME}
+  )
 add_RunCMake_test(Graphviz)
 add_RunCMake_test(Languages)
 add_RunCMake_test(LinkItemValidation)
@@ -489,7 +500,8 @@ add_RunCMake_test(add_dependencies)
 add_RunCMake_test(add_executable)
 add_RunCMake_test(add_library)
 add_RunCMake_test(add_subdirectory -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER})
-add_RunCMake_test(add_test)
+set_property(TEST RunCMake.add_subdirectory APPEND PROPERTY LABELS "Fortran")
+add_RunCMake_test(add_test -DPSEUDO_EMULATOR=$<TARGET_FILE:pseudo_emulator>)
 add_RunCMake_test(build_command)
 add_executable(exit_code exit_code.c)
 set(execute_process_ARGS
@@ -541,6 +553,7 @@ add_RunCMake_test(file-CHMOD -DMSYS=${MSYS})
 foreach(var
     CMake_TEST_NO_NETWORK
     CMake_TEST_TLS_VERIFY_URL
+    CMake_TEST_TLS_VERSION
     )
   if(DEFINED ${var})
     list(APPEND file-DOWNLOAD_ARGS -D${var}=${${var}})
@@ -548,6 +561,7 @@ foreach(var
 endforeach()
 add_RunCMake_test(file-DOWNLOAD)
 add_RunCMake_test(file-RPATH -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
+add_RunCMake_test(file-STRINGS)
 add_RunCMake_test(find_file -DMINGW=${MINGW})
 add_RunCMake_test(find_library -DMINGW=${MINGW} -DCYGWIN=${CYGWIN} -DMSYS=${MSYS} -DMSVC=${MSVC})
 add_RunCMake_test(find_package -DMINGW=${MINGW} -DMSYS=${MSYS})
@@ -609,6 +623,8 @@ if(CMAKE_Fortran_COMPILER)
   list(APPEND try_run_ARGS -DCMake_TEST_Fortran=1)
 endif()
 add_RunCMake_test(try_run)
+set_property(TEST RunCMake.try_run APPEND PROPERTY LABELS "Fortran")
+
 add_RunCMake_test(set)
 add_RunCMake_test(variable_watch)
 add_RunCMake_test(while)
@@ -627,7 +643,9 @@ if(CMake_TEST_CUDA)
   add_RunCMake_test(CUDA_architectures)
   set_property(TEST RunCMake.CUDA_architectures APPEND PROPERTY LABELS "CUDA")
 endif()
+
 add_RunCMake_test(DependencyGraph -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER})
+set_property(TEST RunCMake.DependencyGraph APPEND PROPERTY LABELS "Fortran")
 
 # Add C++ Module tests.
 add_RunCMake_test(CXXModules -DCMake_TEST_MODULE_COMPILATION=${CMake_TEST_MODULE_COMPILATION} -DCMake_TEST_MODULE_COMPILATION_RULES=${CMake_TEST_MODULE_COMPILATION_RULES})
@@ -714,6 +732,7 @@ if("${CMAKE_GENERATOR}" MATCHES "Visual Studio ([^9]|9[0-9])")
     -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
     -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
     )
+  add_RunCMake_test(VS10ProjectUseDebugLibraries)
   if( vs12 AND wince )
     add_RunCMake_test( VS10ProjectWinCE "-DRunCMake_GENERATOR_PLATFORM=${wince_sdk}")
   endif()
@@ -837,14 +856,10 @@ add_RunCMake_test(CheckSourceRuns     -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
 set_property(TEST RunCMake.CheckCompilerFlag
                   RunCMake.CheckSourceCompiles
                   RunCMake.CheckSourceRuns
-    APPEND PROPERTY LABELS "CUDA")
+    APPEND PROPERTY LABELS "CUDA" "HIP" "Fortran")
 set_property(TEST RunCMake.CheckSourceCompiles
                   RunCMake.CheckCompilerFlag
     APPEND PROPERTY LABELS "ISPC")
-set_property(TEST RunCMake.CheckCompilerFlag
-                  RunCMake.CheckSourceCompiles
-                  RunCMake.CheckSourceRuns
-    APPEND PROPERTY LABELS "HIP")
 add_RunCMake_test(CheckModules)
 add_RunCMake_test(CheckIPOSupported)
 if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)"
@@ -853,8 +868,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin)"
                                     -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
                                     -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
                                     -DCMake_TEST_HIP=${CMake_TEST_HIP})
-  set_property(TEST RunCMake.CheckLinkerFlag APPEND PROPERTY LABELS "CUDA")
-  set_property(TEST RunCMake.CheckLinkerFlag APPEND PROPERTY LABELS "HIP")
+  set_property(TEST RunCMake.CheckLinkerFlag APPEND PROPERTY LABELS "CUDA" "HIP" "Fortran")
 endif()
 
 
@@ -972,6 +986,7 @@ if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja")
     -DPSEUDO_CPPLINT=$<TARGET_FILE:pseudo_cpplint>
     -DPSEUDO_CPPCHECK=$<TARGET_FILE:pseudo_cppcheck>
     )
+
   if(DEFINED CMake_TEST_CUDA)
     list(APPEND CompilerLauncher_ARGS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
   endif()
@@ -990,7 +1005,8 @@ if("${CMAKE_GENERATOR}" MATCHES "Make|Ninja")
   endif()
   add_RunCMake_test(CompilerLauncher)
   set_property(TEST RunCMake.CompilerLauncher APPEND
-    PROPERTY LABELS "CUDA;HIP;ISPC")
+    PROPERTY LABELS "CUDA" "HIP" "ISPC" "Fortran")
+
   add_RunCMake_test(ctest_labels_for_subprojects)
   add_RunCMake_test(CompilerArgs)
   add_RunCMake_test(LinkerLauncher)
@@ -1057,6 +1073,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "e2k" AND NOT DEFINED CMake_TEST_E2K_BROKEN_L
   execute_process(COMMAND "${DPKG_QUERY}" "-f" "\${Version}" "-W" "glibc" OUTPUT_VARIABLE LIBC_VERSION)
   if(LIBC_VERSION MATCHES "2.29-25.*")
     list(REMOVE_ITEM cpack_tests
+      DEB.DEFAULT_PERMISSIONS
+      DEB.DEBUGINFO
+      DEB.MINIMAL
+      DEB.PER_COMPONENT_FIELDS
       DEB.AUTO_SUFFIXES
       DEB.CUSTOM_NAMES
       DEB.DEB_PACKAGE_VERSION_BACK_COMPATIBILITY
@@ -1124,12 +1144,12 @@ add_RunCMake_test(CMakePresets
   -DPython_EXECUTABLE=${Python_EXECUTABLE}
   -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
   )
-add_RunCMake_test(CMakePresetsBuild
-  -DPython_EXECUTABLE=${Python_EXECUTABLE}
-  -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
-  -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-  )
 if(NOT CMake_TEST_E2K_BROKEN_LIBC)
+  add_RunCMake_test(CMakePresetsBuild
+    -DPython_EXECUTABLE=${Python_EXECUTABLE}
+    -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
+    -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+    )
   add_RunCMake_test(CMakePresetsTest
     -DPython_EXECUTABLE=${Python_EXECUTABLE}
     -DCMake_TEST_JSON_SCHEMA=${CMake_TEST_JSON_SCHEMA}
@@ -1158,4 +1178,10 @@ endif()
 if(CMake_TEST_IAR_TOOLCHAINS)
   add_RunCMake_test(IAR -DCMake_TEST_IAR_TOOLCHAINS=${CMake_TEST_IAR_TOOLCHAINS})
   set_property(TEST RunCMake.IAR APPEND PROPERTY LABELS "IAR")
+endif()
+if(CMake_TEST_TICLANG_TOOLCHAINS)
+  # This is necessary to preserve the LIST variable contents given by user.
+  string(REPLACE ";" "$<SEMICOLON>" TOOLCHAINS "${CMake_TEST_TICLANG_TOOLCHAINS}")
+  add_RunCMake_test(TIClang "-DCMake_TEST_TICLANG_TOOLCHAINS=${TOOLCHAINS}")
+  set_property(TEST RunCMake.TIClang APPEND PROPERTY LABELS "TIClang")
 endif()

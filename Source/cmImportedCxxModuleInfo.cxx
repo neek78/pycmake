@@ -4,7 +4,6 @@
 #include "cmImportedCxxModuleInfo.h"
 
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -60,17 +59,16 @@ std::string ImportedCxxModuleLookup::BmiNameForSource(std::string const& path)
 
   auto importit = this->ImportedInfo.find(path);
   std::string bmiName;
-  auto hasher = cmCryptoHash::New("SHA3_512");
+  cmCryptoHash hasher(cmCryptoHash::AlgoSHA3_512);
   constexpr size_t HASH_TRUNCATION = 12;
   if (importit != this->ImportedInfo.end()) {
-    auto safename = hasher->HashString(importit->second.Name);
+    auto safename = hasher.HashString(importit->second.Name);
     bmiName = cmStrCat(safename.substr(0, HASH_TRUNCATION), ".bmi");
   } else {
-    auto dirhash = hasher->HashString(path);
+    auto dirhash = hasher.HashString(path);
     bmiName = cmStrCat(dirhash.substr(0, HASH_TRUNCATION), ".bmi");
   }
 
-  this->GeneratorInfo.emplace(
-    path, ImportedCxxModuleGeneratorInfo{ &importit->second, bmiName });
+  this->GeneratorInfo.emplace(path, ImportedCxxModuleGeneratorInfo{ bmiName });
   return bmiName;
 }

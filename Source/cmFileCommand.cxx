@@ -316,6 +316,7 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
   unsigned int limit_count = 0;
   cmsys::RegularExpression regex;
   bool have_regex = false;
+  bool store_regex = true;
   bool newline_consume = false;
   bool hex_conversion_enabled = true;
   enum
@@ -400,6 +401,26 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
         return false;
       }
       have_regex = true;
+      switch (status.GetMakefile().GetPolicyStatus(cmPolicies::CMP0159)) {
+        case cmPolicies::REQUIRED_IF_USED:
+        case cmPolicies::REQUIRED_ALWAYS:
+        case cmPolicies::NEW:
+          // store_regex = true
+          break;
+        case cmPolicies::WARN:
+          if (status.GetMakefile().PolicyOptionalWarningEnabled(
+                "CMAKE_POLICY_WARNING_CMP0159")) {
+            status.GetMakefile().IssueMessage(
+              MessageType::AUTHOR_WARNING,
+              cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0159), '\n',
+                       "For compatibility, CMake is leaving CMAKE_MATCH_<n> "
+                       "unchanged."));
+          }
+          CM_FALLTHROUGH;
+        case cmPolicies::OLD:
+          store_regex = false;
+          break;
+      }
       arg_mode = arg_none;
     } else if (arg_mode == arg_encoding) {
       if (args[i] == "UTF-8") {
@@ -546,6 +567,10 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
       // string matches the requirements.  The length may now be as
       // low as zero since blank lines are allowed.
       if (s.length() >= minlen && (!have_regex || regex.find(s))) {
+        if (store_regex) {
+          status.GetMakefile().ClearMatches();
+          status.GetMakefile().StoreMatches(regex);
+        }
         output_size += static_cast<int>(s.size()) + 1;
         if (limit_output >= 0 && output_size >= limit_output) {
           s.clear();
@@ -562,6 +587,10 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
       // be at least one no matter what the user specified.
       if (s.length() >= minlen && !s.empty() &&
           (!have_regex || regex.find(s))) {
+        if (store_regex) {
+          status.GetMakefile().ClearMatches();
+          status.GetMakefile().StoreMatches(regex);
+        }
         output_size += static_cast<int>(s.size()) + 1;
         if (limit_output >= 0 && output_size >= limit_output) {
           s.clear();
@@ -579,6 +608,10 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
     if (maxlen > 0 && s.size() == maxlen) {
       // Terminate a string if the maximum length is reached.
       if (s.length() >= minlen && (!have_regex || regex.find(s))) {
+        if (store_regex) {
+          status.GetMakefile().ClearMatches();
+          status.GetMakefile().StoreMatches(regex);
+        }
         output_size += static_cast<int>(s.size()) + 1;
         if (limit_output >= 0 && output_size >= limit_output) {
           s.clear();
@@ -595,6 +628,10 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
   // matches the requirements.
   if ((!limit_count || strings.size() < limit_count) && !s.empty() &&
       s.length() >= minlen && (!have_regex || regex.find(s))) {
+    if (store_regex) {
+      status.GetMakefile().ClearMatches();
+      status.GetMakefile().StoreMatches(regex);
+    }
     output_size += static_cast<int>(s.size()) + 1;
     if (limit_output < 0 || output_size < limit_output) {
       strings.push_back(s);
@@ -1829,6 +1866,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   long inactivity_timeout = 0;
   std::string logVar;
   std::string statusVar;
+  cm::optional<std::string> tls_version;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
   cmValue cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string netrc_level =
@@ -1875,6 +1913,14 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
         return false;
       }
       statusVar = *i;
+    } else if (*i == "TLS_VERSION") {
+      ++i;
+      if (i != args.end()) {
+        tls_version = *i;
+      } else {
+        status.SetError("DOWNLOAD missing value for TLS_VERSION.");
+        return false;
+      }
     } else if (*i == "TLS_VERIFY") {
       ++i;
       if (i != args.end()) {
@@ -1986,6 +2032,18 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
     ++i;
   }
 
+  if (!tls_version) {
+    if (cmValue v = status.GetMakefile().GetDefinition("CMAKE_TLS_VERSION")) {
+      tls_version = *v;
+    }
+  }
+  if (!tls_version) {
+    if (cm::optional<std::string> v =
+          cmSystemTools::GetEnvVar("CMAKE_TLS_VERSION")) {
+      tls_version = std::move(v);
+    }
+  }
+
   // Can't calculate hash if we don't save the file.
   // TODO Incrementally calculate hash in the write callback as the file is
   // being downloaded so this check can be relaxed.
@@ -2061,6 +2119,19 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   res = ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION,
                            cmFileCommandCurlDebugCallback);
   check_curl_result(res, "DOWNLOAD cannot set debug function: ");
+
+  if (tls_version) {
+    if (cm::optional<int> v = cmCurlParseTLSVersion(*tls_version)) {
+      res = ::curl_easy_setopt(curl, CURLOPT_SSLVERSION, *v);
+      check_curl_result(
+        res,
+        cmStrCat("DOWNLOAD cannot set TLS/SSL version ", *tls_version, ": "));
+    } else {
+      status.SetError(
+        cmStrCat("DOWNLOAD given unknown TLS/SSL version ", *tls_version));
+      return false;
+    }
+  }
 
   // check to see if TLS verification is requested
   if (tls_verify) {
@@ -2251,6 +2322,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   std::string logVar;
   std::string statusVar;
   bool showProgress = false;
+  cm::optional<std::string> tls_version;
   bool tls_verify = status.GetMakefile().IsOn("CMAKE_TLS_VERIFY");
   cmValue cainfo = status.GetMakefile().GetDefinition("CMAKE_TLS_CAINFO");
   std::string userpwd;
@@ -2294,6 +2366,14 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
       statusVar = *i;
     } else if (*i == "SHOW_PROGRESS") {
       showProgress = true;
+    } else if (*i == "TLS_VERSION") {
+      ++i;
+      if (i != args.end()) {
+        tls_version = *i;
+      } else {
+        status.SetError("UPLOAD missing value for TLS_VERSION.");
+        return false;
+      }
     } else if (*i == "TLS_VERIFY") {
       ++i;
       if (i != args.end()) {
@@ -2349,6 +2429,18 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
     ++i;
   }
 
+  if (!tls_version) {
+    if (cmValue v = status.GetMakefile().GetDefinition("CMAKE_TLS_VERSION")) {
+      tls_version = *v;
+    }
+  }
+  if (!tls_version) {
+    if (cm::optional<std::string> v =
+          cmSystemTools::GetEnvVar("CMAKE_TLS_VERSION")) {
+      tls_version = std::move(v);
+    }
+  }
+
   // Open file for reading:
   //
   FILE* fin = cmsys::SystemTools::Fopen(filename, "rb");
@@ -2392,6 +2484,19 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   res = ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION,
                            cmFileCommandCurlDebugCallback);
   check_curl_result(res, "UPLOAD cannot set debug function: ");
+
+  if (tls_version) {
+    if (cm::optional<int> v = cmCurlParseTLSVersion(*tls_version)) {
+      res = ::curl_easy_setopt(curl, CURLOPT_SSLVERSION, *v);
+      check_curl_result(
+        res,
+        cmStrCat("UPLOAD cannot set TLS/SSL version ", *tls_version, ": "));
+    } else {
+      status.SetError(
+        cmStrCat("UPLOAD given unknown TLS/SSL version ", *tls_version));
+      return false;
+    }
+  }
 
   // check to see if TLS verification is requested
   if (tls_verify) {

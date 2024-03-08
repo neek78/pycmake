@@ -537,6 +537,12 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
           cmSystemTools::SetFatalErrorOccurred();
         }
       }
+      if (this->GetCMakeInstance()->HasScriptModeExitCode() &&
+          this->GetCMakeInstance()->GetWorkingMode() == cmake::SCRIPT_MODE) {
+        // pass-through the exit code from inner cmake_language(EXIT) ,
+        // possibly from include() or similar command...
+        status.SetExitCode(this->GetCMakeInstance()->GetScriptModeExitCode());
+      }
     }
   } else {
     if (!cmSystemTools::GetFatalErrorOccurred()) {
@@ -927,6 +933,11 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
     if (cmSystemTools::GetFatalErrorOccurred()) {
       break;
     }
+    if (status.HasExitCode()) {
+      // cmake_language EXIT was requested, early break.
+      this->GetCMakeInstance()->SetScriptModeExitCode(status.GetExitCode());
+      break;
+    }
     if (status.GetReturnInvoked()) {
       this->RaiseScope(status.GetReturnVariables());
       // Exit early due to return command.
@@ -1162,9 +1173,15 @@ cmTarget* cmMakefile::GetCustomCommandTarget(
   const std::string& target, cmObjectLibraryCommands objLibCommands,
   const cmListFileBacktrace& lfbt) const
 {
-  // Find the target to which to add the custom command.
-  auto ti = this->Targets.find(target);
+  auto realTarget = target;
 
+  auto ai = this->AliasTargets.find(target);
+  if (ai != this->AliasTargets.end()) {
+    realTarget = ai->second;
+  }
+
+  // Find the target to which to add the custom command.
+  auto ti = this->Targets.find(realTarget);
   if (ti == this->Targets.end()) {
     MessageType messageType = MessageType::AUTHOR_WARNING;
     bool issueMessage = false;
@@ -1456,8 +1473,8 @@ static void s_RemoveDefineFlag(std::string const& flag, std::string& dflags)
   for (std::string::size_type lpos = dflags.find(flag, 0);
        lpos != std::string::npos; lpos = dflags.find(flag, lpos)) {
     std::string::size_type rpos = lpos + len;
-    if ((lpos <= 0 || isspace(dflags[lpos - 1])) &&
-        (rpos >= dflags.size() || isspace(dflags[rpos]))) {
+    if ((lpos <= 0 || cmIsSpace(dflags[lpos - 1])) &&
+        (rpos >= dflags.size() || cmIsSpace(dflags[rpos]))) {
       dflags.erase(lpos, len);
     } else {
       ++lpos;
@@ -4741,13 +4758,14 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
   }
 
   // Deprecate old policies.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0126 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0128 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.
           id == cmPolicies::CMP0065 || id == cmPolicies::CMP0083 ||
           id == cmPolicies::CMP0091 || id == cmPolicies::CMP0104 ||
-          id == cmPolicies::CMP0123 || id == cmPolicies::CMP0126)) &&
+          id == cmPolicies::CMP0123 || id == cmPolicies::CMP0126 ||
+          id == cmPolicies::CMP0128)) &&
       (!this->IsSet("CMAKE_WARN_DEPRECATED") ||
        this->IsOn("CMAKE_WARN_DEPRECATED"))) {
     this->IssueMessage(MessageType::DEPRECATION_WARNING,

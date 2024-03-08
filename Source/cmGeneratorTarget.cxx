@@ -3578,7 +3578,7 @@ void cmGeneratorTarget::AddCUDAArchitectureFlagsImpl(cmBuildStep compileOrLink,
 
       flags += "]\"";
     }
-  } else if (compiler == "Clang") {
+  } else if (compiler == "Clang" && compileOrLink == cmBuildStep::Compile) {
     for (CudaArchitecture& architecture : architectures) {
       flags += " --cuda-gpu-arch=sm_" + architecture.name;
 
@@ -8417,14 +8417,14 @@ bool cmGeneratorTarget::DiscoverSyntheticTargets(cmSyntheticTargetCache& cache,
     }
 
     if (gt->HaveCxx20ModuleSources()) {
-      auto hasher = cmCryptoHash::New("SHA3_512");
+      cmCryptoHash hasher(cmCryptoHash::AlgoSHA3_512);
       constexpr size_t HASH_TRUNCATION = 12;
-      auto dirhash = hasher->HashString(
+      auto dirhash = hasher.HashString(
         gt->GetLocalGenerator()->GetCurrentBinaryDirectory());
       std::string safeName = gt->GetName();
       cmSystemTools::ReplaceString(safeName, ":", "_");
       auto targetIdent =
-        hasher->HashString(cmStrCat("@d_", dirhash, "@u_", usage.GetHash()));
+        hasher.HashString(cmStrCat("@d_", dirhash, "@u_", usage.GetHash()));
       std::string targetName =
         cmStrCat(safeName, "@synth_", targetIdent.substr(0, HASH_TRUNCATION));
 
@@ -8477,6 +8477,8 @@ bool cmGeneratorTarget::DiscoverSyntheticTargets(cmSyntheticTargetCache& cache,
         // Create the generator target and attach it to the local generator.
         auto gtp = cm::make_unique<cmGeneratorTarget>(tgt, lg);
         synthDep = gtp.get();
+        cache.CxxModuleTargets[targetName] = synthDep;
+        gtp->DiscoverSyntheticTargets(cache, config);
         lg->AddGeneratorTarget(std::move(gtp));
       } else {
         synthDep = cached->second;
@@ -9545,7 +9547,8 @@ void cmGeneratorTarget::BuildFileSetInfoCache(std::string const& config) const
 
     for (auto const& it : files) {
       for (auto const& filename : it.second) {
-        per_config.FileSetCache[filename] = file_set;
+        auto collapsedFile = cmSystemTools::CollapseFullPath(filename);
+        per_config.FileSetCache[collapsedFile] = file_set;
       }
     }
   }

@@ -113,6 +113,11 @@ Reading
       Consider only strings that match the given regular expression,
       as described under :ref:`string(REGEX) <Regex Specification>`.
 
+      .. versionchanged:: 3.29
+        Capture groups from the last match in the file are stored in
+        :variable:`CMAKE_MATCH_<n>`, similar to
+        :command:`string(REGEX MATCHALL)`.  See policy :policy:`CMP0159`.
+
     ``ENCODING <encoding-type>``
       .. versionadded:: 3.1
 
@@ -1092,6 +1097,14 @@ Transfer
       is not specified, the value of the :variable:`CMAKE_NETRC_FILE` variable
       will be used instead.
 
+    ``TLS_VERSION <min>``
+      .. versionadded:: 3.30
+
+      Specify minimum TLS version for ``https://`` URLs.
+      If this option is not specified, the value of the
+      :variable:`CMAKE_TLS_VERSION` variable will be used instead.
+      See that variable for allowed values.
+
     ``TLS_VERIFY <ON|OFF>``
       Specify whether to verify the server certificate for ``https://`` URLs.
       The default is to *not* verify. If this option is not specified, the
@@ -1248,6 +1261,13 @@ Archiving
   be listed or extracted.
 
   ``LIST_ONLY`` will list the files in the archive rather than extract them.
+
+  .. note::
+    The working directory for this subcommand is the ``DESTINATION`` directory
+    (provided or computed) except when ``LIST_ONLY`` is specified. Therefore,
+    outside of script mode, it may be best to provide absolute paths to
+    ``INPUT`` archives as they are unlikely to be extracted where a relative
+    path works.
 
   .. versionadded:: 3.24
     The ``TOUCH`` option gives extracted files a current local

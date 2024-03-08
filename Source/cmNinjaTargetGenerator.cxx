@@ -815,6 +815,11 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     // dyndep rules
     rule.RspFile = "$out.rsp";
     rule.RspContent = "$in";
+    // Ninja's collator writes all outputs using `cmGeneratedFileStream`, so
+    // they are only updated if contents actually change. Avoid running
+    // dependent jobs if the contents don't change by telling `ninja` to check
+    // the timestamp again.
+    rule.Restat = "1";
 
     // Run CMake dependency scanner on the source file (using the preprocessed
     // source if that was performed).
@@ -848,6 +853,14 @@ void cmNinjaTargetGenerator::WriteCompileRule(const std::string& lang,
     flags = cmStrCat(responseFlag, rule.RspFile);
     vars.Defines = "";
     vars.Includes = "";
+
+    // Swift consumes all source files in a module at once, which reaches
+    // command line length limits pretty quickly. Inject source files into the
+    // response file in this case as well.
+    if (lang == "Swift") {
+      rule.RspContent = cmStrCat(rule.RspContent, ' ', vars.Source);
+      vars.Source = "";
+    }
   }
 
   // Tell ninja dependency format so all deps can be loaded into a database
@@ -1214,11 +1227,13 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
 
     cmNinjaBuild build(this->LanguageDyndepRule(language, config));
     build.Outputs.push_back(this->GetDyndepFilePath(language, config));
-    build.ImplicitOuts.push_back(
+    build.ImplicitOuts.emplace_back(
       cmStrCat(this->Makefile->GetCurrentBinaryDirectory(), '/',
                this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
                this->GetGlobalGenerator()->ConfigDirectory(config), '/',
                language, "Modules.json"));
+    build.ImplicitDeps.emplace_back(
+      this->GetTargetDependInfoPath(language, config));
     for (auto const& scanFiles : scanningFiles) {
       if (!scanFiles.ScanningOutput.empty()) {
         build.ExplicitDeps.push_back(scanFiles.ScanningOutput);
@@ -1233,10 +1248,12 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
     auto const linked_directories =
       this->GetLinkedTargetDirectories(language, config);
     for (std::string const& l : linked_directories.Direct) {
-      build.ImplicitDeps.push_back(cmStrCat(l, '/', language, "Modules.json"));
+      build.ImplicitDeps.emplace_back(
+        cmStrCat(l, '/', language, "Modules.json"));
     }
     for (std::string const& l : linked_directories.Forward) {
-      build.ImplicitDeps.push_back(cmStrCat(l, '/', language, "Modules.json"));
+      build.ImplicitDeps.emplace_back(
+        cmStrCat(l, '/', language, "Modules.json"));
     }
 
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
@@ -1631,7 +1648,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
       // corresponding file path.
       std::string ddModmapFile = cmStrCat(objectFileName, ".modmap");
       vars["DYNDEP_MODULE_MAP_FILE"] = ddModmapFile;
-      objBuild.OrderOnlyDeps.push_back(ddModmapFile);
+      objBuild.ImplicitDeps.push_back(ddModmapFile);
       scanningFiles.ModuleMapFile = std::move(ddModmapFile);
     }
 
@@ -1925,8 +1942,6 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
   //  For that, we need the "NEW" behavior for CMP0157. Otherwise, we have to
   //  fall back on the old "linker" build. Otherwise, this should be
   //  indistinguishable from the old behavior.
-  //
-  //  FIXME(#25490): Add response file support to Swift object build step
 
   if (sources.empty()) {
     return;
@@ -1987,6 +2002,18 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     return !isMultiThread && compileMode == cmSwiftCompileMode::Wholemodule;
   }();
 
+  // Without `-emit-library` or `-emit-executable`, targets with a single
+  // source file parse as a Swift script instead of like normal source. For
+  // non-executable targets, append this to ensure that they are parsed like a
+  // normal source.
+  if (target.GetType() != cmStateEnums::EXECUTABLE) {
+    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-parse-as-library");
+  }
+
+  if (target.GetType() == cmStateEnums::STATIC_LIBRARY) {
+    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-static");
+  }
+
   // Swift modules only make sense to emit from things that can be imported.
   // Executables that don't export symbols can't be imported, so don't try to
   // emit a swiftmodule for them. It will break.
@@ -1997,11 +2024,9 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
     this->LocalGenerator->AppendFlags(
       vars["FLAGS"], { emitModuleFlag, modulePathFlag, moduleFilepath });
     objBuild.Outputs.push_back(moduleFilepath);
-
-    std::string const moduleNameFlag = "-module-name";
-    this->LocalGenerator->AppendFlags(
-      vars["FLAGS"], cmStrCat(moduleNameFlag, ' ', moduleName));
   }
+  this->LocalGenerator->AppendFlags(vars["FLAGS"],
+                                    cmStrCat("-module-name ", moduleName));
 
   if (target.GetType() != cmStateEnums::EXECUTABLE) {
     std::string const libraryLinkNameFlag = "-module-link-name";
@@ -2009,14 +2034,6 @@ void cmNinjaTargetGenerator::WriteSwiftObjectBuildStatement(
       this->GetGeneratorTarget()->GetLibraryNames(config).Base;
     this->LocalGenerator->AppendFlags(
       vars["FLAGS"], cmStrCat(libraryLinkNameFlag, ' ', libraryLinkName));
-  }
-
-  // Without `-emit-library` or `-emit-executable`, targets with a single
-  // source file parse as a Swift script instead of like normal source. For
-  // non-executable targets, append this to ensure that they are parsed like a
-  // normal source.
-  if (target.GetType() != cmStateEnums::EXECUTABLE) {
-    this->LocalGenerator->AppendFlags(vars["FLAGS"], "-parse-as-library");
   }
 
   this->LocalGenerator->AppendFlags(vars["FLAGS"],
@@ -2352,6 +2369,8 @@ void cmNinjaTargetGenerator::ExportSwiftObjectCompileCommand(
     return this->LocalGenerator->ConvertToOutputFormat(
       srcFilename, cmOutputConverter::SHELL);
   };
+  auto escapedModuleObjectFilename =
+    this->ConvertToNinjaPath(moduleObjectFilename);
 
   cmRulePlaceholderExpander::RuleVariables compileObjectVars;
   compileObjectVars.Language = "Swift";
@@ -2380,11 +2399,12 @@ void cmNinjaTargetGenerator::ExportSwiftObjectCompileCommand(
 
   for (cmSourceFile const* sf : moduleSourceFiles) {
     std::string const sourceFilename = this->GetCompiledSourceNinjaPath(sf);
-    std::string objectFilename = moduleObjectFilename;
+    std::string objectFilename = escapedModuleObjectFilename;
 
     if (!singleOutput) {
       // If it's not single-output, each source file gets a separate object
-      objectFilename = this->GetObjectFilePath(sf, outputConfig);
+      objectFilename =
+        this->ConvertToNinjaPath(this->GetObjectFilePath(sf, outputConfig));
     }
     compileObjectVars.Objects = objectFilename.c_str();
 

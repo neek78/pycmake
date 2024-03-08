@@ -16,6 +16,9 @@
 /python*
 /qt*
 /sccache*
+/swift
+/ticlang
+/tmp
 /unstable-jom*
 /watcom
 /wix*

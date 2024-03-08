@@ -549,10 +549,13 @@ one of the keywords to make clear the behavior they expect.
   lines or custom commands will be omitted for the specific
   configuration and no "empty-string-command" will be added.
 
-  This allows to add individual build events for every configuration.
+  This allows adding individual build events for every configuration.
 
 .. versionadded:: 3.21
   Support for target-dependent generator expressions.
+
+.. versionadded:: 3.29
+  The ``<target>`` may be an :ref:`ALIAS target <Alias Targets>`.
 
 Examples: Build Events
 ^^^^^^^^^^^^^^^^^^^^^^

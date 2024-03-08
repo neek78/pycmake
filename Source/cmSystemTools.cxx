@@ -25,8 +25,6 @@
 
 #include <cm3p/uv.h>
 
-#include "cm_fileno.hxx"
-
 #include "cmDuration.h"
 #include "cmELF.h"
 #include "cmMessageMetadata.h"
@@ -486,7 +484,7 @@ bool cmSystemTools::SplitProgramFromArgs(std::string const& command,
   const char* c = command.c_str();
 
   // Skip leading whitespace.
-  while (isspace(static_cast<unsigned char>(*c))) {
+  while (cmIsSpace(*c)) {
     ++c;
   }
 
@@ -516,7 +514,7 @@ bool cmSystemTools::SplitProgramFromArgs(std::string const& command,
       in_double = true;
     } else if (*c == '\'') {
       in_single = true;
-    } else if (isspace(static_cast<unsigned char>(*c))) {
+    } else if (cmIsSpace(*c)) {
       break;
     } else {
       program += *c;
@@ -576,8 +574,7 @@ bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
                                      cmDuration timeout, Encoding encoding)
 {
   cmUVProcessChainBuilder builder;
-  builder
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_INPUT, cm_fileno(stdin))
+  builder.SetExternalStream(cmUVProcessChainBuilder::Stream_INPUT, stdin)
     .AddCommand(command);
   if (dir) {
     builder.SetWorkingDirectory(dir);
@@ -586,11 +583,8 @@ bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
   if (outputflag == OUTPUT_PASSTHROUGH) {
     captureStdOut = nullptr;
     captureStdErr = nullptr;
-    builder
-      .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT,
-                         cm_fileno(stdout))
-      .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR,
-                         cm_fileno(stderr));
+    builder.SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT, stdout)
+      .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR, stderr);
   } else if (outputflag == OUTPUT_MERGE ||
              (captureStdErr && captureStdErr == captureStdOut)) {
     builder.SetMergedBuiltinStreams();
@@ -1673,7 +1667,7 @@ void cmSystemTools::EnvDiff::PutEnv(const std::string& env)
 
 void cmSystemTools::EnvDiff::UnPutEnv(const std::string& env)
 {
-  diff[env] = {};
+  diff[env] = cm::nullopt;
 }
 
 bool cmSystemTools::EnvDiff::ParseOperation(const std::string& envmod)
@@ -1728,7 +1722,7 @@ bool cmSystemTools::EnvDiff::ParseOperation(const std::string& envmod)
   } else if (op == "set"_s) {
     diff[name] = value;
   } else if (op == "unset"_s) {
-    diff[name] = {};
+    diff[name] = cm::nullopt;
   } else if (op == "string_append"_s) {
     apply_diff(name, [&value](std::string& output) { output += value; });
   } else if (op == "string_prepend"_s) {
@@ -2383,43 +2377,30 @@ cmSystemTools::WaitForLineResult cmSystemTools::WaitForLine(
 }
 
 #ifdef _WIN32
-static void EnsureStdPipe(DWORD fd)
+static void EnsureStdPipe(int stdFd, DWORD nStdHandle, FILE* stream,
+                          const wchar_t* mode)
 {
-  if (GetStdHandle(fd) != INVALID_HANDLE_VALUE) {
+  if (fileno(stream) >= 0) {
     return;
   }
-  SECURITY_ATTRIBUTES sa;
-  sa.nLength = sizeof(sa);
-  sa.lpSecurityDescriptor = nullptr;
-  sa.bInheritHandle = TRUE;
-
-  HANDLE h = CreateFileW(
-    L"NUL",
-    fd == STD_INPUT_HANDLE ? FILE_GENERIC_READ
-                           : FILE_GENERIC_WRITE | FILE_READ_ATTRIBUTES,
-    FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, nullptr);
-
-  if (h == INVALID_HANDLE_VALUE) {
-    LPSTR message = nullptr;
-    DWORD size = FormatMessageA(
-      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-      nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-      (LPSTR)&message, 0, nullptr);
-    std::string msg = std::string(message, size);
-    LocalFree(message);
-    std::cerr << "failed to open NUL for missing stdio pipe: " << msg;
+  _close(stdFd);
+  _wfreopen(L"NUL", mode, stream);
+  int fd = fileno(stream);
+  if (fd < 0) {
+    perror("failed to open NUL for missing stdio pipe");
     abort();
   }
-
-  SetStdHandle(fd, h);
+  if (fd != stdFd) {
+    _dup2(fd, stdFd);
+  }
+  SetStdHandle(nStdHandle, reinterpret_cast<HANDLE>(_get_osfhandle(fd)));
 }
 
 void cmSystemTools::EnsureStdPipes()
 {
-  EnsureStdPipe(STD_INPUT_HANDLE);
-  EnsureStdPipe(STD_OUTPUT_HANDLE);
-  EnsureStdPipe(STD_ERROR_HANDLE);
+  EnsureStdPipe(0, STD_INPUT_HANDLE, stdin, L"rb");
+  EnsureStdPipe(1, STD_OUTPUT_HANDLE, stdout, L"wb");
+  EnsureStdPipe(2, STD_ERROR_HANDLE, stderr, L"wb");
 }
 #else
 static void EnsureStdPipe(int fd)
@@ -3716,6 +3697,10 @@ cm::string_view cmSystemTools::GetSystemName()
 {
 #if defined(_WIN32)
   return "Windows";
+#elif defined(__MSYS__)
+  return "MSYS";
+#elif defined(__CYGWIN__)
+  return "CYGWIN";
 #elif defined(__ANDROID__)
   return "Android";
 #else
@@ -3743,15 +3728,6 @@ cm::string_view cmSystemTools::GetSystemName()
     // fix for GNU/kFreeBSD, remove the GNU/
     if (systemName.find("kFreeBSD") != cm::string_view::npos) {
       systemName = "kFreeBSD";
-    }
-
-    // fix for CYGWIN and MSYS which have windows version in them
-    if (systemName.find("CYGWIN") != cm::string_view::npos) {
-      systemName = "CYGWIN";
-    }
-
-    if (systemName.find("MSYS") != cm::string_view::npos) {
-      systemName = "MSYS";
     }
     return systemName;
   }

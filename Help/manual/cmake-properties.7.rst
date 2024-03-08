@@ -129,6 +129,7 @@ Properties on Targets
    /prop_tgt/ARCHIVE_OUTPUT_DIRECTORY_CONFIG
    /prop_tgt/ARCHIVE_OUTPUT_NAME
    /prop_tgt/ARCHIVE_OUTPUT_NAME_CONFIG
+   /prop_tgt/AUTOGEN_BETTER_GRAPH_MULTI_CONFIG
    /prop_tgt/AUTOGEN_BUILD_DIR
    /prop_tgt/AUTOGEN_COMMAND_LINE_LENGTH_MAX
    /prop_tgt/AUTOGEN_ORIGIN_DEPENDS
@@ -444,6 +445,7 @@ Properties on Targets
    /prop_tgt/VS_SDK_REFERENCES
    /prop_tgt/VS_SOLUTION_DEPLOY
    /prop_tgt/VS_SOURCE_SETTINGS_tool
+   /prop_tgt/VS_USE_DEBUG_LIBRARIES
    /prop_tgt/VS_USER_PROPS
    /prop_tgt/VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION
    /prop_tgt/VS_WINRT_COMPONENT

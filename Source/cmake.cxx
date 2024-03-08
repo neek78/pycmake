@@ -27,7 +27,6 @@
 #include "cmsys/Glob.hxx"
 #include "cmsys/RegularExpression.hxx"
 
-#include "cm_fileno.hxx"
 #include "cm_sys_stat.h"
 
 #include "cmBuildOptions.h"
@@ -2838,7 +2837,7 @@ int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
     if (cmSystemTools::GetErrorOccurredFlag()) {
       return -1;
     }
-    return 0;
+    return this->HasScriptModeExitCode() ? this->GetScriptModeExitCode() : 0;
   }
 
   // If MAKEFLAGS are given in the environment, remove the environment
@@ -3966,10 +3965,8 @@ std::function<int()> cmake::BuildWorkflowStep(
 {
   cmUVProcessChainBuilder builder;
   builder.AddCommand(args)
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT,
-                       cm_fileno(stdout))
-    .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR,
-                       cm_fileno(stderr));
+    .SetExternalStream(cmUVProcessChainBuilder::Stream_OUTPUT, stdout)
+    .SetExternalStream(cmUVProcessChainBuilder::Stream_ERROR, stderr);
   return [builder]() -> int {
     auto chain = builder.Start();
     chain.Wait();

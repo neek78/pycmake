@@ -484,7 +484,20 @@ class cmMakefile;
   SELECT(POLICY, CMP0158,                                                     \
          "add_test() honors CMAKE_CROSSCOMPILING_EMULATOR only when "         \
          "cross-compiling.",                                                  \
-         3, 29, 0, cmPolicies::WARN)
+         3, 29, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0159,                                                     \
+         "file(STRINGS) with REGEX updates CMAKE_MATCH_<n>.", 3, 29, 0,       \
+         cmPolicies::WARN)                                                    \
+  SELECT(                                                                     \
+    POLICY, CMP0160,                                                          \
+    "More read-only target properties now error when trying to set them.", 3, \
+    29, 0, cmPolicies::WARN)                                                  \
+  SELECT(POLICY, CMP0161, "CPACK_PRODUCTBUILD_DOMAINS defaults to true.", 3,  \
+         29, 0, cmPolicies::WARN)                                             \
+  SELECT(                                                                     \
+    POLICY, CMP0162,                                                          \
+    "Visual Studio generators add UseDebugLibraries indicators by default.",  \
+    3, 30, 0, cmPolicies::WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -526,7 +539,9 @@ class cmMakefile;
   F(CMP0154)                                                                  \
   F(CMP0155)                                                                  \
   F(CMP0156)                                                                  \
-  F(CMP0157)
+  F(CMP0157)                                                                  \
+  F(CMP0160)                                                                  \
+  F(CMP0162)
 
 #define CM_FOR_EACH_CUSTOM_COMMAND_POLICY(F)                                  \
   F(CMP0116)                                                                  \

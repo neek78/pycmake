@@ -2742,12 +2742,18 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
 
     // Insert information about the current target's modules.
     if (modmap_fmt) {
-      auto cycle_modules = CxxModuleUsageSeed(locs, objects, usages);
+      bool private_usage_found = false;
+      auto cycle_modules =
+        CxxModuleUsageSeed(locs, objects, usages, private_usage_found);
       if (!cycle_modules.empty()) {
         cmSystemTools::Error(
           cmStrCat("Circular dependency detected in the C++ module import "
                    "graph. See modules named: \"",
                    cmJoin(cycle_modules, R"(", ")"_s), '"'));
+        return false;
+      }
+      if (private_usage_found) {
+        // Already errored in the function.
         return false;
       }
     }
@@ -2786,6 +2792,7 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
         // `cmNinjaTargetGenerator::ExportObjectCompileCommand` to generate the
         // corresponding file path.
         cmGeneratedFileStream mmf(cmStrCat(object.PrimaryOutput, ".modmap"));
+        mmf.SetCopyIfDifferent(true);
         mmf << mm;
       }
 
@@ -2875,6 +2882,7 @@ bool cmGlobalNinjaGenerator::WriteDyndepFile(
   }
 
   cmGeneratedFileStream tmf(target_mods_file);
+  tmf.SetCopyIfDifferent(true);
   tmf << target_module_info;
 
   cmDyndepMetadataCallbacks cb;
