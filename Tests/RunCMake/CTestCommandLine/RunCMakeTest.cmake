@@ -1,6 +1,10 @@
 include(RunCMake)
 include(RunCTest)
 
+# Do not use any proxy for lookup of an invalid site.
+# DNS failure by proxy looks different than DNS failure without proxy.
+set(ENV{no_proxy} "$ENV{no_proxy},badhostname.invalid")
+
 set(RunCMake_TEST_TIMEOUT 60)
 
 run_cmake_command(repeat-opt-bad1
@@ -208,8 +212,8 @@ endfunction()
 run_SkipRegexFoundTest()
 
 
-function(run_TestsFromFileTest arg)
-  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestsFromFile)
+function(run_TestsFromFileTest case)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestsFromFile-${case})
   set(RunCMake_TEST_NO_CLEAN 1)
   file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
   file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
@@ -219,10 +223,14 @@ add_test(Test1 \"${CMAKE_COMMAND}\" -E echo \"test1\")
 add_test(Test2 \"${CMAKE_COMMAND}\" -E echo \"test2\")
 add_test(Test11 \"${CMAKE_COMMAND}\" -E echo \"test11\")
 ")
-  run_cmake_command(TestsFromFile-${arg} ${CMAKE_CTEST_COMMAND} --${arg} ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt )
+  run_cmake_command(TestsFromFile-${case} ${CMAKE_CTEST_COMMAND} ${ARGN})
 endfunction()
-run_TestsFromFileTest(tests-from-file)
-run_TestsFromFileTest(exclude-from-file)
+run_TestsFromFileTest(include --tests-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt)
+run_TestsFromFileTest(exclude --exclude-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList.txt)
+run_TestsFromFileTest(include-empty --tests-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-empty.txt)
+run_TestsFromFileTest(exclude-empty --exclude-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-empty.txt)
+run_TestsFromFileTest(include-missing --tests-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-missing.txt)
+run_TestsFromFileTest(exclude-missing --exclude-from-file ${RunCMake_SOURCE_DIR}/TestsFromFile-TestList-missing.txt)
 
 
 function(run_SerialFailed)
@@ -239,6 +247,44 @@ add_test(Echo \"${CMAKE_COMMAND}\" -E echo \"EchoTest\")
   run_cmake_command(SerialFailed ${CMAKE_CTEST_COMMAND} -V)
 endfunction()
 run_SerialFailed()
+
+function(run_Parallel case)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/Parallel-${case})
+  set(RunCMake_TEST_NO_CLEAN 1)
+  file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
+  file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+  file(WRITE "${RunCMake_TEST_BINARY_DIR}/CTestTestfile.cmake" "
+foreach(i RANGE 1 6)
+  add_test(test\${i} \"${CMAKE_COMMAND}\" -E true)
+endforeach()
+")
+  run_cmake_command(Parallel-${case} ${CMAKE_CTEST_COMMAND} ${ARGN})
+endfunction()
+# Spoof a number of processors to make these tests predictable.
+set(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING} 1)
+run_Parallel(bad --parallel bad)
+run_Parallel(j-bad -j bad)
+set(RunCMake_TEST_RAW_ARGS [[--parallel ""]])
+run_Parallel(empty) # With 1 processor, defaults to 2.
+unset(RunCMake_TEST_RAW_ARGS)
+run_Parallel(j -j) # With 1 processor, defaults to 2.
+run_Parallel(0 -j0)
+run_Parallel(4 --parallel 4)
+run_Parallel(N --parallel -N)
+set(ENV{CTEST_PARALLEL_LEVEL} bad)
+run_Parallel(env-bad)
+if(CMAKE_HOST_WIN32)
+  set(ENV{CTEST_PARALLEL_LEVEL} " ")
+else()
+  set(ENV{CTEST_PARALLEL_LEVEL} "")
+endif()
+run_Parallel(env-empty) # With 1 processor, defaults to 2.
+set(ENV{CTEST_PARALLEL_LEVEL} 0)
+run_Parallel(env-0)
+set(ENV{CTEST_PARALLEL_LEVEL} 3)
+run_Parallel(env-3)
+unset(ENV{CTEST_PARALLEL_LEVEL})
+unset(ENV{__CTEST_FAKE_PROCESSOR_COUNT_FOR_TESTING)
 
 function(run_TestLoad name load)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TestLoad)
@@ -391,6 +437,8 @@ function(run_ShowOnly)
       RESOURCE_GROUPS \"2,threads:2,gpus:4;gpus:2,threads:4\"
       REQUIRED_FILES RequiredFileDoesNotExist
       _BACKTRACE_TRIPLES \"file1;1;add_test;file0;;\"
+      USER_DEFINED_A \"User defined property A value\"
+      USER_DEFINED_B \"User defined property B value\"
       )
     add_test(ShowOnlyNotAvailable NOT_AVAILABLE)
 ")
@@ -439,6 +487,23 @@ run_NoTests()
 
 # Check the configuration type variable is passed
 run_ctest(check-configuration-type)
+
+function(run_FailDrop case)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/FailDrop-${case}-build)
+  run_cmake_with_options(FailDrop-${case} ${ARGN})
+  unset(ENV{CMAKE_TLS_VERSION}) # Test that env variable is saved in ctest config file.
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(FailDrop-${case}-ctest
+    ${CMAKE_CTEST_COMMAND} -M Experimental -T Submit -VV
+    )
+endfunction()
+run_FailDrop(TLSVersion-1.1 -DCTEST_TLS_VERSION=1.1)
+run_FailDrop(TLSVersion-1.1-cmake -DCMAKE_TLS_VERSION=1.1) # Test fallback to CMake variable.
+set(ENV{CMAKE_TLS_VERSION} 1.1) # Test fallback to env variable.
+run_FailDrop(TLSVersion-1.1-env)
+unset(ENV{CMAKE_TLS_VERSION})
+run_FailDrop(TLSVerify-ON -DCTEST_TLS_VERIFY=ON)
+run_FailDrop(TLSVerify-OFF -DCMAKE_TLS_VERIFY=OFF) # Test fallback to CMake variable.
 
 run_cmake_command(EmptyDirCoverage-ctest
   ${CMAKE_CTEST_COMMAND} -C Debug -M Experimental -T Coverage

@@ -123,6 +123,8 @@ of the following libraries that are part of the CUDAToolkit:
 - :ref:`nvidia-ML<cuda_toolkit_nvML>`
 - :ref:`nvPTX Compiler<cuda_toolkit_nvptx>`
 - :ref:`nvRTC<cuda_toolkit_nvRTC>`
+- :ref:`nvJitLink<cuda_toolkit_nvJitLink>`
+- :ref:`nvFatBin<cuda_toolkit_nvfatbin>`
 - :ref:`nvToolsExt<cuda_toolkit_nvToolsExt>`
 - :ref:`nvtx3<cuda_toolkit_nvtx3>`
 - :ref:`OpenCL<cuda_toolkit_opencl>`
@@ -417,6 +419,20 @@ Targets Created:
 
 - ``CUDA::nvJitLink`` starting in CUDA 12.0
 - ``CUDA::nvJitLink_static``  starting in CUDA 12.0
+
+.. _`cuda_toolkit_nvfatbin`:
+
+nvFatBin
+"""""""""
+
+.. versionadded:: 3.30
+
+The `nvFatBin <https://docs.nvidia.com/cuda/>`_ (Runtime fatbin creation) library.
+
+Targets Created:
+
+- ``CUDA::nvfatbin`` starting in CUDA 12.4
+- ``CUDA::nvfatbin_static``  starting in CUDA 12.4
 
 .. _`cuda_toolkit_nvml`:
 
@@ -1168,6 +1184,11 @@ if(CUDAToolkit_FOUND)
     _CUDAToolkit_find_and_add_import_lib(nvJitLink_static DEPS cudart_static_deps)
   endif()
 
+  if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 12.4.0)
+    _CUDAToolkit_find_and_add_import_lib(nvfatbin DEPS cudart_static_deps)
+    _CUDAToolkit_find_and_add_import_lib(nvfatbin_static DEPS cudart_static_deps)
+  endif()
+
   _CUDAToolkit_find_and_add_import_lib(culibos) # it's a static library
   foreach (cuda_lib cublasLt cufft nvjpeg)
     _CUDAToolkit_find_and_add_import_lib(${cuda_lib})
@@ -1281,17 +1302,17 @@ if(CUDAToolkit_FOUND)
 
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 11.1.0)
     if(NOT TARGET CUDA::nvptxcompiler_static)
-      _CUDAToolkit_find_and_add_import_lib(nvptxcompiler_static DEPS cuda_driver)
+      _CUDAToolkit_find_and_add_import_lib(nvptxcompiler_static)
       if(TARGET CUDA::nvptxcompiler_static)
         target_link_libraries(CUDA::nvptxcompiler_static INTERFACE CUDA::cudart_static_deps)
       endif()
     endif()
   endif()
 
-  _CUDAToolkit_find_and_add_import_lib(nvrtc_builtins ALT nvrtc-builtins DEPS cuda_driver)
+  _CUDAToolkit_find_and_add_import_lib(nvrtc_builtins ALT nvrtc-builtins)
   _CUDAToolkit_find_and_add_import_lib(nvrtc DEPS nvrtc_builtins nvJitLink)
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 11.5.0)
-    _CUDAToolkit_find_and_add_import_lib(nvrtc_builtins_static ALT nvrtc-builtins_static DEPS cuda_driver)
+    _CUDAToolkit_find_and_add_import_lib(nvrtc_builtins_static ALT nvrtc-builtins_static)
     if(NOT TARGET CUDA::nvrtc_static)
       _CUDAToolkit_find_and_add_import_lib(nvrtc_static DEPS nvrtc_builtins_static nvptxcompiler_static nvJitLink_static)
       if(TARGET CUDA::nvrtc_static AND WIN32 AND NOT (BORLAND OR MINGW OR CYGWIN))
