@@ -691,7 +691,7 @@ cmValue cmState::GetGlobalProperty(const std::string& prop)
 
 bool cmState::GetGlobalPropertyAsBool(const std::string& prop)
 {
-  return cmIsOn(this->GetGlobalProperty(prop));
+  return this->GetGlobalProperty(prop).IsOn();
 }
 
 void cmState::SetSourceDirectory(std::string const& sourceDirectory)
