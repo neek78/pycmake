@@ -173,6 +173,7 @@ add_RunCMake_test(CMP0153)
 add_RunCMake_test(CMP0156 -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                           -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION})
 add_RunCMake_test(CMP0160)
+add_RunCMake_test(CMP0163)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -1100,9 +1101,10 @@ endif()
 
 add_RunCMake_test_group(CPack "${cpack_tests}")
 
-if(CMake_TEST_CPACK_WIX3)
+if(CMake_TEST_CPACK_WIX3 OR CMake_TEST_CPACK_WIX4)
   add_RunCMake_test(CPack_WIX
     -DCMake_TEST_CPACK_WIX3=${CMake_TEST_CPACK_WIX3}
+    -DCMake_TEST_CPACK_WIX4=${CMake_TEST_CPACK_WIX4}
     )
 endif()
 
