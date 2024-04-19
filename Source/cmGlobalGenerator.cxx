@@ -28,6 +28,7 @@
 #include "cm_codecvt_Encoding.hxx"
 
 #include "cmAlgorithms.h"
+#include "cmCMakePath.h"
 #include "cmCPackPropertiesGenerator.h"
 #include "cmComputeTargetDepends.h"
 #include "cmCryptoHash.h"
@@ -270,17 +271,14 @@ void cmGlobalGenerator::ResolveLanguageCompiler(const std::string& lang,
 
   std::string changeVars;
   if (cname && !optional) {
-    std::string cnameString;
+    cmCMakePath cachedPath;
     if (!cmSystemTools::FileIsFullPath(*cname)) {
-      cnameString = cmSystemTools::FindProgram(*cname);
+      cachedPath = cmSystemTools::FindProgram(*cname);
     } else {
-      cnameString = *cname;
+      cachedPath = *cname;
     }
-    std::string pathString = path;
-    // get rid of potentially multiple slashes:
-    cmSystemTools::ConvertToUnixSlashes(cnameString);
-    cmSystemTools::ConvertToUnixSlashes(pathString);
-    if (cnameString != pathString) {
+    cmCMakePath foundPath = path;
+    if (foundPath.Normal() != cachedPath.Normal()) {
       cmValue cvars = this->GetCMakeInstance()->GetState()->GetGlobalProperty(
         "__CMAKE_DELETE_CACHE_CHANGE_VARS_");
       if (cvars) {
@@ -1583,6 +1581,29 @@ bool cmGlobalGenerator::Compute()
   }
 #endif
 
+  // Perform up-front computation in order to handle errors (such as unknown
+  // features) at this point. While processing the compile features we also
+  // calculate and cache the language standard required by the compile
+  // features.
+  //
+  // Synthetic targets performed this inside of
+  // `cmLocalGenerator::DiscoverSyntheticTargets`
+  for (const auto& localGen : this->LocalGenerators) {
+    if (!localGen->ComputeTargetCompileFeatures()) {
+      return false;
+    }
+  }
+
+  // We now have all targets set up and std levels constructed. Add
+  // `__CMAKE::CXX*` targets as link dependencies to all targets which need
+  // them.
+  //
+  // Synthetic targets performed this inside of
+  // `cmLocalGenerator::DiscoverSyntheticTargets`
+  if (!this->ApplyCXXStdTargets()) {
+    return false;
+  }
+
   // Iterate through all targets and set up C++20 module targets.
   // Create target templates for each imported target with C++20 modules.
   // INTERFACE library with BMI-generating rules and a collation step?
@@ -1590,6 +1611,9 @@ bool cmGlobalGenerator::Compute()
   // Make `add_dependencies(imported_target
   // $<$<TARGET_NAME_IF_EXISTS:uses_imported>:synth1>
   // $<$<TARGET_NAME_IF_EXISTS:other_uses_imported>:synth2>)`
+  //
+  // Note that synthetic target creation performs the above marked
+  // steps on the created targets.
   if (!this->DiscoverSyntheticTargets()) {
     return false;
   }
@@ -1597,16 +1621,6 @@ bool cmGlobalGenerator::Compute()
   // Add generator specific helper commands
   for (const auto& localGen : this->LocalGenerators) {
     localGen->AddHelperCommands();
-  }
-
-  // Perform up-front computation in order to handle errors (such as unknown
-  // features) at this point. While processing the compile features we also
-  // calculate and cache the language standard required by the compile
-  // features.
-  for (const auto& localGen : this->LocalGenerators) {
-    if (!localGen->ComputeTargetCompileFeatures()) {
-      return false;
-    }
   }
 
   // Add automatically generated sources (e.g. unity build).
@@ -1824,6 +1838,19 @@ void cmGlobalGenerator::ComputeTargetOrder(cmGeneratorTarget const* gt,
   }
 
   entry->second = index++;
+}
+
+bool cmGlobalGenerator::ApplyCXXStdTargets()
+{
+  for (auto const& gen : this->LocalGenerators) {
+    for (auto const& tgt : gen->GetGeneratorTargets()) {
+      if (!tgt->ApplyCXXStdTargets()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 bool cmGlobalGenerator::DiscoverSyntheticTargets()

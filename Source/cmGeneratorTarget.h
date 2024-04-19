@@ -883,7 +883,7 @@ public:
   std::string EvaluateInterfaceProperty(
     std::string const& prop, cmGeneratorExpressionContext* context,
     cmGeneratorExpressionDAGChecker* dagCheckerParent,
-    LinkInterfaceFor interfaceFor = LinkInterfaceFor::Usage) const;
+    LinkInterfaceFor interfaceFor) const;
 
   bool HaveInstallTreeRPATH(const std::string& config) const;
 
@@ -961,6 +961,7 @@ public:
 
   std::string GetImportedXcFrameworkPath(const std::string& config) const;
 
+  bool ApplyCXXStdTargets();
   bool DiscoverSyntheticTargets(cmSyntheticTargetCache& cache,
                                 std::string const& config);
 

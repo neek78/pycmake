@@ -18,47 +18,38 @@
 #include "cmake.h"
 
 cmGeneratorExpressionDAGChecker::cmGeneratorExpressionDAGChecker(
+  cmGeneratorTarget const* target, std::string property,
+  const GeneratorExpressionContent* content,
+  cmGeneratorExpressionDAGChecker* parent)
+  : cmGeneratorExpressionDAGChecker(cmListFileBacktrace(), target,
+                                    std::move(property), content, parent)
+{
+}
+
+cmGeneratorExpressionDAGChecker::cmGeneratorExpressionDAGChecker(
   cmListFileBacktrace backtrace, cmGeneratorTarget const* target,
   std::string property, const GeneratorExpressionContent* content,
   cmGeneratorExpressionDAGChecker* parent)
   : Parent(parent)
+  , Top(parent ? parent->Top : this)
   , Target(target)
   , Property(std::move(property))
   , Content(content)
   , Backtrace(std::move(backtrace))
-  , TransitivePropertiesOnly(false)
-  , CMP0131(false)
 {
-  this->Initialize();
-}
+  if (parent) {
+    this->TopIsTransitiveProperty = parent->TopIsTransitiveProperty;
+  } else {
+#define TEST_TRANSITIVE_PROPERTY_METHOD(METHOD) this->METHOD() ||
+    this->TopIsTransitiveProperty = (CM_FOR_EACH_TRANSITIVE_PROPERTY_METHOD(
+      TEST_TRANSITIVE_PROPERTY_METHOD) false); // NOLINT(*)
+#undef TEST_TRANSITIVE_PROPERTY_METHOD
+  }
 
-cmGeneratorExpressionDAGChecker::cmGeneratorExpressionDAGChecker(
-  cmGeneratorTarget const* target, std::string property,
-  const GeneratorExpressionContent* content,
-  cmGeneratorExpressionDAGChecker* parent)
-  : Parent(parent)
-  , Target(target)
-  , Property(std::move(property))
-  , Content(content)
-  , Backtrace()
-  , TransitivePropertiesOnly(false)
-  , CMP0131(false)
-{
-  this->Initialize();
-}
-
-void cmGeneratorExpressionDAGChecker::Initialize()
-{
-  const auto* top = this->Top();
   this->CheckResult = this->CheckGraph();
 
-#define TEST_TRANSITIVE_PROPERTY_METHOD(METHOD) top->METHOD() ||
-
-  if (this->CheckResult == DAG &&
-      (CM_FOR_EACH_TRANSITIVE_PROPERTY_METHOD(
-        TEST_TRANSITIVE_PROPERTY_METHOD) false)) // NOLINT(*)
-#undef TEST_TRANSITIVE_PROPERTY_METHOD
-  {
+  if (this->CheckResult == DAG && this->EvaluatingTransitiveProperty()) {
+    const auto* top = this->Top;
     auto it = top->Seen.find(this->Target);
     if (it != top->Seen.end()) {
       const std::set<std::string>& propSet = it->second;
@@ -142,29 +133,37 @@ cmGeneratorExpressionDAGChecker::CheckGraph() const
 
 bool cmGeneratorExpressionDAGChecker::GetTransitivePropertiesOnly() const
 {
-  return this->Top()->TransitivePropertiesOnly;
+  return this->Top->TransitivePropertiesOnly;
 }
 
 bool cmGeneratorExpressionDAGChecker::GetTransitivePropertiesOnlyCMP0131()
   const
 {
-  return this->Top()->CMP0131;
+  return this->Top->CMP0131;
+}
+
+bool cmGeneratorExpressionDAGChecker::EvaluatingTransitiveProperty() const
+{
+  return this->TopIsTransitiveProperty;
 }
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingGenexExpression() const
 {
+  // Corresponds to GenexEvaluator::EvaluateExpression.
   return cmHasLiteralPrefix(this->Property, "TARGET_GENEX_EVAL:") ||
     cmHasLiteralPrefix(this->Property, "GENEX_EVAL:");
 }
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingPICExpression() const
 {
-  return this->Top()->Property == "INTERFACE_POSITION_INDEPENDENT_CODE";
+  // Corresponds to checkInterfacePropertyCompatibility's special case
+  // that evaluates the value of POSITION_INDEPENDENT_CODE as a genex.
+  return this->Top->Property == "INTERFACE_POSITION_INDEPENDENT_CODE";
 }
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingCompileExpression() const
 {
-  cm::string_view property(this->Top()->Property);
+  cm::string_view property(this->Top->Property);
 
   return property == "INCLUDE_DIRECTORIES"_s ||
     property == "COMPILE_DEFINITIONS"_s || property == "COMPILE_OPTIONS"_s;
@@ -172,7 +171,7 @@ bool cmGeneratorExpressionDAGChecker::EvaluatingCompileExpression() const
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingLinkExpression() const
 {
-  cm::string_view property(this->Top()->Property);
+  cm::string_view property(this->Top->Property);
 
   return property == "LINK_DIRECTORIES"_s || property == "LINK_OPTIONS"_s ||
     property == "LINK_DEPENDS"_s || property == "LINK_LIBRARY_OVERRIDE"_s ||
@@ -181,14 +180,14 @@ bool cmGeneratorExpressionDAGChecker::EvaluatingLinkExpression() const
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingLinkOptionsExpression() const
 {
-  cm::string_view property(this->Top()->Property);
+  cm::string_view property(this->Top->Property);
 
   return property == "LINK_OPTIONS"_s || property == "LINKER_TYPE"_s;
 }
 
 bool cmGeneratorExpressionDAGChecker::EvaluatingLinkerLauncher() const
 {
-  cm::string_view property(this->Top()->Property);
+  cm::string_view property(this->Top->Property);
 
   return property.length() > cmStrLen("_LINKER_LAUNCHER") &&
     property.substr(property.length() - cmStrLen("_LINKER_LAUNCHER")) ==
@@ -198,7 +197,7 @@ bool cmGeneratorExpressionDAGChecker::EvaluatingLinkerLauncher() const
 bool cmGeneratorExpressionDAGChecker::EvaluatingLinkLibraries(
   cmGeneratorTarget const* tgt, ForGenex genex) const
 {
-  const auto* top = this->Top();
+  const auto* top = this->Top;
 
   cm::string_view prop(top->Property);
 
@@ -219,29 +218,17 @@ bool cmGeneratorExpressionDAGChecker::EvaluatingLinkLibraries(
     : (result || prop == "INTERFACE_LINK_LIBRARIES_DIRECT_EXCLUDE"_s);
 }
 
-cmGeneratorExpressionDAGChecker const* cmGeneratorExpressionDAGChecker::Top()
-  const
-{
-  const cmGeneratorExpressionDAGChecker* top = this;
-  const cmGeneratorExpressionDAGChecker* parent = this->Parent;
-  while (parent) {
-    top = parent;
-    parent = parent->Parent;
-  }
-  return top;
-}
-
 cmGeneratorTarget const* cmGeneratorExpressionDAGChecker::TopTarget() const
 {
-  return this->Top()->Target;
+  return this->Top->Target;
 }
 
-enum TransitiveProperty
+enum class TransitiveProperty
 {
 #define DEFINE_ENUM_ENTRY(NAME) NAME,
   CM_FOR_EACH_TRANSITIVE_PROPERTY_NAME(DEFINE_ENUM_ENTRY)
 #undef DEFINE_ENUM_ENTRY
-    TransitivePropertyTerminal
+    Terminal
 };
 
 template <TransitiveProperty>
@@ -251,7 +238,8 @@ bool additionalTest(const char* const /*unused*/)
 }
 
 template <>
-bool additionalTest<COMPILE_DEFINITIONS>(const char* const prop)
+bool additionalTest<TransitiveProperty::COMPILE_DEFINITIONS>(
+  const char* const prop)
 {
   return cmHasLiteralPrefix(prop, "COMPILE_DEFINITIONS_");
 }
@@ -264,7 +252,7 @@ bool additionalTest<COMPILE_DEFINITIONS>(const char* const prop)
         strcmp(prop, "INTERFACE_" #PROPERTY) == 0) {                          \
       return true;                                                            \
     }                                                                         \
-    return additionalTest<PROPERTY>(prop);                                    \
+    return additionalTest<TransitiveProperty::PROPERTY>(prop);                \
   }
 
 CM_FOR_EACH_TRANSITIVE_PROPERTY(DEFINE_TRANSITIVE_PROPERTY_METHOD)

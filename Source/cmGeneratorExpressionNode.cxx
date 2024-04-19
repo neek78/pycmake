@@ -547,6 +547,7 @@ static const struct TargetGenexEvalNode : public GenexEvaluator
       return expression;
     }
 
+    // Replace the surrounding context with the named target.
     cmGeneratorExpressionContext targetContext(
       context->LG, context->Config, context->Quiet, target, target,
       context->EvaluateForBuildsystem, context->Backtrace, context->Language);
@@ -2714,8 +2715,9 @@ static std::string getLinkedTargetsContent(
           target->GetLocalGenerator(), context->Config, context->Quiet, target,
           target, context->EvaluateForBuildsystem, lib.Backtrace,
           context->Language);
-        std::string libResult =
-          lib.Target->EvaluateInterfaceProperty(prop, &libContext, dagChecker);
+        std::string libResult = lib.Target->EvaluateInterfaceProperty(
+          prop, &libContext, dagChecker,
+          cmGeneratorTarget::LinkInterfaceFor::Usage);
         if (!libResult.empty()) {
           if (result.empty()) {
             result = std::move(libResult);
@@ -2896,6 +2898,9 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
     bool evaluatingLinkLibraries = false;
 
     if (dagCheckerParent) {
+      // This $<TARGET_PROPERTY:...> node has been reached while evaluating
+      // another target property value.  Check that the outermost evaluation
+      // expects such nested evaluations.
       if (dagCheckerParent->EvaluatingGenexExpression() ||
           dagCheckerParent->EvaluatingPICExpression() ||
           dagCheckerParent->EvaluatingLinkerLauncher()) {
@@ -2911,17 +2916,16 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
           return std::string();
         }
       } else {
-#define ASSERT_TRANSITIVE_PROPERTY_METHOD(METHOD) dagCheckerParent->METHOD() ||
-        assert(CM_FOR_EACH_TRANSITIVE_PROPERTY_METHOD(
-          ASSERT_TRANSITIVE_PROPERTY_METHOD) false); // NOLINT(clang-tidy)
-#undef ASSERT_TRANSITIVE_PROPERTY_METHOD
+        assert(dagCheckerParent
+                 ->EvaluatingTransitiveProperty()); // NOLINT(clang-tidy)
       }
     }
 
     if (isInterfaceProperty) {
       return cmGeneratorExpression::StripEmptyListElements(
-        target->EvaluateInterfaceProperty(propertyName, context,
-                                          dagCheckerParent));
+        target->EvaluateInterfaceProperty(
+          propertyName, context, dagCheckerParent,
+          cmGeneratorTarget::LinkInterfaceFor::Usage));
     }
 
     cmGeneratorExpressionDAGChecker dagChecker(
@@ -2950,8 +2954,20 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
       return std::string();
     }
 
-    if (!haveProp && !target->IsImported() &&
-        target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
+    // Properties named by COMPATIBLE_INTERFACE_ properties combine over
+    // the transitive link closure as a single order-independent value.
+    // Imported targets do not themselves have a defined value for these
+    // properties, but they can contribute to the value of a non-imported
+    // dependent.
+    //
+    // For COMPATIBLE_INTERFACE_{BOOL,STRING}:
+    // * If set on this target, use the value directly.  It is checked
+    //   elsewhere for consistency over the transitive link closure.
+    // * If not set on this target, compute the value from the closure.
+    //
+    // For COMPATIBLE_INTERFACE_NUMBER_{MAX,MIN} we always compute the value
+    // from this target and the transitive link closure to get the max or min.
+    if (!haveProp && !target->IsImported()) {
       if (target->IsLinkInterfaceDependentBoolProperty(propertyName,
                                                        context->Config)) {
         context->HadContextSensitiveCondition = true;
@@ -2968,6 +2984,8 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
                                                           context->Config);
         return propContent ? propContent : "";
       }
+    }
+    if (!evaluatingLinkLibraries && !target->IsImported()) {
       if (target->IsLinkInterfaceDependentNumberMinProperty(propertyName,
                                                             context->Config)) {
         context->HadContextSensitiveCondition = true;
@@ -2986,26 +3004,8 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
       }
     }
 
-    if (!target->IsImported() && dagCheckerParent &&
-        !dagCheckerParent->EvaluatingLinkLibraries()) {
-      if (target->IsLinkInterfaceDependentNumberMinProperty(propertyName,
-                                                            context->Config)) {
-        context->HadContextSensitiveCondition = true;
-        const char* propContent =
-          target->GetLinkInterfaceDependentNumberMinProperty(propertyName,
-                                                             context->Config);
-        return propContent ? propContent : "";
-      }
-      if (target->IsLinkInterfaceDependentNumberMaxProperty(propertyName,
-                                                            context->Config)) {
-        context->HadContextSensitiveCondition = true;
-        const char* propContent =
-          target->GetLinkInterfaceDependentNumberMaxProperty(propertyName,
-                                                             context->Config);
-        return propContent ? propContent : "";
-      }
-    }
-
+    // Some properties, such as usage requirements, combine over the
+    // transitive link closure as an ordered list.
     if (!interfacePropertyName.empty()) {
       result = cmGeneratorExpression::StripEmptyListElements(
         this->EvaluateDependentExpression(result, context->LG, context, target,
