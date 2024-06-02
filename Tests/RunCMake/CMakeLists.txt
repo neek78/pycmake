@@ -175,6 +175,8 @@ add_RunCMake_test(CMP0156 -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
 add_RunCMake_test(CMP0160)
 add_RunCMake_test(CMP0163)
 add_RunCMake_test(CMP0165)
+add_RunCMake_test(CMP0169)
+add_RunCMake_test(CMP0170)
 
 # The test for Policy 65 requires the use of the
 # CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS variable, which both the VS and Xcode
@@ -252,6 +254,7 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   add_RunCMake_test(NinjaPrivateDeps
     -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
     -DRunCMake_GENERATOR_IS_MULTI_CONFIG=${_isMultiConfig})
+  add_RunCMake_test(InstallParallel)
 endif()
 add_RunCMake_test(CTest)
 
@@ -440,6 +443,16 @@ add_RunCMake_test(GoogleTest # Note: does not actually depend on Google Test
   )
 add_RunCMake_test(Graphviz)
 add_RunCMake_test(Languages)
+
+add_RunCMake_test(LanguageStandards
+  -DCMake_NO_C_STANDARD=${CMake_NO_C_STANDARD}
+  -DCMake_NO_CXX_STANDARD=${CMake_NO_CXX_STANDARD}
+  -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+  -DCMake_TEST_HIP=${CMake_TEST_HIP}
+  -DCMake_TEST_OBJC=${CMake_TEST_OBJC}
+)
+set_property(TEST RunCMake.LanguageStandards APPEND PROPERTY LABELS "CUDA" "HIP")
+
 add_RunCMake_test(LinkItemValidation)
 add_RunCMake_test(LinkStatic)
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang|IBMClang|Fujitsu|FujitsuClang)$")
@@ -506,14 +519,23 @@ set_property(TEST RunCMake.add_subdirectory APPEND PROPERTY LABELS "Fortran")
 add_RunCMake_test(add_test -DPSEUDO_EMULATOR=$<TARGET_FILE:pseudo_emulator>)
 add_RunCMake_test(build_command)
 add_executable(exit_code exit_code.c)
+if(NOT CMAKE_C_COMPILER_ID MATCHES "OrangeC|Watcom"
+    AND NOT CMAKE_C_FLAGS MATCHES "-fsanitize=")
+  add_executable(exit_crash exit_crash.c)
+  set(EXIT_CRASH_EXE $<TARGET_FILE:exit_crash>)
+endif()
 set(execute_process_ARGS
   -DEXIT_CODE_EXE=$<TARGET_FILE:exit_code>
+  -DEXIT_CRASH_EXE=${EXIT_CRASH_EXE}
   -DPRINT_STDIN_EXE=$<TARGET_FILE:print_stdin>
-  -DPython_EXECUTABLE=${Python_EXECUTABLE}
   -DCYGWIN=${CYGWIN}
   )
 if(NOT CMake_TEST_EXTERNAL_CMAKE)
   list(APPEND execute_process_ARGS -DTEST_ENCODING_EXE=$<TARGET_FILE:testEncoding>)
+endif()
+if(WIN32)
+  add_executable(testStartupInfo testStartupInfo.c)
+  list(APPEND execute_process_ARGS -DTEST_STARTUPINFO_EXE=$<TARGET_FILE:testStartupInfo>)
 endif()
 add_RunCMake_test(execute_process)
 add_RunCMake_test(export)
@@ -555,6 +577,7 @@ add_RunCMake_test(file-CHMOD -DMSYS=${MSYS})
 foreach(var
     CMake_TEST_NO_NETWORK
     CMake_TEST_TLS_VERIFY_URL
+    CMake_TEST_TLS_VERIFY_URL_BAD
     CMake_TEST_TLS_VERSION
     )
   if(DEFINED ${var})
@@ -726,13 +749,7 @@ endif()
 if("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
   add_RunCMake_test(CMAKE_MSVCIDE_RUN_PATH)
   add_RunCMake_test(include_external_msproject -DVS_PLATFORM_NAME=${CMAKE_VS_PLATFORM_NAME})
-  if("${CMAKE_GENERATOR}" MATCHES "Visual Studio (9|10)" AND NOT CMAKE_VS_DEVENV_COMMAND)
-    set(NO_USE_FOLDERS 1)
-  endif()
-  add_RunCMake_test(VSSolution -DNO_USE_FOLDERS=${NO_USE_FOLDERS})
-endif()
-
-if("${CMAKE_GENERATOR}" MATCHES "Visual Studio ([^9]|9[0-9])")
+  add_RunCMake_test(VSSolution)
   add_RunCMake_test(VS10Project
     -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
     -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
@@ -743,7 +760,8 @@ if("${CMAKE_GENERATOR}" MATCHES "Visual Studio ([^9]|9[0-9])")
   endif()
 endif()
 
-if(CMAKE_GENERATOR MATCHES "^Visual Studio (1[6-9]|[2-9][0-9])")
+if(CMAKE_GENERATOR MATCHES "^Visual Studio (1[6-9]|[2-9][0-9])"
+    AND NOT CMAKE_GENERATOR_TOOLSET MATCHES "^(v80|v90|v100|v110|v120)$")
   add_RunCMake_test(VsDotnetSdk)
   add_RunCMake_test(VsNugetPackageRestore)
 endif()
@@ -1037,6 +1055,7 @@ set(cpack_tests
   DEB.DEB_PACKAGE_VERSION_BACK_COMPATIBILITY
   DEB.DEB_DESCRIPTION
   DEB.PROJECT_META
+  DEB.COMPONENT_WITH_SPECIAL_CHARS
 
   RPM.AUTO_SUFFIXES
   RPM.CUSTOM_BINARY_SPEC_FILE
@@ -1059,6 +1078,7 @@ set(cpack_tests
   RPM.SYMLINKS
   RPM.USER_FILELIST
   RPM.PROJECT_META
+  RPM.COMPONENT_WITH_SPECIAL_CHARS
 
   7Z
   TBZ2
@@ -1151,7 +1171,7 @@ if(CMake_TEST_ANDROID_NDK OR CMake_TEST_ANDROID_STANDALONE_TOOLCHAIN)
   set_property(TEST RunCMake.Android PROPERTY TIMEOUT ${CMake_TEST_ANDROID_TIMEOUT})
 endif()
 
-if(${CMAKE_GENERATOR} MATCHES "Visual Studio ([^9]|9[0-9])")
+if(${CMAKE_GENERATOR} MATCHES "Visual Studio")
   add_RunCMake_test(CSharpCustomCommand)
   if(NOT CMAKE_VS_PLATFORM_NAME STREQUAL "ARM64")
     add_RunCMake_test(CSharpReferenceImport)

@@ -4,10 +4,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -97,7 +99,6 @@
 #    include "cmGlobalNMakeMakefileGenerator.h"
 #    include "cmGlobalVisualStudio12Generator.h"
 #    include "cmGlobalVisualStudio14Generator.h"
-#    include "cmGlobalVisualStudio9Generator.h"
 #    include "cmGlobalVisualStudioVersionedGenerator.h"
 #    include "cmVSSetupHelper.h"
 
@@ -2576,7 +2577,22 @@ int cmake::ActualConfigure()
 #endif
 
   // actually do the configure
+  auto startTime = std::chrono::steady_clock::now();
   this->GlobalGenerator->Configure();
+  auto endTime = std::chrono::steady_clock::now();
+
+  if (this->GetWorkingMode() == cmake::NORMAL_MODE) {
+    std::ostringstream msg;
+    if (cmSystemTools::GetErrorOccurredFlag()) {
+      msg << "Configuring incomplete, errors occurred!";
+    } else {
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        endTime - startTime);
+      msg << "Configuring done (" << std::fixed << std::setprecision(1)
+          << ms.count() / 1000.0L << "s)";
+    }
+    this->UpdateProgress(msg.str(), -1);
+  }
 
 #if !defined(CMAKE_BOOTSTRAP)
   this->ConfigureLog.reset();
@@ -2654,7 +2670,6 @@ std::unique_ptr<cmGlobalGenerator> cmake::EvaluateDefaultGlobalGenerator()
   static VSVersionedGenerator const vsGenerators[] = {
     { "14.0", "Visual Studio 14 2015" }, //
     { "12.0", "Visual Studio 12 2013" }, //
-    { "9.0", "Visual Studio 9 2008" }
   };
   static const char* const vsEntries[] = {
     "\\Setup\\VC;ProductDir", //
@@ -2923,10 +2938,20 @@ int cmake::Generate()
   auto profilingRAII = this->CreateProfilingEntry("project", "generate");
 #endif
 
+  auto startTime = std::chrono::steady_clock::now();
   if (!this->GlobalGenerator->Compute()) {
     return -1;
   }
   this->GlobalGenerator->Generate();
+  auto endTime = std::chrono::steady_clock::now();
+  {
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(endTime -
+                                                                    startTime);
+    std::ostringstream msg;
+    msg << "Generating done (" << std::fixed << std::setprecision(1)
+        << ms.count() / 1000.0L << "s)";
+    this->UpdateProgress(msg.str(), -1);
+  }
   if (!this->GraphVizFile.empty()) {
     std::cout << "Generate graphviz: " << this->GraphVizFile << '\n';
     this->GenerateGraphViz(this->GraphVizFile);
@@ -3053,7 +3078,6 @@ void cmake::AddDefaultGenerators()
     cmGlobalVisualStudioVersionedGenerator::NewFactory15());
   this->Generators.push_back(cmGlobalVisualStudio14Generator::NewFactory());
   this->Generators.push_back(cmGlobalVisualStudio12Generator::NewFactory());
-  this->Generators.push_back(cmGlobalVisualStudio9Generator::NewFactory());
   this->Generators.push_back(cmGlobalBorlandMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalNMakeMakefileGenerator::NewFactory());
   this->Generators.push_back(cmGlobalJOMMakefileGenerator::NewFactory());
@@ -3813,22 +3837,12 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
   // itself, there is the risk of building an out-of-date solution file due
   // to limitations of the underlying build system.
   std::string const stampList = cachePath + "/" + "CMakeFiles/" +
-    cmGlobalVisualStudio9Generator::GetGenerateStampList();
+    cmGlobalVisualStudio12Generator::GetGenerateStampList();
 
   // Note that the stampList file only exists for VS generators.
   if (cmSystemTools::FileExists(stampList)) {
 
-    // Check if running for Visual Studio 9 - we need to explicitly run
-    // the glob verification script before starting the build
     this->AddScriptingCommands();
-    if (this->GlobalGenerator->MatchesGeneratorName("Visual Studio 9 2008")) {
-      std::string const globVerifyScript =
-        cachePath + "/" + "CMakeFiles/" + "VerifyGlobs.cmake";
-      if (cmSystemTools::FileExists(globVerifyScript)) {
-        std::vector<std::string> args;
-        this->ReadListFile(args, globVerifyScript);
-      }
-    }
 
     if (!cmakeCheckStampList(stampList)) {
       // Correctly initialize the home (=source) and home output (=binary)

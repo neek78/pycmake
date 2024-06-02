@@ -688,6 +688,11 @@ cmValue cmState::GetGlobalProperty(const std::string& prop)
       &FOR_EACH_CUDA_FEATURE(STRING_LIST_ELEMENT)[1]);
     return cmValue(s_out);
   }
+  if (prop == "CMAKE_HIP_KNOWN_FEATURES") {
+    static const std::string s_out(
+      &FOR_EACH_HIP_FEATURE(STRING_LIST_ELEMENT)[1]);
+    return cmValue(s_out);
+  }
 
 #undef STRING_LIST_ELEMENT
   return this->GlobalProperties.GetPropertyValue(prop);
@@ -743,6 +748,16 @@ void cmState::SetGhsMultiIDE(bool ghsMultiIDE)
 bool cmState::UseGhsMultiIDE() const
 {
   return this->GhsMultiIDE;
+}
+
+void cmState::SetBorlandMake(bool borlandMake)
+{
+  this->BorlandMake = borlandMake;
+}
+
+bool cmState::UseBorlandMake() const
+{
+  return this->BorlandMake;
 }
 
 void cmState::SetWatcomWMake(bool watcomWMake)

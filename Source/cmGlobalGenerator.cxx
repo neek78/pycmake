@@ -4,13 +4,11 @@
 
 #include <algorithm>
 #include <cassert>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <initializer_list>
-#include <iomanip>
 #include <iterator>
 #include <sstream>
 #include <type_traits>
@@ -1351,8 +1349,6 @@ void cmGlobalGenerator::CreateLocalGenerators()
 
 void cmGlobalGenerator::Configure()
 {
-  auto startTime = std::chrono::steady_clock::now();
-
   this->FirstTimeProgress = 0.0f;
   this->ClearGeneratorMembers();
   this->NextDeferId = 0;
@@ -1407,21 +1403,6 @@ void cmGlobalGenerator::Configure()
   this->GetCMakeInstance()->AddCacheEntry(
     "CMAKE_NUMBER_OF_MAKEFILES", std::to_string(this->Makefiles.size()),
     "number of local generators", cmStateEnums::INTERNAL);
-
-  auto endTime = std::chrono::steady_clock::now();
-
-  if (this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE) {
-    std::ostringstream msg;
-    if (cmSystemTools::GetErrorOccurredFlag()) {
-      msg << "Configuring incomplete, errors occurred!";
-    } else {
-      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        endTime - startTime);
-      msg << "Configuring done (" << std::fixed << std::setprecision(1)
-          << ms.count() / 1000.0L << "s)";
-    }
-    this->CMakeInstance->UpdateProgress(msg.str(), -1);
-  }
 }
 
 void cmGlobalGenerator::CreateGenerationObjects(TargetTypes targetTypes)
@@ -1683,8 +1664,6 @@ bool cmGlobalGenerator::Compute()
 
 void cmGlobalGenerator::Generate()
 {
-  auto startTime = std::chrono::steady_clock::now();
-
   // Create a map from local generator to the complete set of targets
   // it builds by default.
   this->InitializeProgressMarks();
@@ -1775,14 +1754,6 @@ void cmGlobalGenerator::Generate()
     this->GetCMakeInstance()->IssueMessage(MessageType::AUTHOR_WARNING,
                                            w.str());
   }
-
-  auto endTime = std::chrono::steady_clock::now();
-  auto ms =
-    std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-  std::ostringstream msg;
-  msg << "Generating done (" << std::fixed << std::setprecision(1)
-      << ms.count() / 1000.0L << "s)";
-  this->CMakeInstance->UpdateProgress(msg.str(), -1);
 }
 
 bool cmGlobalGenerator::ComputeTargetDepends()
@@ -2759,6 +2730,7 @@ cmGlobalGenerator::SplitFrameworkPath(const std::string& path,
 }
 
 static bool RaiseCMP0037Message(cmake* cm, cmTarget* tgt,
+                                std::string const& targetNameAsWritten,
                                 std::string const& reason)
 {
   MessageType messageType = MessageType::AUTHOR_WARNING;
@@ -2779,8 +2751,8 @@ static bool RaiseCMP0037Message(cmake* cm, cmTarget* tgt,
       break;
   }
   if (issueMessage) {
-    e << "The target name \"" << tgt->GetName() << "\" is reserved " << reason
-      << ".";
+    e << "The target name \"" << targetNameAsWritten << "\" is reserved "
+      << reason << ".";
     if (messageType == MessageType::AUTHOR_WARNING) {
       e << "  It may result in undefined behavior.";
     }
@@ -2799,7 +2771,8 @@ bool cmGlobalGenerator::CheckCMP0037(std::string const& targetName,
   if (!tgt) {
     return true;
   }
-  return RaiseCMP0037Message(this->GetCMakeInstance(), tgt, reason);
+  return RaiseCMP0037Message(this->GetCMakeInstance(), tgt, targetName,
+                             reason);
 }
 
 void cmGlobalGenerator::CreateDefaultGlobalTargets(
@@ -3075,7 +3048,9 @@ void cmGlobalGenerator::AddGlobalTarget_Install(
     if (const char* install_local = this->GetInstallLocalTargetName()) {
       gti.Name = install_local;
       gti.Message = "Installing only the local directory...";
-      gti.UsesTerminal = true;
+      gti.UsesTerminal =
+        !this->GetCMakeInstance()->GetState()->GetGlobalPropertyAsBool(
+          "INSTALL_PARALLEL");
       gti.CommandLines.clear();
 
       cmCustomCommandLine localCmdLine = singleLine;

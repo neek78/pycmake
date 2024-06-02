@@ -381,6 +381,14 @@ CMAKE_CXX_SOURCES="\
   cmGeneratorExpressionNode \
   cmGeneratorExpressionParser \
   cmGeneratorTarget \
+  cmGeneratorTarget_CompatibleInterface \
+  cmGeneratorTarget_IncludeDirectories \
+  cmGeneratorTarget_Link \
+  cmGeneratorTarget_LinkDirectories \
+  cmGeneratorTarget_Options \
+  cmGeneratorTarget_Sources \
+  cmGeneratorTarget_TargetPropertyEntry \
+  cmGeneratorTarget_TransitiveProperty \
   cmGetCMakePropertyCommand \
   cmGetDirectoryPropertyCommand \
   cmGetFilenameComponentCommand \
@@ -492,6 +500,7 @@ CMAKE_CXX_SOURCES="\
   cmTargetPropCommandBase \
   cmTargetPropertyComputer \
   cmTargetSourcesCommand \
+  cmTargetTraceDependencies \
   cmTest \
   cmTestGenerator \
   cmTimestamp \
@@ -684,8 +693,8 @@ Configuration:
                           (default)
   --system-cppdap         use system-installed cppdap library
   --no-system-cppdap      use cmake-provided cppdap library (default)
-  --system-curl           use system-installed curl library
-  --no-system-curl        use cmake-provided curl library (default)
+  --system-curl           use system-installed curl library (default on macOS)
+  --no-system-curl        use cmake-provided curl library (default elsewhere)
   --system-expat          use system-installed expat library
   --no-system-expat       use cmake-provided expat library (default)
   --system-jsoncpp        use system-installed jsoncpp library

@@ -302,17 +302,20 @@ Target Build Specification
 --------------------------
 
 The build specification of `Binary Targets`_ is represented by target
-properties.  For each of the following `build <Target Build Properties_>`_
+properties.  For each of the following `compile <Target Compile Properties_>`_
 and `link <Target Link Properties_>`_ properties, compilation and linking
 of the target is affected both by its own value and by the corresponding
 `usage requirement <Target Usage Requirements_>`_ property, named with
 an ``INTERFACE_`` prefix, collected from the transitive closure of link
 dependencies.
 
-.. _`Target Build Properties`:
+.. _`Target Compile Properties`:
 
-Target Build Properties
-^^^^^^^^^^^^^^^^^^^^^^^
+Target Compile Properties
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These represent the `build specification <Target Build Specification_>`_
+for compiling a target.
 
 :prop_tgt:`COMPILE_DEFINITIONS`
   List of compile definitions for compiling sources in the target.
@@ -378,6 +381,9 @@ Target Build Properties
 Target Link Properties
 ^^^^^^^^^^^^^^^^^^^^^^
 
+These represent the `build specification <Target Build Specification_>`_
+for linking a target.
+
 :prop_tgt:`LINK_LIBRARIES`
   List of link libraries for linking the target, if it is an executable,
   shared library, or module library.  Entries for `Normal Libraries`_ are
@@ -422,7 +428,7 @@ Target Usage Requirements
 The *usage requirements* of a target are settings that propagate to consumers,
 which link to the target via :command:`target_link_libraries`, in order to
 correctly compile and link with it.  They are represented by transitive
-`build <Transitive Build Properties_>`_ and
+`compile <Transitive Compile Properties_>`_ and
 `link <Transitive Link Properties_>`_ properties.
 
 Note that usage requirements are not designed as a way to make downstreams
@@ -505,10 +511,13 @@ Note that care must be taken when specifying usage requirements for targets
 which will be exported for installation using the :command:`install(EXPORT)`
 command.  See :ref:`Creating Packages` for more.
 
-.. _`Transitive Build Properties`:
+.. _`Transitive Compile Properties`:
 
-Transitive Build Properties
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Transitive Compile Properties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These represent `usage requirements <Target Usage Requirements_>`_ for
+compiling consumers.
 
 :prop_tgt:`INTERFACE_COMPILE_DEFINITIONS`
   List of compile definitions for compiling sources in the target's consumers.
@@ -561,6 +570,9 @@ Transitive Build Properties
 Transitive Link Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+These represent `usage requirements <Target Usage Requirements_>`_ for
+linking consumers.
+
 :prop_tgt:`INTERFACE_LINK_LIBRARIES`
   List of link libraries for linking the target's consumers, for
   those that are executables, shared libraries, or module libraries.
@@ -589,6 +601,65 @@ Transitive Link Properties
 
   List of files on which linking the target's consumers depends, for
   those that are executables, shared libraries, or module libraries.
+
+.. _`Custom Transitive Properties`:
+
+Custom Transitive Properties
+----------------------------
+
+.. versionadded:: 3.30
+
+The :genex:`TARGET_PROPERTY` generator expression evaluates the above
+`build specification <Target Build Specification_>`_ and
+`usage requirement <Target Usage Requirements_>`_ properties
+as builtin transitive properties.  It also supports custom transitive
+properties defined by the :prop_tgt:`TRANSITIVE_COMPILE_PROPERTIES`
+and :prop_tgt:`TRANSITIVE_LINK_PROPERTIES` properties on the target
+and its link dependencies.
+
+For example:
+
+.. code-block:: cmake
+
+  add_library(example INTERFACE)
+  set_target_properties(example PROPERTIES
+    TRANSITIVE_COMPILE_PROPERTIES "CUSTOM_C"
+    TRANSITIVE_LINK_PROPERTIES    "CUSTOM_L"
+
+    INTERFACE_CUSTOM_C "EXAMPLE_CUSTOM_C"
+    INTERFACE_CUSTOM_L "EXAMPLE_CUSTOM_L"
+    )
+
+  add_library(mylib STATIC mylib.c)
+  target_link_libraries(mylib PRIVATE example)
+  set_target_properties(mylib PROPERTIES
+    CUSTOM_C           "MYLIB_PRIVATE_CUSTOM_C"
+    CUSTOM_L           "MYLIB_PRIVATE_CUSTOM_L"
+    INTERFACE_CUSTOM_C "MYLIB_IFACE_CUSTOM_C"
+    INTERFACE_CUSTOM_L "MYLIB_IFACE_CUSTOM_L"
+    )
+
+  add_executable(myexe myexe.c)
+  target_link_libraries(myexe PRIVATE mylib)
+  set_target_properties(myexe PROPERTIES
+    CUSTOM_C "MYEXE_CUSTOM_C"
+    CUSTOM_L "MYEXE_CUSTOM_L"
+    )
+
+  add_custom_target(print ALL VERBATIM
+    COMMAND ${CMAKE_COMMAND} -E echo
+      # Prints "MYLIB_PRIVATE_CUSTOM_C;EXAMPLE_CUSTOM_C"
+      "$<TARGET_PROPERTY:mylib,CUSTOM_C>"
+
+      # Prints "MYLIB_PRIVATE_CUSTOM_L;EXAMPLE_CUSTOM_L"
+      "$<TARGET_PROPERTY:mylib,CUSTOM_L>"
+
+      # Prints "MYEXE_CUSTOM_C"
+      "$<TARGET_PROPERTY:myexe,CUSTOM_C>"
+
+      # Prints "MYEXE_CUSTOM_L;MYLIB_IFACE_CUSTOM_L;EXAMPLE_CUSTOM_L"
+      "$<TARGET_PROPERTY:myexe,CUSTOM_L>"
+    )
 
 .. _`Compatible Interface Properties`:
 

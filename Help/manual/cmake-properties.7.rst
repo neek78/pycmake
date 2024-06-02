@@ -25,6 +25,7 @@ Properties of Global Scope
    /prop_gbl/CMAKE_C_KNOWN_FEATURES
    /prop_gbl/CMAKE_CUDA_KNOWN_FEATURES
    /prop_gbl/CMAKE_CXX_KNOWN_FEATURES
+   /prop_gbl/CMAKE_HIP_KNOWN_FEATURES
    /prop_gbl/CMAKE_ROLE
    /prop_gbl/DEBUG_CONFIGURATIONS
    /prop_gbl/DISABLED_FEATURES
@@ -39,11 +40,13 @@ Properties of Global Scope
    /prop_gbl/GENERATOR_IS_MULTI_CONFIG
    /prop_gbl/GLOBAL_DEPENDS_DEBUG_MODE
    /prop_gbl/GLOBAL_DEPENDS_NO_CYCLES
+   /prop_gbl/INSTALL_PARALLEL
    /prop_gbl/IN_TRY_COMPILE
    /prop_gbl/JOB_POOLS
    /prop_gbl/PACKAGES_FOUND
    /prop_gbl/PACKAGES_NOT_FOUND
    /prop_gbl/PREDEFINED_TARGETS_FOLDER
+   /prop_gbl/PROPAGATE_TOP_LEVEL_INCLUDES_TO_TRY_COMPILE
    /prop_gbl/REPORT_UNDEFINED_PROPERTIES
    /prop_gbl/RULE_LAUNCH_COMPILE
    /prop_gbl/RULE_LAUNCH_CUSTOM
@@ -401,6 +404,8 @@ Properties on Targets
    /prop_tgt/Swift_MODULE_NAME
    /prop_tgt/SYSTEM
    /prop_tgt/TEST_LAUNCHER
+   /prop_tgt/TRANSITIVE_COMPILE_PROPERTIES
+   /prop_tgt/TRANSITIVE_LINK_PROPERTIES
    /prop_tgt/TYPE
    /prop_tgt/UNITY_BUILD
    /prop_tgt/UNITY_BUILD_BATCH_SIZE
@@ -448,6 +453,7 @@ Properties on Targets
    /prop_tgt/VS_SOURCE_SETTINGS_tool
    /prop_tgt/VS_USE_DEBUG_LIBRARIES
    /prop_tgt/VS_USER_PROPS
+   /prop_tgt/VS_FILTER_PROPS
    /prop_tgt/VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION
    /prop_tgt/VS_WINRT_COMPONENT
    /prop_tgt/VS_WINRT_REFERENCES

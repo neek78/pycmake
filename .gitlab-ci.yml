@@ -821,6 +821,16 @@ b:macos-arm64-ninja-symlinked:
     variables:
         CMAKE_CI_JOB_NIGHTLY: "true"
 
+b:macos-arm64-curl:
+    extends:
+        - .macos_arm64_curl
+        - .cmake_build_macos
+        - .cmake_build_artifacts
+        - .macos_arm64_tags
+        - .run_manually
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
+
 b:macos-arm64-pch:
     extends:
         - .macos_arm64_pch
@@ -873,6 +883,19 @@ t:macos-arm64-ninja-symlinked:
     variables:
         CMAKE_CI_JOB_NIGHTLY: "true"
         CMAKE_CI_JOB_NIGHTLY_NINJA: "true"
+
+t:macos-arm64-curl:
+    extends:
+        - .macos_arm64_curl
+        - .cmake_test_macos
+        - .macos_arm64_tags
+        - .run_dependent
+    dependencies:
+        - b:macos-arm64-curl
+    needs:
+        - b:macos-arm64-curl
+    variables:
+        CMAKE_CI_JOB_NIGHTLY: "true"
 
 b:macos-x86_64-makefiles:
     extends:
@@ -1230,7 +1253,7 @@ t:windows-intel2021.9.0-ninja:
     extends:
         - .windows_intelclassic_ninja
         - .cmake_test_windows_external
-        - .windows_x86_64_tags_concurrent
+        - .windows_x86_64_tags_concurrent_vs2022
         - .cmake_junit_artifacts
         - .run_dependent
     dependencies:
@@ -1241,11 +1264,11 @@ t:windows-intel2021.9.0-ninja:
         CMAKE_CI_BUILD_NAME: windows_intel2021.9.0_ninja
         CMAKE_CI_JOB_NIGHTLY: "true"
 
-t:windows-oneapi2023.1.0-ninja:
+t:windows-oneapi2024.1.0-ninja:
     extends:
         - .windows_inteloneapi_ninja
         - .cmake_test_windows_external
-        - .windows_x86_64_tags_concurrent
+        - .windows_x86_64_tags_concurrent_vs2022
         - .cmake_junit_artifacts
         - .run_dependent
     dependencies:
@@ -1253,7 +1276,7 @@ t:windows-oneapi2023.1.0-ninja:
     needs:
         - t:windows-vs2022-x64-ninja
     variables:
-        CMAKE_CI_BUILD_NAME: windows_oneapi2023.1.0_ninja
+        CMAKE_CI_BUILD_NAME: windows_oneapi2024.1.0_ninja
         CMAKE_CI_JOB_NIGHTLY: "true"
 
 t:mingw_osdn_io-mingw_makefiles:
