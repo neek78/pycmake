@@ -153,6 +153,9 @@ add_RunCMake_test(CMP0126)
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "LCC" OR
    "${CMAKE_CXX_COMPILER_ID}" STREQUAL "LCC" OR
    "${CMAKE_Fortran_COMPILER_ID}" STREQUAL "LCC")
+  if(CMAKE_Fortran_COMPILER)
+    list(APPEND CMP0129_ARGS -DCMake_TEST_Fortran=1)
+  endif()
   add_RunCMake_test("CMP0129")
   set_property(TEST RunCMake.CMP0129 APPEND PROPERTY LABELS "Fortran")
 endif()
@@ -1139,6 +1142,10 @@ if(CMake_TEST_CPACK_WIX3 OR CMake_TEST_CPACK_WIX4)
     -DCMake_TEST_CPACK_WIX3=${CMake_TEST_CPACK_WIX3}
     -DCMake_TEST_CPACK_WIX4=${CMake_TEST_CPACK_WIX4}
     )
+endif()
+
+if(CMake_TEST_CPACK_NUGET)
+  add_RunCMake_test(CPack_NuGet)
 endif()
 
 # add a test to make sure symbols are exported from a shared library
