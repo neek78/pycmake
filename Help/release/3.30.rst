@@ -148,9 +148,9 @@ Generator Expressions
   associated :variable:`CMAKE_<LANG>_COMPILER_FRONTEND_VARIANT` variables.
 
 * Link features, as used with the :genex:`LINK_LIBRARY` generator expression,
-  gained the ability to have properties that describe their behavior by
-  specifying the :variable:`CMAKE_LINK_LIBRARY_<FEATURE>_PROPERTIES` or
-  :variable:`CMAKE_<LANG>_LINK_LIBRARY_<FEATURE>_PROPERTIES` variables.
+  gained the ability to have attributes that describe their behavior by
+  specifying the :variable:`CMAKE_LINK_LIBRARY_<FEATURE>_ATTRIBUTES` or
+  :variable:`CMAKE_<LANG>_LINK_LIBRARY_<FEATURE>_ATTRIBUTES` variables.
 
 * The :genex:`QUOTE` generator expression was added to evaluate to ``"``.
 
@@ -178,6 +178,13 @@ CPack
 
 * The :cpack_gen:`CPack Inno Setup Generator` is now available
   on non-Windows hosts.
+
+* The :cpack_gen:`CPack NuGet Generator` gained the
+  :variable:`CPACK_NUGET_PACKAGE_README`,
+  :variable:`CPACK_NUGET_PACKAGE_REPOSITORY_URL`,
+  :variable:`CPACK_NUGET_PACKAGE_REPOSITORY_TYPE`,
+  :variable:`CPACK_NUGET_PACKAGE_REPOSITORY_BRANCH`, and
+  :variable:`CPACK_NUGET_PACKAGE_REPOSITORY_COMMIT` variables.
 
 * The :cpack_gen:`CPack NuGet Generator` can now generate dependency groups
   for framework-specific dependencies. The :variable:`CPACK_NUGET_PACKAGE_TFMS`

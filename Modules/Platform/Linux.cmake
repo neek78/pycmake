@@ -44,7 +44,7 @@ else()
                                              "LINKER:--no-whole-archive")
 endif()
 set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE_SUPPORTED TRUE)
-set(CMAKE_LINK_LIBRARY_WHOLE_ARCHIVE_PROPERTIES LIBRARY_TYPE=STATIC UNICITY=YES OVERRIDE=DEFAULT)
+set(CMAKE_LINK_LIBRARY_WHOLE_ARCHIVE_ATTRIBUTES LIBRARY_TYPE=STATIC DEDUPLICATION=YES OVERRIDE=DEFAULT)
 
 # Features for LINK_GROUP generator expression
 ## RESCAN: request the linker to rescan static libraries until there is
@@ -84,7 +84,7 @@ include(Platform/UnixPaths)
 
 # Debian has lib32 and lib64 paths only for compatibility so they should not be
 # searched.
-if(NOT CMAKE_CROSSCOMPILING)
+if(NOT CMAKE_CROSSCOMPILING AND NOT CMAKE_COMPILER_SYSROOT)
   if (EXISTS "/etc/debian_version")
     set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB32_PATHS FALSE)
     set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS FALSE)
