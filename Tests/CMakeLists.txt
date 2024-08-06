@@ -307,6 +307,7 @@ if(BUILD_TESTING)
       execute_process(
         COMMAND xcodebuild -version
         OUTPUT_VARIABLE _version
+        ERROR_VARIABLE _stderr
         RESULT_VARIABLE _failed
         )
       if(NOT _failed AND _version MATCHES "^Xcode ([0-9]+(\\.[0-9]+)*)")
@@ -493,6 +494,7 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(OutDir runtime/OutDir)
   ADD_TEST_MACRO(OutName exe.OutName.exe)
   ADD_TEST_MACRO(ObjectLibrary UseCshared)
+  ADD_TEST_MACRO(SharedLibraryArchive UseSLA)
   ADD_TEST_MACRO(NewlineArgs NewlineArgs)
   ADD_TEST_MACRO(SetLang SetLangX)
   ADD_TEST_MACRO(EmptyProperty EmptyProperty)
@@ -3077,11 +3079,6 @@ if(BUILD_TESTING)
       --output-on-failure -C "\${CTestTest_CONFIG}")
   endif()
 
-  add_test(CTestTestPrintLabels ${CMAKE_CTEST_COMMAND} --print-labels)
-  set_tests_properties(CTestTestPrintLabels PROPERTIES LABELS "Label1;Label2")
-  set_tests_properties(CTestTestPrintLabels PROPERTIES PASS_REGULAR_EXPRESSION
-    "All Labels:.*  Label1.*  Label2")
-
   configure_file(
     "${CMake_SOURCE_DIR}/Tests/CTestTestLabelRegExp/test.cmake.in"
     "${CMake_BINARY_DIR}/Tests/CTestTestLabelRegExp/test.cmake"
@@ -3334,7 +3331,10 @@ if(BUILD_TESTING)
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/Fortran")
     set_property(TEST Fortran APPEND PROPERTY LABELS "Fortran")
 
-    if(CMAKE_Fortran_COMPILER_SUPPORTS_F90)
+    if(CMAKE_Fortran_COMPILER_SUPPORTS_F90
+        # FIXME(lfortran): The compiler fails on the test's modules.
+        AND NOT CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran"
+        )
       add_test(FortranModules ${CMAKE_CTEST_COMMAND}
         --build-and-test
         "${CMake_SOURCE_DIR}/Tests/FortranModules"

@@ -29,6 +29,9 @@ add_library(compileOnly INTERFACE)
 target_compile_definitions(compileOnly INTERFACE FROM_compileOnly)
 target_link_options(compileOnly INTERFACE -fthis-flag-does-not-exist)
 
+add_library(noUses INTERFACE)
+target_link_libraries(noUses INTERFACE this::target_does_not_exist)
+
 add_library(testLib1 STATIC testLib1.c)
 add_library(testLib2 STATIC testLib2.c)
 target_link_libraries(testLib2 testLib1)
@@ -479,6 +482,9 @@ add_library(testMod1 MODULE empty.cpp)
 add_library(testMod2 MODULE empty.cpp)
 set_property(TARGET testMod2 PROPERTY BUNDLE 1)
 
+add_library(testSharedLibArchiveAIX SHARED testSharedLibArchiveAIX.c)
+set_property(TARGET testSharedLibArchiveAIX PROPERTY AIX_SHARED_LIBRARY_ARCHIVE 1)
+
 install(TARGETS testLibRequired
         EXPORT RequiredExp DESTINATION lib
         INCLUDES DESTINATION
@@ -601,6 +607,7 @@ install(FILES
 install(
   TARGETS
   compileOnly
+  noUses
   testExe1 testLib1 testLib2 testExe2 testLib3 testLib4 testExe3 testExe4
   testExe2lib testLib4lib testLib4libdbg testLib4libopt
   testLib6 testLib7 testLib8
@@ -618,6 +625,7 @@ install(
   systemlib
   testInterfaceIncludeUser
   testInterfaceIncludeUser2
+  testSharedLibArchiveAIX
   EXPORT exp
   RUNTIME DESTINATION $<1:bin>$<0:/wrong>
   LIBRARY DESTINATION $<1:lib>$<0:/wrong> NAMELINK_SKIP
@@ -676,7 +684,7 @@ export(TARGETS testExe1 testLib1 testLib2 testLib3
   testSharedLibDepends renamed_on_export
   cmp0022NEW cmp0022OLD
   TopDirLib SubDirLinkA
-  systemlib
+  systemlib noUses
   testInterfaceIncludeUser
   testInterfaceIncludeUser2
   NAMESPACE bld_
@@ -695,6 +703,7 @@ export(TARGETS testExe2 testLib4 testLib5 testLib6 testLib7 testExe3 testExe4 te
   testExeWithPluginHelper testExePluginHelperObj
   testMod1 testMod2
   testLibPerConfigDest
+  testSharedLibArchiveAIX
   NAMESPACE bld_
   APPEND FILE ExportBuildTree.cmake
   )

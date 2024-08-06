@@ -199,14 +199,22 @@ add_library(
   cmEvaluatedTargetProperty.cxx
   cmEvaluatedTargetProperty.h
   cmExprParserHelper.cxx
+  cmExportAndroidMKGenerator.h
+  cmExportAndroidMKGenerator.cxx
   cmExportBuildAndroidMKGenerator.h
   cmExportBuildAndroidMKGenerator.cxx
+  cmExportBuildCMakeConfigGenerator.h
+  cmExportBuildCMakeConfigGenerator.cxx
   cmExportBuildFileGenerator.h
   cmExportBuildFileGenerator.cxx
+  cmExportCMakeConfigGenerator.h
+  cmExportCMakeConfigGenerator.cxx
   cmExportFileGenerator.h
   cmExportFileGenerator.cxx
   cmExportInstallAndroidMKGenerator.h
   cmExportInstallAndroidMKGenerator.cxx
+  cmExportInstallCMakeConfigGenerator.h
+  cmExportInstallCMakeConfigGenerator.cxx
   cmExportInstallFileGenerator.h
   cmExportInstallFileGenerator.cxx
   cmExportTryCompileFileGenerator.h
@@ -311,6 +319,10 @@ add_library(
   cmGraphVizWriter.h
   cmImportedCxxModuleInfo.cxx
   cmImportedCxxModuleInfo.h
+  cmInstallAndroidMKExportGenerator.cxx
+  cmInstallAndroidMKExportGenerator.h
+  cmInstallCMakeConfigExportGenerator.cxx
+  cmInstallCMakeConfigExportGenerator.h
   cmInstallGenerator.h
   cmInstallGenerator.cxx
   cmInstallGetRuntimeDependenciesGenerator.h
@@ -336,6 +348,8 @@ add_library(
   cmInstallTargetGenerator.cxx
   cmInstallDirectoryGenerator.h
   cmInstallDirectoryGenerator.cxx
+  cmInstallScriptHandler.h
+  cmInstallScriptHandler.cxx
   cmJSONHelpers.cxx
   cmJSONHelpers.h
   cmJSONState.cxx
@@ -359,6 +373,10 @@ add_library(
   cmLocalCommonGenerator.h
   cmLocalGenerator.cxx
   cmLocalGenerator.h
+  cmPkgConfigParser.cxx
+  cmPkgConfigParser.h
+  cmPkgConfigResolver.cxx
+  cmPkgConfigResolver.h
   cmPlaceholderExpander.cxx
   cmPlaceholderExpander.h
   cmRulePlaceholderExpander.cxx
@@ -523,6 +541,8 @@ add_library(
   cmCMakeMinimumRequired.h
   cmCMakePathCommand.h
   cmCMakePathCommand.cxx
+  cmCMakePkgConfigCommand.h
+  cmCMakePkgConfigCommand.cxx
   cmCMakePolicyCommand.cxx
   cmCMakePolicyCommand.h
   cmConditionEvaluator.cxx
@@ -792,6 +812,7 @@ target_link_libraries(
     LibUV::LibUV
     Threads::Threads
     ZLIB::ZLIB
+    llpkgc::llpkgc
   )
 
 if(CMake_ENABLE_DEBUGGER)

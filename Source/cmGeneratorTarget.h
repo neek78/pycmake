@@ -99,6 +99,13 @@ public:
   // Call this after generation is complete.
   void CheckLinkLibraries() const;
 
+  class CheckLinkLibrariesSuppressionRAII
+  {
+  public:
+    CheckLinkLibrariesSuppressionRAII();
+    ~CheckLinkLibrariesSuppressionRAII();
+  };
+
   cmStateEnums::TargetType GetType() const;
   const std::string& GetName() const;
   std::string GetExportName() const;
@@ -649,6 +656,10 @@ public:
                                 const std::string& config,
                                 const std::string& language) const;
 
+  void AddSystemIncludeCacheKey(const std::string& key,
+                                const std::string& config,
+                                const std::string& language) const;
+
   /** Add the target output files to the global generator manifest.  */
   void ComputeTargetManifest(const std::string& config) const;
 
@@ -883,6 +894,9 @@ public:
 
   /** Return whether this target is a CFBundle (plugin) on Apple.  */
   bool IsCFBundleOnApple() const;
+
+  /** Return whether this target is a shared library on AIX.  */
+  bool IsArchivedAIXSharedLibrary() const;
 
   /** Assembly types. The order of the values of this enum is relevant
       because of smaller/larger comparison operations! */

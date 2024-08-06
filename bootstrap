@@ -345,8 +345,11 @@ CMAKE_CXX_SOURCES="\
   cmExecuteProcessCommand \
   cmExpandedCommandArgument \
   cmExperimental \
+  cmExportBuildCMakeConfigGenerator \
   cmExportBuildFileGenerator \
+  cmExportCMakeConfigGenerator \
   cmExportFileGenerator \
+  cmExportInstallCMakeConfigGenerator \
   cmExportInstallFileGenerator \
   cmExportSet \
   cmExportTryCompileFileGenerator \
@@ -408,6 +411,7 @@ CMAKE_CXX_SOURCES="\
   cmIncludeGuardCommand \
   cmIncludeDirectoryCommand \
   cmIncludeRegularExpressionCommand \
+  cmInstallCMakeConfigExportGenerator \
   cmInstallCommand \
   cmInstallCommandArguments \
   cmInstallCxxModuleBmiGenerator \
@@ -1763,7 +1767,7 @@ libs=""
 uv_c_flags=""
 if ${cmake_system_mingw}; then
   uv_c_flags="${uv_c_flags} -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0600"
-  libs="${libs} -lws2_32 -lpsapi -liphlpapi -lshell32 -luserenv -lole32 -loleaut32"
+  libs="${libs} -lws2_32 -lpsapi -liphlpapi -lshell32 -luserenv -lole32 -loleaut32 -luuid"
 else
   case "${cmake_system}" in
     *AIX*)
@@ -1811,7 +1815,7 @@ else
     cmake_c_flags="${cmake_c_flags} ${use_uv_flags}"
     cmake_cxx_flags="${cmake_cxx_flags} ${use_uv_flags}"
   else
-    use_librhash_ldflags="-luv"
+    use_uv_ldflags="-luv"
   fi
   libs="${libs} ${use_uv_ldflags}"
 fi
@@ -1838,7 +1842,7 @@ else
     use_jsoncpp_ldflags="`pkg-config --libs jsoncpp`"
     cmake_cxx_flags="${cmake_cxx_flags} ${use_jsoncpp_flags}"
   else
-    use_librhash_ldflags="-ljsoncpp"
+    use_jsoncpp_ldflags="-ljsoncpp"
   fi
   libs="${libs} ${use_jsoncpp_ldflags}"
 fi

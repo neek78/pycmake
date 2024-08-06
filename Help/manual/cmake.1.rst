@@ -232,6 +232,17 @@ Options
  will display also advanced variables.  If ``H`` is specified, it will also
  display help for each variable.
 
+.. option:: -LR[A][H] <regex>
+
+ .. versionadded:: 3.31
+
+ Show specific non-advanced cached variables
+
+ Show non-``INTERNAL`` nor :prop_cache:`ADVANCED` variables from the CMake
+ ``CACHE`` that match the given regex. If ``A`` is specified, then it
+ will also show advanced variables.  If ``H`` is specified, it will also
+ display help for each variable.
+
 .. option:: -N
 
  View mode only.
@@ -744,6 +755,15 @@ The options are:
   Enable verbose output.
 
   This option can be omitted if :envvar:`VERBOSE` environment variable is set.
+
+.. option:: -j <jobs>, --parallel <jobs>
+
+  .. versionadded:: 3.31
+
+  Install in parallel using the given number of jobs. Only available if
+  :prop_gbl:`INSTALL_PARALLEL` is enabled. The
+  :envvar:`CMAKE_INSTALL_PARALLEL_LEVEL` environment variable specifies a
+  default parallel level when this option is not provided.
 
 Run :option:`cmake --install` with no options for quick help.
 

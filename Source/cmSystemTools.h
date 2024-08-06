@@ -211,8 +211,8 @@ public:
                                  std::string* err = nullptr);
 
   //! Rename a file if contents are different, delete the source otherwise
-  static void MoveFileIfDifferent(const std::string& source,
-                                  const std::string& destination);
+  static cmsys::Status MoveFileIfDifferent(const std::string& source,
+                                           const std::string& destination);
 
   /**
    * Run a single executable command
@@ -523,6 +523,10 @@ public:
   static std::string const& GetCMClDepsCommand();
   static std::string const& GetCMakeRoot();
   static std::string const& GetHTMLDoc();
+
+  /** Get the CMake config directory **/
+  static cm::optional<std::string> GetSystemConfigDirectory();
+  static cm::optional<std::string> GetCMakeConfigDirectory();
 
   /** Get the CWD mapped through the KWSys translation map.  */
   static std::string GetCurrentWorkingDirectory();

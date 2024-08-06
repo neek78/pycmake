@@ -38,6 +38,13 @@ are executed in order during installation.
   The environment variable :envvar:`CMAKE_INSTALL_MODE` can override the
   default copying behavior of ``install()``.
 
+.. versionchanged:: 3.31
+  Projects can enable :prop_gbl:`INSTALL_PARALLEL` to enable a parallel
+  installation. When using the parallel install, subdirectories added by calls
+  to the :command:`add_subdirectory` command are installed independently
+  and the order that install rules added in different subdirectories will run is
+  not guaranteed.
+
 .. _`common options`:
 
 There are multiple signatures for this command.  Some of them define
@@ -103,11 +110,6 @@ signatures that specify them.  The common options are:
 
   Specify that the file is excluded from a full installation and only
   installed as part of a component-specific installation
-
-``RENAME <name>``
-  Specify a name for an installed file that may be different from the
-  original file.  Renaming is allowed only when a single file is
-  installed by the command.
 
 ``OPTIONAL``
   Specify that it is not an error if the file to be installed does
@@ -535,6 +537,10 @@ Signatures
   :manual:`cmake-generator-expressions(7)` manual for available expressions.
   However, if any item begins in a generator expression it must evaluate
   to a full path.
+
+  The optional ``RENAME <name>`` argument is used to specify a name for the
+  installed file that is different from the original file name.  Renaming
+  is allowed only when a single file is installed by the command.
 
   Either a ``TYPE`` or a ``DESTINATION`` must be provided, but not both.
   A ``TYPE`` argument specifies the generic file type of the files being

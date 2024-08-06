@@ -585,6 +585,10 @@ void cmGeneratorTarget::AddSystemIncludeDirectory(std::string const& inc,
     }
     auto const& key = cmStrCat(config_upper, "/", lang);
     this->Target->AddSystemIncludeDirectories({ inc_with_config });
+    if (this->SystemIncludesCache.find(key) ==
+        this->SystemIncludesCache.end()) {
+      this->AddSystemIncludeCacheKey(key, config, lang);
+    }
     this->SystemIncludesCache[key].emplace_back(inc_with_config);
 
     // SystemIncludesCache should be sorted so that binary search can be used
@@ -1163,6 +1167,51 @@ const std::string& cmGeneratorTarget::GetLocationForBuild() const
   return location;
 }
 
+void cmGeneratorTarget::AddSystemIncludeCacheKey(
+  const std::string& key, const std::string& config,
+  const std::string& language) const
+{
+  cmGeneratorExpressionDAGChecker dagChecker(
+    this, "SYSTEM_INCLUDE_DIRECTORIES", nullptr, nullptr, this->LocalGenerator,
+    config);
+
+  bool excludeImported = this->GetPropertyAsBool("NO_SYSTEM_FROM_IMPORTED");
+
+  cmList result;
+  for (std::string const& it : this->Target->GetSystemIncludeDirectories()) {
+    result.append(cmGeneratorExpression::Evaluate(
+      it, this->LocalGenerator, config, this, &dagChecker, nullptr, language));
+  }
+
+  std::vector<cmGeneratorTarget const*> const& deps =
+    this->GetLinkImplementationClosure(config, UseTo::Compile);
+  for (cmGeneratorTarget const* dep : deps) {
+    handleSystemIncludesDep(this->LocalGenerator, dep, config, this,
+                            &dagChecker, result, excludeImported, language);
+  }
+
+  cmLinkImplementation const* impl =
+    this->GetLinkImplementation(config, UseTo::Compile);
+  if (impl != nullptr) {
+    auto runtimeEntries = impl->LanguageRuntimeLibraries.find(language);
+    if (runtimeEntries != impl->LanguageRuntimeLibraries.end()) {
+      for (auto const& lib : runtimeEntries->second) {
+        if (lib.Target) {
+          handleSystemIncludesDep(this->LocalGenerator, lib.Target, config,
+                                  this, &dagChecker, result, excludeImported,
+                                  language);
+        }
+      }
+    }
+  }
+
+  std::for_each(result.begin(), result.end(),
+                cmSystemTools::ConvertToUnixSlashes);
+  std::sort(result.begin(), result.end());
+  result.erase(std::unique(result.begin(), result.end()), result.end());
+  SystemIncludesCache.emplace(key, result);
+}
+
 bool cmGeneratorTarget::IsSystemIncludeDirectory(
   const std::string& dir, const std::string& config,
   const std::string& language) const
@@ -1176,47 +1225,8 @@ bool cmGeneratorTarget::IsSystemIncludeDirectory(
   auto iter = this->SystemIncludesCache.find(key);
 
   if (iter == this->SystemIncludesCache.end()) {
-    cmGeneratorExpressionDAGChecker dagChecker(
-      this, "SYSTEM_INCLUDE_DIRECTORIES", nullptr, nullptr,
-      this->LocalGenerator, config);
-
-    bool excludeImported = this->GetPropertyAsBool("NO_SYSTEM_FROM_IMPORTED");
-
-    cmList result;
-    for (std::string const& it : this->Target->GetSystemIncludeDirectories()) {
-      result.append(cmGeneratorExpression::Evaluate(it, this->LocalGenerator,
-                                                    config, this, &dagChecker,
-                                                    nullptr, language));
-    }
-
-    std::vector<cmGeneratorTarget const*> const& deps =
-      this->GetLinkImplementationClosure(config, UseTo::Compile);
-    for (cmGeneratorTarget const* dep : deps) {
-      handleSystemIncludesDep(this->LocalGenerator, dep, config, this,
-                              &dagChecker, result, excludeImported, language);
-    }
-
-    cmLinkImplementation const* impl =
-      this->GetLinkImplementation(config, UseTo::Compile);
-    if (impl != nullptr) {
-      auto runtimeEntries = impl->LanguageRuntimeLibraries.find(language);
-      if (runtimeEntries != impl->LanguageRuntimeLibraries.end()) {
-        for (auto const& lib : runtimeEntries->second) {
-          if (lib.Target) {
-            handleSystemIncludesDep(this->LocalGenerator, lib.Target, config,
-                                    this, &dagChecker, result, excludeImported,
-                                    language);
-          }
-        }
-      }
-    }
-
-    std::for_each(result.begin(), result.end(),
-                  cmSystemTools::ConvertToUnixSlashes);
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-
-    iter = this->SystemIncludesCache.emplace(key, result).first;
+    this->AddSystemIncludeCacheKey(key, config, language);
+    iter = this->SystemIncludesCache.find(key);
   }
 
   return std::binary_search(iter->second.begin(), iter->second.end(), dir);
@@ -2294,6 +2304,9 @@ std::string cmGeneratorTarget::GetCreateRuleVariable(
       return this->GetFeatureSpecificLinkRuleVariable(var, lang, config);
     }
     case cmStateEnums::SHARED_LIBRARY:
+      if (this->IsArchivedAIXSharedLibrary()) {
+        return "CMAKE_" + lang + "_CREATE_SHARED_LIBRARY_ARCHIVE";
+      }
       return "CMAKE_" + lang + "_CREATE_SHARED_LIBRARY";
     case cmStateEnums::MODULE_LIBRARY:
       return "CMAKE_" + lang + "_CREATE_SHARED_MODULE";
@@ -2938,7 +2951,7 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
   cmValue soversion = this->GetProperty("SOVERSION");
   if (!this->HasSOName(config) ||
       this->Makefile->IsOn("CMAKE_PLATFORM_NO_VERSIONED_SONAME") ||
-      this->IsFrameworkOnApple()) {
+      this->IsFrameworkOnApple() || this->IsArchivedAIXSharedLibrary()) {
     // Versioning is supported only for shared libraries and modules,
     // and then only when the platform supports an soname flag.
     version = nullptr;
@@ -2971,6 +2984,11 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetLibraryNames(
     }
     targetNames.Real += cmStrCat(targetNames.Base, components.suffix);
     targetNames.SharedObject = targetNames.Real;
+  } else if (this->IsArchivedAIXSharedLibrary()) {
+    targetNames.SharedObject =
+      cmStrCat(components.prefix, targetNames.Base, ".so");
+    targetNames.Real =
+      cmStrCat(components.prefix, targetNames.Base, components.suffix);
   } else {
     // The library's soname.
     this->ComputeVersionedName(targetNames.SharedObject, components.prefix,
@@ -3054,8 +3072,13 @@ cmGeneratorTarget::Names cmGeneratorTarget::GetExecutableNames(
 
   // The executable name.
   targetNames.Base = components.base;
-  targetNames.Output =
-    components.prefix + targetNames.Base + components.suffix;
+
+  if (this->IsArchivedAIXSharedLibrary()) {
+    targetNames.Output = components.prefix + targetNames.Base;
+  } else {
+    targetNames.Output =
+      components.prefix + targetNames.Base + components.suffix;
+  }
 
 // The executable's real name on disk.
 #if defined(__CYGWIN__)
@@ -4799,6 +4822,11 @@ bool cmGeneratorTarget::HasLinkDependencyFile(std::string const& config) const
 bool cmGeneratorTarget::IsFrameworkOnApple() const
 {
   return this->Target->IsFrameworkOnApple();
+}
+
+bool cmGeneratorTarget::IsArchivedAIXSharedLibrary() const
+{
+  return this->Target->IsArchivedAIXSharedLibrary();
 }
 
 bool cmGeneratorTarget::IsImportedFrameworkFolderOnApple(

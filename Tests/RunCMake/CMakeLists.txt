@@ -35,10 +35,6 @@ macro(add_RunCMake_test test)
     ${TEST_ARGS}
     -P "${CMAKE_CURRENT_SOURCE_DIR}/${Test_Dir}/RunCMakeTest.cmake"
     )
-  set_tests_properties("RunCMake.${test}" PROPERTIES LABELS "CMake;run")
-  if(${test} MATCHES ^CMP)
-    set_property(TEST "RunCMake.${test}" APPEND PROPERTY LABELS "policy")
-  endif()
 endmacro()
 
 function(add_RunCMake_test_group test types)
@@ -217,7 +213,10 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
     -DCMAKE_SHARED_LIBRARY_PREFIX=${CMAKE_SHARED_LIBRARY_PREFIX}
     -DCMAKE_SHARED_LIBRARY_SUFFIX=${CMAKE_SHARED_LIBRARY_SUFFIX})
   if(CMAKE_Fortran_COMPILER)
-    list(APPEND Ninja_ARGS -DTEST_Fortran=1)
+    list(APPEND Ninja_ARGS
+      -DCMake_TEST_Fortran=1
+      -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
+      )
   endif()
   if(ninja_test_with_qt_version)
     list(APPEND Ninja_ARGS
@@ -258,8 +257,8 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   add_RunCMake_test(NinjaPrivateDeps
     -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
     -DRunCMake_GENERATOR_IS_MULTI_CONFIG=${_isMultiConfig})
-  add_RunCMake_test(InstallParallel)
 endif()
+add_RunCMake_test(InstallParallel)
 add_RunCMake_test(CTest)
 
 if(NOT CMake_TEST_EXTERNAL_CMAKE)
@@ -284,6 +283,7 @@ if(CMake_TEST_APPLE_SILICON)
   add_RunCMake_test(AppleSilicon)
 endif()
 set(want_NoQt_test TRUE)
+set(autogen_test_number 1 2 3 4 5 6)
 if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
   # Work around Qt6 not finding sibling dependencies without CMAKE_PREFIX_PATH
   cmake_path(GET Qt6_DIR  PARENT_PATH base_dir)  # <base>/lib/cmake
@@ -291,7 +291,6 @@ if(CMake_TEST_Qt6 AND Qt6Widgets_FOUND)
   cmake_path(GET base_dir PARENT_PATH base_dir)  # <base>
   # Note: Since RunCMake.Autogen tests cause time out on some CI,
   # we split the tests.
-  set(autogen_test_number 1 2 3 4 5)
   foreach(val IN ITEMS ${autogen_test_number})
     add_RunCMake_test("Autogen_Qt6_${val}" TEST_DIR "Autogen_${val}"
       -Dwith_qt_version=6
@@ -333,7 +332,10 @@ if(NOT DEFINED CMake_TEST_BuildDepends_GNU_AS
 endif()
 
 if(CMAKE_Fortran_COMPILER)
-  list(APPEND BuildDepends_ARGS -DCMake_TEST_Fortran=1)
+  list(APPEND BuildDepends_ARGS
+    -DCMake_TEST_Fortran=1
+    -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
+    )
 endif()
 
 add_RunCMake_test(BuildDepends
@@ -558,6 +560,7 @@ add_RunCMake_test(cmake_language)
 add_RunCMake_test(cmake_minimum_required)
 add_RunCMake_test(cmake_parse_arguments)
 add_RunCMake_test(cmake_path -DMSYS=${MSYS})
+add_RunCMake_test(cmake_pkg_config)
 add_RunCMake_test(continue)
 add_executable(color_warning color_warning.c)
 add_executable(fake_build_command fake_build_command.c)
@@ -684,7 +687,13 @@ if(CMake_TEST_CUDA)
   set_property(TEST RunCMake.CUDA_architectures APPEND PROPERTY LABELS "CUDA")
 endif()
 
-add_RunCMake_test(DependencyGraph -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER})
+if(CMAKE_Fortran_COMPILER)
+  list(APPEND DependencyGraph_ARGS
+    -DCMake_TEST_Fortran=1
+    -DCMAKE_Fortran_COMPILER_ID=${CMAKE_Fortran_COMPILER_ID}
+    )
+  endif()
+add_RunCMake_test(DependencyGraph)
 set_property(TEST RunCMake.DependencyGraph APPEND PROPERTY LABELS "Fortran")
 
 # Add C++ Module tests.

@@ -9,6 +9,7 @@
 
 #include <cm/iomanip>
 #include <cm/optional>
+#include <cm/string_view>
 #include <cmext/algorithm>
 
 #include <cm3p/curl/curl.h>
@@ -171,6 +172,7 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
     headers = ::curl_slist_append(headers, h.c_str());
   }
 
+  cmCurlInitOnce();
   /* In windows, this will init the winsock stuff */
   ::curl_global_init(CURL_GLOBAL_ALL);
   cmCTestCurlOpts curlOpts(this->CTest);
@@ -359,7 +361,7 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
       if (!chunk.empty()) {
         cmCTestOptionalLog(this->CTest, DEBUG,
                            "CURL output: ["
-                             << cmCTestLogWrite(chunk.data(), chunk.size())
+                             << cm::string_view(chunk.data(), chunk.size())
                              << "]" << std::endl,
                            this->Quiet);
         this->ParseResponse(chunk);
@@ -368,7 +370,7 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
         cmCTestOptionalLog(
           this->CTest, DEBUG,
           "CURL debug output: ["
-            << cmCTestLogWrite(chunkDebug.data(), chunkDebug.size()) << "]"
+            << cm::string_view(chunkDebug.data(), chunkDebug.size()) << "]"
             << std::endl,
           this->Quiet);
       }
@@ -422,7 +424,7 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
           if (!chunk.empty()) {
             cmCTestOptionalLog(this->CTest, DEBUG,
                                "CURL output: ["
-                                 << cmCTestLogWrite(chunk.data(), chunk.size())
+                                 << cm::string_view(chunk.data(), chunk.size())
                                  << "]" << std::endl,
                                this->Quiet);
             this->ParseResponse(chunk);
@@ -450,11 +452,11 @@ bool cmCTestSubmitHandler::SubmitUsingHTTP(
         // avoid deref of begin for zero size array
         if (!chunk.empty()) {
           *this->LogFile << "   Curl output was: "
-                         << cmCTestLogWrite(chunk.data(), chunk.size())
+                         << cm::string_view(chunk.data(), chunk.size())
                          << std::endl;
           cmCTestLog(this->CTest, ERROR_MESSAGE,
                      "CURL output: ["
-                       << cmCTestLogWrite(chunk.data(), chunk.size()) << "]"
+                       << cm::string_view(chunk.data(), chunk.size()) << "]"
                        << std::endl);
         }
         ::curl_easy_cleanup(curl);
@@ -503,7 +505,7 @@ void cmCTestSubmitHandler::ParseResponse(
   if (this->HasWarnings || this->HasErrors) {
     cmCTestLog(this->CTest, HANDLER_OUTPUT,
                "   Server Response:\n"
-                 << cmCTestLogWrite(chunk.data(), chunk.size()) << "\n");
+                 << cm::string_view(chunk.data(), chunk.size()) << "\n");
   }
 }
 

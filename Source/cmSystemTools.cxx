@@ -86,6 +86,9 @@
 
 #if defined(_WIN32)
 #  include <windows.h>
+
+#  include <knownfolders.h>
+#  include <shlobj.h>
 // include wincrypt.h after windows.h
 #  include <wincrypt.h>
 #else
@@ -1316,16 +1319,18 @@ cmSystemTools::RenameResult cmSystemTools::RenameFile(
 #endif
 }
 
-void cmSystemTools::MoveFileIfDifferent(const std::string& source,
-                                        const std::string& destination)
+cmsys::Status cmSystemTools::MoveFileIfDifferent(
+  const std::string& source, const std::string& destination)
 {
+  cmsys::Status res = {};
   if (FilesDiffer(source, destination)) {
     if (RenameFile(source, destination)) {
-      return;
+      return res;
     }
-    CopyFileAlways(source, destination);
+    res = CopyFileAlways(source, destination);
   }
   RemoveFile(source);
+  return res;
 }
 
 void cmSystemTools::Glob(const std::string& directory,
@@ -2669,6 +2674,50 @@ std::string const& cmSystemTools::GetCMakeRoot()
 std::string const& cmSystemTools::GetHTMLDoc()
 {
   return cmSystemToolsHTMLDoc;
+}
+
+cm::optional<std::string> cmSystemTools::GetSystemConfigDirectory()
+{
+#if defined(_WIN32)
+  LPWSTR lpwstr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &lpwstr))) {
+    return cm::nullopt;
+  }
+  std::wstring wstr = std::wstring(lpwstr);
+  CoTaskMemFree(lpwstr);
+  std::string config = cmsys::Encoding::ToNarrow(wstr);
+  cmSystemTools::ConvertToUnixSlashes(config);
+  return config;
+#else
+  auto config = cmSystemTools::GetEnvVar("XDG_CONFIG_HOME");
+  if (!config.has_value()) {
+    config = cmSystemTools::GetEnvVar("HOME");
+    if (config.has_value()) {
+#  if defined(__APPLE__)
+      config = cmStrCat(config.value(), "/Library/Application Support");
+#  else
+      config = cmStrCat(config.value(), "/.config");
+#  endif
+    }
+  }
+  return config;
+#endif
+}
+
+cm::optional<std::string> cmSystemTools::GetCMakeConfigDirectory()
+{
+  auto config = cmSystemTools::GetEnvVar("CMAKE_CONFIG_DIR");
+  if (!config.has_value()) {
+    config = cmSystemTools::GetSystemConfigDirectory();
+    if (config.has_value()) {
+#if defined(_WIN32) || defined(__APPLE__)
+      config = cmStrCat(config.value(), "/CMake");
+#else
+      config = cmStrCat(config.value(), "/cmake");
+#endif
+    }
+  }
+  return config;
 }
 
 std::string cmSystemTools::GetCurrentWorkingDirectory()

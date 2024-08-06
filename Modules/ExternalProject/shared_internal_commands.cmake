@@ -898,41 +898,33 @@ function(_ep_add_download_command name)
       message(FATAL_ERROR "error: could not find svn for checkout of ${name}")
     endif()
 
-    set(svn_revision   "${_EP_SVN_REVISION}")
-    set(svn_username   "${_EP_SVN_USERNAME}")
-    set(svn_password   "${_EP_SVN_PASSWORD}")
     set(svn_trust_cert "${_EP_SVN_TRUST_CERT}")
     set(uses_terminal  "${_EP_USES_TERMINAL_DOWNLOAD}")
-    # The --trust-server-cert option requires --non-interactive
-    if(uses_terminal AND NOT svn_trust_cert)
-      set(svn_interactive_args "")
-    else()
-      set(svn_interactive_args "--non-interactive")
-    endif()
 
     get_filename_component(src_name "${source_dir}" NAME)
     get_filename_component(work_dir "${source_dir}" PATH)
     set(comment "Performing download step (SVN checkout) for '${name}'")
-    set(svn_user_pw_args "")
-    if(DEFINED _EP_SVN_USERNAME)
-      set(svn_user_pw_args ${svn_user_pw_args} "--username=${svn_username}")
-    endif()
-    if(DEFINED _EP_SVN_PASSWORD)
-      set(svn_user_pw_args ${svn_user_pw_args} "--password=${svn_password}")
-    endif()
-    if(svn_trust_cert)
-      set(svn_trust_cert_args --trust-server-cert)
-    endif()
     set(cmd
       ${Subversion_SVN_EXECUTABLE}
       co
       ${svn_repository}
-      ${svn_revision}
-      ${svn_interactive_args}
-      ${svn_trust_cert_args}
-      ${svn_user_pw_args}
-      ${src_name}
+      ${_EP_SVN_REVISION}
     )
+    # The --trust-server-cert option requires --non-interactive
+    if(svn_trust_cert OR NOT uses_terminal)
+      list(APPEND cmd "--non-interactive")
+    endif()
+    if(svn_trust_cert)
+      list(APPEND cmd "--trust-server-cert")
+    endif()
+    if(DEFINED _EP_SVN_USERNAME)
+      list(APPEND cmd "--username=${_EP_SVN_USERNAME}")
+    endif()
+    if(DEFINED _EP_SVN_PASSWORD)
+      list(APPEND cmd "--password=${_EP_SVN_PASSWORD}")
+    endif()
+    list(APPEND cmd ${src_name})
+
     if(arg_SCRIPT_FILE)
       _ep_add_script_commands(
         step_script_contents
@@ -1394,7 +1386,7 @@ hash=${hash}
       DEPENDS \${depends}
       DEPENDEES mkdir
       ${log}
-  ${uses_terminal}
+      ${uses_terminal}
     )"
   )
 endfunction()
@@ -1444,7 +1436,9 @@ function(_ep_add_update_command name)
   _ep_get_update_disconnected(update_disconnected ${name})
 
   set(work_dir)
+  set(cmd_disconnected)
   set(comment)
+  set(comment_disconnected)
   set(always)
   set(file_deps)
 
@@ -1483,35 +1477,26 @@ function(_ep_add_update_command name)
     endif()
     set(work_dir ${source_dir})
     set(comment "Performing update step (SVN update) for '${name}'")
-    set(svn_revision   "${_EP_SVN_REVISION}")
-    set(svn_username   "${_EP_SVN_USERNAME}")
-    set(svn_password   "${_EP_SVN_PASSWORD}")
     set(svn_trust_cert "${_EP_SVN_TRUST_CERT}")
     set(uses_terminal  "${_EP_USES_TERMINAL_UPDATE}")
-    # The --trust-server-cert option requires --non-interactive
-    if(uses_terminal AND NOT svn_trust_cert)
-      set(svn_interactive_args "")
-    else()
-      set(svn_interactive_args "--non-interactive")
-    endif()
-    set(svn_user_pw_args "")
-    if(DEFINED svn_username)
-      set(svn_user_pw_args ${svn_user_pw_args} "--username=${svn_username}")
-    endif()
-    if(DEFINED svn_password)
-      set(svn_user_pw_args ${svn_user_pw_args} "--password=${svn_password}")
-    endif()
-    if(svn_trust_cert)
-      set(svn_trust_cert_args --trust-server-cert)
-    endif()
     set(cmd
       ${Subversion_SVN_EXECUTABLE}
       up
-      ${svn_revision}
-      ${svn_interactive_args}
-      ${svn_trust_cert_args}
-      ${svn_user_pw_args}
+      ${_EP_SVN_REVISION}
     )
+    # The --trust-server-cert option requires --non-interactive
+    if(svn_trust_cert OR NOT uses_terminal)
+      list(APPEND cmd "--non-interactive")
+    endif()
+    if(svn_trust_cert)
+      list(APPEND cmd --trust-server-cert)
+    endif()
+    if(DEFINED _EP_SVN_USERNAME)
+      list(APPEND cmd "--username=${_EP_SVN_USERNAME}")
+    endif()
+    if(DEFINED _EP_SVN_PASSWORD)
+      list(APPEND cmd "--password=${_EP_SVN_PASSWORD}")
+    endif()
     set(always 1)
 
     if(arg_SCRIPT_FILE)
@@ -1534,6 +1519,12 @@ function(_ep_add_update_command name)
     set(work_dir ${source_dir})
     set(comment "Performing update step for '${name}'")
     set(comment_disconnected "Performing disconnected update step for '${name}'")
+
+    if(update_disconnected)
+      set(can_fetch_default NO)
+    else()
+      set(can_fetch_default YES)
+    endif()
 
     set(git_tag "${_EP_GIT_TAG}")
     if(NOT git_tag)
@@ -1602,11 +1593,6 @@ function(_ep_add_update_command name)
     set(always 1)
 
     if(arg_SCRIPT_FILE)
-      if(update_disconnected)
-        set(can_fetch_default NO)
-      else()
-        set(can_fetch_default YES)
-      endif()
       set(step_script_contents "include(\"${update_script}\")")
     endif()
 
@@ -1719,7 +1705,7 @@ Update to Mercurial >= 2.1.1.
       DEPENDEES download
       DEPENDS \${file_deps}
       ${log}
-  ${uses_terminal}
+      ${uses_terminal}
     )"
   )
   if(update_disconnected)
@@ -1740,7 +1726,7 @@ Update to Mercurial >= 2.1.1.
         DEPENDEES download
         DEPENDS \${file_deps}
         ${log}
-    ${uses_terminal}
+        ${uses_terminal}
       )"
     )
   endif()
@@ -1831,7 +1817,7 @@ function(_ep_add_patch_command name)
       DEPENDEES update
       DEPENDS \${patch_info_file}
       ${log}
-  ${uses_terminal}
+      ${uses_terminal}
     )"
   )
 
@@ -1844,7 +1830,7 @@ function(_ep_add_patch_command name)
         DEPENDEES update_disconnected
         DEPENDS \${patch_info_file}
         ${log}
-    ${uses_terminal}
+        ${uses_terminal}
       )"
     )
   endif()
