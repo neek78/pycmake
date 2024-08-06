@@ -1970,11 +1970,10 @@ void cmMakefile::ConfigureSubDirectory(cmMakefile* mf)
   if (!cmSystemTools::FileExists(currentStartFile, true) &&
       !cmSystemTools::FileExists(pyStartFile, true)) {
     // The file is missing.  Check policy CMP0014.
-    std::ostringstream e;
-    /* clang-format off */
-    e << "The source directory\n"
-      << "  " << currentStart << "\n"
-      << "does not contain a CMakeLists.txt or "<< PYTHON_SCRIPT_NAME << " file.";
+    auto e = cmStrCat("The source directory\n  ", currentStart,
+                      "\n",
+                      "does not contain a CMakeLists.txt or ",
+                      PYTHON_SCRIPT_NAME, " file.");
     /* clang-format on */
     switch (this->GetPolicyStatus(cmPolicies::CMP0014)) {
       case cmPolicies::WARN:
