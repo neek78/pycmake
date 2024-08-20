@@ -2175,7 +2175,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   ::CURL* curl;
   cmCurlInitOnce();
   ::curl_global_init(CURL_GLOBAL_DEFAULT);
-  curl = ::curl_easy_init();
+  curl = cm_curl_easy_init();
   if (!curl) {
     status.SetError("DOWNLOAD error initializing curl.");
     return false;
@@ -2189,7 +2189,10 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   res = ::curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1);
   check_curl_result(res, "DOWNLOAD cannot set http failure option: ");
 
-  res = ::curl_easy_setopt(curl, CURLOPT_USERAGENT, "curl/" LIBCURL_VERSION);
+  curl_version_info_data* cv = curl_version_info(CURLVERSION_FIRST);
+  res = ::curl_easy_setopt(
+    curl, CURLOPT_USERAGENT,
+    cmStrCat("curl/", cv ? cv->version : LIBCURL_VERSION).c_str());
   check_curl_result(res, "DOWNLOAD cannot set user agent option: ");
 
   res = ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmWriteToFileCallback);
@@ -2549,7 +2552,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   ::CURL* curl;
   cmCurlInitOnce();
   ::curl_global_init(CURL_GLOBAL_DEFAULT);
-  curl = ::curl_easy_init();
+  curl = cm_curl_easy_init();
   if (!curl) {
     status.SetError("UPLOAD error initializing curl.");
     fclose(fin);
