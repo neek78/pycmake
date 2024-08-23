@@ -1,16 +1,13 @@
 #include "cmPythonTypeConversion.h"
 #include "cmListFileCache.h"
 #include "cmValue.h"
-#include "cmStringAlgorithms.h"
 #include "cmPropertyMap.h"
 
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
 
 #include <string>
-#include <map>
 #include <sstream>
-#include <iostream>
 #include <filesystem>
 
 namespace py = pybind11;
@@ -112,7 +109,7 @@ py::object ConvertElem(const cmValue& val)
     // originally, used things like val.IsOn(), but these caused problems
     // with converting many things to bool - for example, they consider 1 and 0
     // to be bools. 
-    py::str s = py::str(*val);
+    auto s = py::str(*val);
 
     // so, first try to convert to int - thus values 1 or 0 will remain ints (rather than 
     // assuming they're bools)
@@ -123,7 +120,7 @@ py::object ConvertElem(const cmValue& val)
 
     try {
         return py::float_(s);
-    } catch (const py::error_already_set& e) { }
+    } catch (const py::error_already_set& e) {}
 
     // now we've grabbed ints/floats, see if we've got a bool. This will pickup stings such as TRUE
     if(val.IsOn()) {
