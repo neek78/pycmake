@@ -99,6 +99,8 @@ const cmDocumentationEntry cmDocumentationOptions[34] = {
     "more." },
   { "--system-information [file]", "Dump information about this system." },
   { "--python-information", "Dump information about python compiled into this cmake." },
+  { "--print-config-dir",
+    "Print CMake config directory for user-wide FileAPI queries." },
   { "--log-level=<ERROR|WARNING|NOTICE|STATUS|VERBOSE|DEBUG|TRACE>",
     "Set the verbosity of messages from CMake files. "
     "--loglevel is also accepted for backward compatibility reasons." },
