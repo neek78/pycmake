@@ -492,6 +492,7 @@ if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG)
     )
 endif()
 add_RunCMake_test(ScriptMode)
+add_RunCMake_test(StandardLinkDirectories)
 add_RunCMake_test(Swift -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                         -DCMake_TEST_Swift=${CMake_TEST_Swift}
                         -DXCODE_VERSION=${XCODE_VERSION})
@@ -778,9 +779,6 @@ if("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
     -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
     )
   add_RunCMake_test(VS10ProjectUseDebugLibraries)
-  if( vs12 AND wince )
-    add_RunCMake_test( VS10ProjectWinCE "-DRunCMake_GENERATOR_PLATFORM=${wince_sdk}")
-  endif()
 endif()
 
 if(CMAKE_GENERATOR MATCHES "^Visual Studio (1[6-9]|[2-9][0-9])"
@@ -1177,6 +1175,7 @@ add_RunCMake_test(AutoExportDll
   )
 
 add_RunCMake_test(AndroidMK)
+add_RunCMake_test(PackageInfo)
 
 if(CMake_TEST_ANDROID_NDK OR CMake_TEST_ANDROID_STANDALONE_TOOLCHAIN)
   if(NOT "${CMAKE_GENERATOR}" MATCHES "Make|Ninja|Visual Studio 1[456]")

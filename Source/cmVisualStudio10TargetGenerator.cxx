@@ -477,11 +477,6 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
     Elem e0(BuildFileStream, "Project");
     e0.Attribute("DefaultTargets", "Build");
     const char* toolsVersion = this->GlobalGenerator->GetToolsVersion();
-    if (this->GlobalGenerator->GetVersion() ==
-          cmGlobalVisualStudioGenerator::VSVersion::VS12 &&
-        this->GlobalGenerator->TargetsWindowsCE()) {
-      toolsVersion = "4.0";
-    }
     e0.Attribute("ToolsVersion", toolsVersion);
     e0.Attribute("xmlns",
                  "http://schemas.microsoft.com/developer/msbuild/2003");
@@ -644,11 +639,8 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
 
       // Disable the project upgrade prompt that is displayed the first time a
       // project using an older toolset version is opened in a newer version of
-      // the IDE (respected by VS 2013 and above).
-      if (this->GlobalGenerator->GetVersion() >=
-          cmGlobalVisualStudioGenerator::VSVersion::VS12) {
-        e1.Element("VCProjectUpgraderObjectName", "NoUpgrade");
-      }
+      // the IDE.
+      e1.Element("VCProjectUpgraderObjectName", "NoUpgrade");
 
       if (const char* vcTargetsPath =
             this->GlobalGenerator->GetCustomVCTargetsPath()) {
@@ -4465,14 +4457,21 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     this->AddTargetsFileAndConfigPair(ti, config);
   }
 
-  std::vector<std::string> const& ldirs = cli.GetDirectories();
   std::vector<std::string> linkDirs;
+  std::vector<std::string> const& ldirs = cli.GetDirectories();
   for (std::string const& d : ldirs) {
     // first just full path
     linkDirs.push_back(d);
     // next path with configuration type Debug, Release, etc
     linkDirs.emplace_back(cmStrCat(d, "/$(Configuration)"));
   }
+
+  std::string const& linkDirsString = this->Makefile->GetSafeDefinition(
+    cmStrCat("CMAKE_", linkLanguage, "_STANDARD_LINK_DIRECTORIES"));
+  for (const std::string& d : cmList(linkDirsString)) {
+    linkDirs.push_back(d);
+  }
+
   linkDirs.push_back("%(AdditionalLibraryDirectories)");
   linkOptions.AddFlag("AdditionalLibraryDirectories", linkDirs);
 
@@ -5111,11 +5110,11 @@ std::string ComputeCertificateThumbprint(const std::string& source)
     cmsys::Encoding::ToWide(source.c_str()).c_str(), GENERIC_READ,
     FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-  if (certFile != INVALID_HANDLE_VALUE && certFile != nullptr) {
+  if (certFile != INVALID_HANDLE_VALUE && certFile) {
     DWORD fileSize = GetFileSize(certFile, nullptr);
     if (fileSize != INVALID_FILE_SIZE) {
       auto certData = cm::make_unique<BYTE[]>(fileSize);
-      if (certData != nullptr) {
+      if (certData) {
         DWORD dwRead = 0;
         if (ReadFile(certFile, certData.get(), fileSize, &dwRead, nullptr)) {
           cryptBlob.cbData = fileSize;
@@ -5126,11 +5125,11 @@ std::string ComputeCertificateThumbprint(const std::string& source)
             // Open the certificate as a store
             certStore =
               PFXImportCertStore(&cryptBlob, nullptr, CRYPT_EXPORTABLE);
-            if (certStore != nullptr) {
+            if (certStore) {
               // There should only be 1 cert.
               certContext =
                 CertEnumCertificatesInStore(certStore, certContext);
-              if (certContext != nullptr) {
+              if (certContext) {
                 // The hash is 20 bytes
                 BYTE hashData[20];
                 DWORD hashLength = 20;
