@@ -1084,8 +1084,13 @@ void cmMakefile::AddGeneratorAction(GeneratorAction&& action)
 }
 
 void cmMakefile::GeneratorAction::operator()(cmLocalGenerator& lg,
-                                             const cmListFileBacktrace& lfbt)
+                                             const cmListFileBacktrace& lfbt,
+                                             GeneratorActionWhen when)
 {
+  if (this->When != when) {
+    return;
+  }
+
   if (cc) {
     CCAction(lg, lfbt, std::move(cc));
   } else {
@@ -1102,7 +1107,7 @@ void cmMakefile::DoGenerate(cmLocalGenerator& lg)
   // give all the commands a chance to do something
   // after the file has been parsed before generation
   for (auto& action : this->GeneratorActions) {
-    action.Value(lg, action.Backtrace);
+    action.Value(lg, action.Backtrace, GeneratorActionWhen::AfterConfigure);
   }
   this->GeneratorActionsInvoked = true;
 
@@ -1133,6 +1138,14 @@ void cmMakefile::Generate(cmLocalGenerator& lg)
       "with CMake 2.4 or later. For compatibility with older versions please "
       "use any CMake 2.8.x release or lower.",
       this->Backtrace);
+  }
+}
+
+void cmMakefile::GenerateAfterGeneratorTargets(cmLocalGenerator& lg)
+{
+  for (auto& action : this->GeneratorActions) {
+    action.Value(lg, action.Backtrace,
+                 GeneratorActionWhen::AfterGeneratorTargets);
   }
 }
 
