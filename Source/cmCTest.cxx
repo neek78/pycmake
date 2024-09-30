@@ -1433,6 +1433,7 @@ void cmCTest::StartXML(cmXMLWriter& xml, bool append)
   xml.Attribute("VendorID", info.GetVendorID());
   xml.Attribute("FamilyID", info.GetFamilyID());
   xml.Attribute("ModelID", info.GetModelID());
+  xml.Attribute("ModelName", info.GetModelName());
   xml.Attribute("ProcessorCacheSize", info.GetProcessorCacheSize());
   xml.Attribute("NumberOfLogicalCPU", info.GetNumberOfLogicalCPU());
   xml.Attribute("NumberOfPhysicalCPU", info.GetNumberOfPhysicalCPU());
@@ -1646,8 +1647,8 @@ std::string cmCTest::Base64GzipEncodeFile(std::string const& file)
   std::vector<std::string> files;
   files.push_back(file);
 
-  if (!cmSystemTools::CreateTar(tarFile, files, cmSystemTools::TarCompressGZip,
-                                false)) {
+  if (!cmSystemTools::CreateTar(tarFile, files, {},
+                                cmSystemTools::TarCompressGZip, false)) {
     cmCTestLog(this, ERROR_MESSAGE,
                "Error creating tar while "
                "encoding file: "

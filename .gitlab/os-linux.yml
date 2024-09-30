@@ -396,7 +396,7 @@
 
 .cuda12.2:
     extends: .cuda
-    image: "kitware/cmake:ci-cuda12.2-x86_64-2024-04-05"
+    image: "kitware/cmake:ci-cuda12.2-x86_64-2024-09-25"
     variables:
         CMAKE_ARCH: x86_64
 
@@ -404,6 +404,12 @@
     extends: .cuda12.2
     variables:
         CMAKE_CONFIGURATION: cuda12.2_nvidia
+        CTEST_NO_WARNINGS_ALLOWED: 1
+
+.cuda12.2_nvidia_clang:
+    extends: .cuda12.2
+    variables:
+        CMAKE_CONFIGURATION: cuda12.2_nvidia_clang
         CTEST_NO_WARNINGS_ALLOWED: 1
 
 .cuda12.2_clang:

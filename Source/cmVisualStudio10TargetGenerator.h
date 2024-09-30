@@ -122,6 +122,7 @@ private:
   std::vector<std::string> GetIncludes(std::string const& config,
                                        std::string const& lang) const;
   std::string GetTargetOutputName() const;
+  std::string GetAssemblyName(std::string const& config) const;
 
   bool ComputeClOptions();
   bool ComputeClOptions(std::string const& configName);
@@ -287,8 +288,6 @@ private:
 
   void WriteCommonPropertyGroupGlobals(
     cmVisualStudio10TargetGenerator::Elem& e1);
-
-  bool HasCustomCommandsSource() const;
 
   std::unordered_map<std::string, ConfigToSettings> ParsedToolTargetSettings;
   bool PropertyIsSameInAllConfigs(const ConfigToSettings& toolSettings,
