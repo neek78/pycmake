@@ -1060,6 +1060,11 @@ int do_workflow(int ac, char const* const* av)
         break;
       }
     }
+    if (!matched && i == 0) {
+      inputArgs.insert(inputArgs.begin(), "--preset");
+      matched = true;
+      parsed = arguments[0].parse("--preset", i, inputArgs);
+    }
     if (!(matched && parsed)) {
       if (!matched) {
         presetName.clear();
@@ -1073,7 +1078,7 @@ int do_workflow(int ac, char const* const* av)
   if (presetName.empty() && listPresets == WorkflowListPresets::No) {
     /* clang-format off */
     std::cerr <<
-      "Usage: cmake --workflow [options]\n"
+      "Usage: cmake --workflow <options>\n"
       "Options:\n"
       "  --preset <preset> = Workflow preset to execute.\n"
       "  --list-presets    = List available workflow presets.\n"
