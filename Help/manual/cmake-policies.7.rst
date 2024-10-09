@@ -57,6 +57,12 @@ Policies Introduced by CMake 3.31
 .. toctree::
    :maxdepth: 1
 
+   CMP0179: De-duplication of static libraries on link lines keeps first occurrence. </policy/CMP0179>
+   CMP0178: Test command lines preserve empty arguments. </policy/CMP0178>
+   CMP0177: install() DESTINATION paths are normalized. </policy/CMP0177>
+   CMP0176: execute_process() ENCODING is UTF-8 by default. </policy/CMP0176>
+   CMP0175: add_custom_command() rejects invalid arguments. </policy/CMP0175>
+   CMP0174: cmake_parse_arguments(PARSE_ARGV) defines a variable for an empty string after a single-value keyword. </policy/CMP0174>
    CMP0173: The CMakeFindFrameworks module is removed. </policy/CMP0173>
    CMP0172: The CPack module enables per-machine installation by default in the CPack WIX Generator. </policy/CMP0172>
    CMP0171: 'codegen' is a reserved target name. </policy/CMP0171>

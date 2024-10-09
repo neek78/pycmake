@@ -573,13 +573,7 @@ cmGlobalNinjaGenerator::cmGlobalNinjaGenerator(cmake* cm)
   cm->GetState()->SetWindowsShell(true);
 
   // Attempt to use full path to COMSPEC, default "cmd.exe"
-  std::string comspec;
-  if (cmSystemTools::GetEnv("COMSPEC", comspec) &&
-      cmSystemTools::FileIsFullPath(comspec)) {
-    this->Comspec = comspec;
-  } else {
-    this->Comspec = "cmd.exe";
-  }
+  this->Comspec = cmSystemTools::GetComspec();
 #endif
   cm->GetState()->SetNinja(true);
   this->FindMakeProgramFile = "CMakeNinjaFindMake.cmake";
@@ -2074,7 +2068,7 @@ std::string cmGlobalNinjaGenerator::CMakeCmd() const
 std::string cmGlobalNinjaGenerator::NinjaCmd() const
 {
   const auto& lgen = this->LocalGenerators[0];
-  if (lgen != nullptr) {
+  if (lgen) {
     return lgen->ConvertToOutputFormat(this->NinjaCommand,
                                        cmOutputConverter::SHELL);
   }
@@ -3153,6 +3147,11 @@ bool cmGlobalNinjaGenerator::IsSingleConfigUtility(
 {
   return target->GetType() == cmStateEnums::UTILITY &&
     !this->PerConfigUtilityTargets.count(target->GetName());
+}
+
+std::string cmGlobalNinjaGenerator::ConvertToOutputPath(std::string path) const
+{
+  return this->ConvertToNinjaPath(path);
 }
 
 const char* cmGlobalNinjaMultiGenerator::NINJA_COMMON_FILE =

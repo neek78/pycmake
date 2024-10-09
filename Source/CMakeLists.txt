@@ -121,6 +121,8 @@ add_library(
   cmBinUtilsWindowsPELinker.h
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool.cxx
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool.h
+  cmBuildDatabase.cxx
+  cmBuildDatabase.h
   cmBuildOptions.h
   cmCacheManager.cxx
   cmCacheManager.h
@@ -140,6 +142,7 @@ add_library(
   cmCMakePresetsGraphReadJSONTestPresets.cxx
   cmCMakePresetsGraphReadJSONWorkflowPresets.cxx
   cmCommandArgumentParserHelper.cxx
+  cmCommandLineArgument.h
   cmCommonTargetGenerator.cxx
   cmCommonTargetGenerator.h
   cmComputeComponentGraph.cxx
@@ -217,6 +220,10 @@ add_library(
   cmExportInstallCMakeConfigGenerator.cxx
   cmExportInstallFileGenerator.h
   cmExportInstallFileGenerator.cxx
+  cmExportInstallPackageInfoGenerator.h
+  cmExportInstallPackageInfoGenerator.cxx
+  cmExportPackageInfoGenerator.h
+  cmExportPackageInfoGenerator.cxx
   cmExportTryCompileFileGenerator.h
   cmExportTryCompileFileGenerator.cxx
   cmExportSet.h
@@ -336,6 +343,8 @@ add_library(
   cmInstallFilesGenerator.cxx
   cmInstallImportedRuntimeArtifactsGenerator.h
   cmInstallImportedRuntimeArtifactsGenerator.cxx
+  cmInstallPackageInfoExportGenerator.h
+  cmInstallPackageInfoExportGenerator.cxx
   cmInstallRuntimeDependencySet.h
   cmInstallRuntimeDependencySet.cxx
   cmInstallRuntimeDependencySetGenerator.h

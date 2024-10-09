@@ -6,6 +6,7 @@
 #include <cstddef>
 
 #include <cm/memory>
+#include <cm/string_view>
 
 #include "cmsys/FStream.hxx"
 
@@ -209,7 +210,10 @@ Impl<XCOFF>::Impl(cmXCOFF* external, std::unique_ptr<std::iostream> fin,
     this->SetErrorMessage("XCOFF loader section missing.");
     return;
   }
-  this->bytes_to_align = this->AuxHeader.o_algndata;
+  this->bytes_to_align =
+    this->AuxHeader.o_algntext > this->AuxHeader.o_algndata
+    ? this->AuxHeader.o_algntext
+    : this->AuxHeader.o_algndata;
   if (!this->Stream->seekg((this->AuxHeader.o_snloader - 1) *
                              sizeof(typename XCOFF::scnhdr),
                            std::ios::cur)) {
@@ -280,19 +284,22 @@ cm::optional<cm::string_view> Impl<XCOFF>::GetLibPath()
 template <typename XCOFF>
 bool Impl<XCOFF>::SetLibPath(cm::string_view libPath)
 {
-  // The new LIBPATH must end in the standard AIX LIBPATH.
-#define CM_AIX_LIBPATH "/usr/lib:/lib"
+  // The new LIBPATH must contain standard AIX LIBPATH entries.
   std::string libPathBuf;
-  if (libPath != CM_AIX_LIBPATH &&
-      !cmHasLiteralSuffix(libPath, ":" CM_AIX_LIBPATH)) {
-    libPathBuf = std::string(libPath);
-    if (!libPathBuf.empty() && libPathBuf.back() != ':') {
-      libPathBuf.push_back(':');
-    }
-    libPathBuf += CM_AIX_LIBPATH;
-    libPath = libPathBuf;
+#define ENSURE_ENTRY(x)                                                       \
+  if (libPath != x && !cmHasLiteralPrefix(libPath, x ":") &&                  \
+      !cmHasLiteralSuffix(libPath, ":" x) &&                                  \
+      libPath.find(":" x ":") == std::string::npos) {                         \
+    libPathBuf = std::string(libPath);                                        \
+    if (!libPathBuf.empty() && libPathBuf.back() != ':') {                    \
+      libPathBuf.push_back(':');                                              \
+    }                                                                         \
+    libPathBuf += x;                                                          \
+    libPath = libPathBuf;                                                     \
   }
-#undef CM_AIX_LIBPATH
+  ENSURE_ENTRY("/usr/lib")
+  ENSURE_ENTRY("/lib")
+#undef ENSURE_ENTRY
 
   auto oldEnd = std::find(this->LoaderImportFileTable.begin(),
                           this->LoaderImportFileTable.end(), '\0');
@@ -376,16 +383,6 @@ IsArchive check_if_big_archive(const char* fname)
   }
 }
 
-size_t getLastWordLen(const std::string& path)
-{
-  std::size_t lastSlashPos = path.find_last_of("/\\");
-  if (lastSlashPos == std::string::npos) {
-    return path.length();
-  }
-
-  return (path.length() - lastSlashPos - 1);
-}
-
 //============================================================================
 // External class implementation.
 
@@ -429,14 +426,22 @@ cmXCOFF::cmXCOFF(const char* fname, Mode mode)
     ar_hdr arHeader;
     f->read(reinterpret_cast<char*>(&arHeader), sizeof(ar_hdr));
 
-    // We will sometimes get /opt/freeware/lib/libshared.a. So extract
-    // the last part only.
-    // Example: libshared.a [We need to length of "libshared.a" characters].
-    archive_name_length = static_cast<int>(getLastWordLen(std::string(fname)));
+    {
+      errno = 0;
+      char* ar_namlen_endp;
+      unsigned long ar_namlen =
+        strtoul(arHeader.ar_namlen, &ar_namlen_endp, 10);
+      if ((ar_namlen_endp != arHeader.ar_namlen) && (errno == 0)) {
+        archive_name_length = static_cast<int>(ar_namlen);
+      } else {
+        this->ErrorMessage = "Error parsing archive name length.";
+        return;
+      }
+    }
 
-    // Move to the next even byte.
+    // Round off to even byte.
     if (archive_name_length % 2 == 0) {
-      nextEvenByte = archive_name_length + 2;
+      nextEvenByte = archive_name_length;
     } else {
       nextEvenByte = archive_name_length + 1;
     }

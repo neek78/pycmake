@@ -225,19 +225,14 @@ function (_PYTHON_GET_REGISTRIES _PYTHON_PGR_REGISTRY_PATHS)
 endfunction()
 
 
-function (_PYTHON_GET_ABIFLAGS _PGABIFLAGS)
-  if (NOT DEFINED _${_PYTHON_PREFIX}_FIND_ABI)
-    set (${_PGABIFLAGS} "<none>" PARENT_SCOPE)
-    return()
-  endif()
-
+function (_PYTHON_GET_ABIFLAGS _PGA_FIND_ABI _PGABIFLAGS)
   set (abiflags "<none>")
-  list (GET _${_PYTHON_PREFIX}_FIND_ABI 0 pydebug)
-  list (GET _${_PYTHON_PREFIX}_FIND_ABI 1 pymalloc)
-  list (GET _${_PYTHON_PREFIX}_FIND_ABI 2 unicode)
-  list (LENGTH _${_PYTHON_PREFIX}_FIND_ABI find_abi_length)
+  list (GET _PGA_FIND_ABI 0 pydebug)
+  list (GET _PGA_FIND_ABI 1 pymalloc)
+  list (GET _PGA_FIND_ABI 2 unicode)
+  list (LENGTH _PGA_FIND_ABI find_abi_length)
   if (find_abi_length GREATER 3)
-    list (GET _${_PYTHON_PREFIX}_FIND_ABI 3 gil)
+    list (GET _PGA_FIND_ABI 3 gil)
   else()
     set (gil "OFF")
   endif()
@@ -302,12 +297,8 @@ function (_PYTHON_GET_PATH_SUFFIXES _PYTHON_PGPS_PATH_SUFFIXES)
     set (_PGPS_IMPLEMENTATIONS ${_${_PYTHON_PREFIX}_FIND_IMPLEMENTATIONS})
   endif()
 
-  if (DEFINED _${_PYTHON_PREFIX}_ABIFLAGS)
-    set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
-    list (TRANSFORM abi REPLACE "^<none>$" "")
-  else()
-    set (abi "mu" "m" "u" "")
-  endif()
+  set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
+  list (TRANSFORM abi REPLACE "^<none>$" "")
 
   set (path_suffixes)
 
@@ -401,12 +392,8 @@ function (_PYTHON_GET_NAMES _PYTHON_PGN_NAMES)
           else()
             string (REPLACE "." "" name_version ${version})
           endif()
-          if (DEFINED _${_PYTHON_PREFIX}_ABIFLAGS)
-            set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
-            list (TRANSFORM abi REPLACE "^<none>$" "")
-          else()
-            set (abi "")
-          endif()
+          set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
+          list (TRANSFORM abi REPLACE "^<none>$" "")
           if (abi)
             set (abinames "${abi}")
             list (TRANSFORM abinames PREPEND "python${name_version}")
@@ -420,16 +407,8 @@ function (_PYTHON_GET_NAMES _PYTHON_PGN_NAMES)
         endif()
 
         if (_PGN_POSIX)
-          if (DEFINED _${_PYTHON_PREFIX}_ABIFLAGS)
-            set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
-            list (TRANSFORM abi REPLACE "^<none>$" "")
-          else()
-            if (_PGN_INTERPRETER OR _PGN_CONFIG)
-              set (abi "")
-            else()
-              set (abi "mu" "m" "u" "")
-            endif()
-          endif()
+          set (abi "${_${_PYTHON_PREFIX}_ABIFLAGS}")
+          list (TRANSFORM abi REPLACE "^<none>$" "")
 
           if (abi)
             if (_PGN_CONFIG AND DEFINED CMAKE_LIBRARY_ARCHITECTURE)
@@ -1529,7 +1508,6 @@ if (_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR VERSION_LESS "3")
   set (_${_PYTHON_PREFIX}_ABIFLAGS "<none>")
 else()
   unset (_${_PYTHON_PREFIX}_FIND_ABI)
-  unset (_${_PYTHON_PREFIX}_ABIFLAGS)
   if (DEFINED ${_PYTHON_PREFIX}_FIND_ABI)
     # normalization
     string (TOUPPER "${${_PYTHON_PREFIX}_FIND_ABI}" _${_PYTHON_PREFIX}_FIND_ABI)
@@ -1539,8 +1517,14 @@ else()
       message (AUTHOR_WARNING "Find${_PYTHON_PREFIX}: ${${_PYTHON_PREFIX}_FIND_ABI}: invalid value for '${_PYTHON_PREFIX}_FIND_ABI'. Ignore it")
       unset (_${_PYTHON_PREFIX}_FIND_ABI)
     endif()
+    _python_get_abiflags ("${${_PYTHON_PREFIX}_FIND_ABI}" _${_PYTHON_PREFIX}_ABIFLAGS)
+  else()
+    if (WIN32)
+      _python_get_abiflags ("OFF;OFF;OFF;OFF" _${_PYTHON_PREFIX}_ABIFLAGS)
+    else()
+      _python_get_abiflags ("ANY;ANY;ANY;OFF" _${_PYTHON_PREFIX}_ABIFLAGS)
+    endif()
   endif()
-  _python_get_abiflags (_${_PYTHON_PREFIX}_ABIFLAGS)
 endif()
 unset (${_PYTHON_PREFIX}_SOABI)
 unset (${_PYTHON_PREFIX}_SOSABI)
@@ -3740,6 +3724,14 @@ if (("Development.Module" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
                                 _${_PYTHON_PREFIX}_RUNTIME_LIBRARY_RELEASE
                                 _${_PYTHON_PREFIX}_RUNTIME_LIBRARY_DEBUG)
     endif()
+
+    if (WIN32 AND _${_PYTHON_PREFIX}_LIBRARY_RELEASE MATCHES "t${CMAKE_IMPORT_LIBRARY_SUFFIX}$")
+      # On windows, header file is shared between the different implementations
+      # So Py_GIL_DISABLED should be set explicitly
+      set (${_PYTHON_PREFIX}_DEFINITIONS Py_GIL_DISABLED=1)
+    else()
+      unset (${_PYTHON_PREFIX}_DEFINITIONS)
+    endif()
   endif()
 
   if ("SABI_LIBRARY" IN_LIST _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_ARTIFACTS)
@@ -3768,6 +3760,14 @@ if (("Development.Module" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
       _python_set_library_dirs (${_PYTHON_PREFIX}_RUNTIME_SABI_LIBRARY_DIRS
                                 _${_PYTHON_PREFIX}_RUNTIME_SABI_LIBRARY_RELEASE
                                 _${_PYTHON_PREFIX}_RUNTIME_SABI_LIBRARY_DEBUG)
+    endif()
+
+    if (WIN32 AND _${_PYTHON_PREFIX}_SABI_LIBRARY_RELEASE MATCHES "t${CMAKE_IMPORT_LIBRARY_SUFFIX}$")
+      # On windows, header file is shared between the different implementations
+      # So Py_GIL_DISABLED should be set explicitly
+      set (${_PYTHON_PREFIX}_DEFINITIONS Py_GIL_DISABLED=1)
+    else()
+      unset (${_PYTHON_PREFIX}_DEFINITIONS)
     endif()
   endif()
 
@@ -3903,11 +3903,12 @@ if ("NumPy" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_Inte
 
   # Workaround Intel MKL library outputting a message in stdout, which cause
   # incorrect detection of numpy.get_include() and numpy.__version__
-  # See https://github.com/numpy/numpy/issues/23775
-  if(DEFINED ENV{MKL_ENABLE_INSTRUCTIONS})
-    set(_${_PYTHON_PREFIX}_BACKUP_ENV_VAR_MKL_ENABLE_INSTRUCTIONS ENV{MKL_ENABLE_INSTRUCTIONS})
+  # See https://github.com/numpy/numpy/issues/23775 and
+  # https://gitlab.kitware.com/cmake/cmake/-/issues/26240
+  if(NOT DEFINED ENV{MKL_ENABLE_INSTRUCTIONS})
+    set(_${_PYTHON_PREFIX}_UNSET_ENV_VAR_MKL_ENABLE_INSTRUCTIONS YES)
+    set(ENV{MKL_ENABLE_INSTRUCTIONS} "SSE4_2")
   endif()
-  set(ENV{MKL_ENABLE_INSTRUCTIONS} "SSE4_2")
 
   if (NOT _${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR)
     execute_process(COMMAND ${${_PYTHON_PREFIX}_INTERPRETER_LAUNCHER} "${_${_PYTHON_PREFIX}_EXECUTABLE}" -c
@@ -3949,11 +3950,9 @@ if ("NumPy" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_Inte
     set (${_PYTHON_PREFIX}_NumPy_FOUND FALSE)
   endif()
 
-  # Restore previous value of MKL_ENABLE_INSTRUCTIONS
-  if(DEFINED _${_PYTHON_PREFIX}_BACKUP_ENV_VAR_MKL_ENABLE_INSTRUCTIONS)
-    set(ENV{MKL_ENABLE_INSTRUCTIONS} ${_${_PYTHON_PREFIX}_BACKUP_ENV_VAR_MKL_ENABLE_INSTRUCTIONS})
-    unset(_${_PYTHON_PREFIX}_BACKUP_ENV_VAR_MKL_ENABLE_INSTRUCTIONS)
-  else()
+  # Unset MKL_ENABLE_INSTRUCTIONS if set by us
+  if(DEFINED _${_PYTHON_PREFIX}_UNSET_ENV_VAR_MKL_ENABLE_INSTRUCTIONS)
+    unset(_${_PYTHON_PREFIX}_UNSET_ENV_VAR_MKL_ENABLE_INSTRUCTIONS)
     unset(ENV{MKL_ENABLE_INSTRUCTIONS})
   endif()
 
@@ -4067,6 +4066,12 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
       set_property (TARGET ${__name}
                     PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${${_PYTHON_PREFIX}_INCLUDE_DIRS}")
 
+      if (${_PYTHON_PREFIX}_DEFINITIONS)
+        set_property (TARGET ${__name}
+                      PROPERTY INTERFACE_COMPILE_DEFINITIONS "${${_PYTHON_PREFIX}_DEFINITIONS}")
+      endif()
+
+
       if (${_PYTHON_PREFIX}_${_PREFIX}LIBRARY_RELEASE AND ${_PYTHON_PREFIX}_RUNTIME_${_PREFIX}LIBRARY_RELEASE)
         # System manage shared libraries in two parts: import and runtime
         if (${_PYTHON_PREFIX}_${_PREFIX}LIBRARY_RELEASE AND ${_PYTHON_PREFIX}_${_PREFIX}LIBRARY_DEBUG)
@@ -4122,6 +4127,11 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
       endif()
       set_property (TARGET ${__name}
                     PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${${_PYTHON_PREFIX}_INCLUDE_DIRS}")
+
+      if (${_PYTHON_PREFIX}_DEFINITIONS)
+        set_property (TARGET ${__name}
+                      PROPERTY INTERFACE_COMPILE_DEFINITIONS "${${_PYTHON_PREFIX}_DEFINITIONS}")
+      endif()
 
       # When available, enforce shared library generation with undefined symbols
       if (APPLE)

@@ -19,6 +19,7 @@ Synopsis
   install(`SCRIPT`_ <file> [...])
   install(`CODE`_ <code> [...])
   install(`EXPORT`_ <export-name> [...])
+  install(`PACKAGE_INFO`_ <package-name> [...])
   install(`RUNTIME_DEPENDENCY_SET`_ <set-name> [...])
 
 Introduction
@@ -57,7 +58,7 @@ signatures that specify them.  The common options are:
   ``<dir>`` should be a relative path.  An absolute path is allowed,
   but not recommended.
 
-  When a relative path is given it is interpreted relative to the value
+  When a relative path is given, it is interpreted relative to the value
   of the :variable:`CMAKE_INSTALL_PREFIX` variable.
   The prefix can be relocated at install time using the ``DESTDIR``
   mechanism explained in the :variable:`CMAKE_INSTALL_PREFIX` variable
@@ -73,6 +74,11 @@ signatures that specify them.  The common options are:
 
   If an absolute path (with a leading slash or drive letter) is given
   it is used verbatim.
+
+  .. versionchanged:: 3.31
+    ``<dir>`` will be normalized according to the same
+    :ref:`normalization rules <Normalization>` as the
+    :command:`cmake_path` command.
 
 ``PERMISSIONS <permission>...``
   Specify permissions for installed files.  Valid permissions are
@@ -395,6 +401,12 @@ Signatures
     If a relative path is specified, it is treated as relative to the
     :genex:`$<INSTALL_PREFIX>`.
 
+    Unlike other ``DESTINATION`` arguments for the various ``install()``
+    subcommands, paths given after ``INCLUDES DESTINATION`` are used as
+    given.  They are not normalized, nor assumed to be normalized, although
+    it is recommended that they are given in normalized form (see
+    :ref:`Normalization`).
+
   ``RUNTIME_DEPENDENCY_SET <set-name>``
     .. versionadded:: 3.21
 
@@ -567,6 +579,7 @@ Signatures
   ``LOCALE``              ``${CMAKE_INSTALL_LOCALEDIR}``     ``<DATAROOT dir>/locale``
   ``MAN``                 ``${CMAKE_INSTALL_MANDIR}``        ``<DATAROOT dir>/man``
   ``DOC``                 ``${CMAKE_INSTALL_DOCDIR}``        ``<DATAROOT dir>/doc``
+  ``LIBEXEC``             ``${CMAKE_INSTALL_LIBEXECDIR}``    ``libexec``
   ======================= ================================== =========================
 
   Projects wishing to follow the common practice of installing headers into a
@@ -604,6 +617,9 @@ Signatures
     An install rename given as a ``RENAME`` argument may
     use "generator expressions" with the syntax ``$<...>``.  See the
     :manual:`cmake-generator-expressions(7)` manual for available expressions.
+
+  .. versionadded:: 3.31
+    The ``TYPE`` argument now supports type ``LIBEXEC``.
 
 .. signature::
   install(DIRECTORY <dir>... [...])
@@ -719,6 +735,7 @@ Signatures
   ``LOCALE``              ``${CMAKE_INSTALL_LOCALEDIR}``     ``<DATAROOT dir>/locale``
   ``MAN``                 ``${CMAKE_INSTALL_MANDIR}``        ``<DATAROOT dir>/man``
   ``DOC``                 ``${CMAKE_INSTALL_DOCDIR}``        ``<DATAROOT dir>/doc``
+  ``LIBEXEC``             ``${CMAKE_INSTALL_LIBEXECDIR}``    ``libexec``
   ======================= ================================== =========================
 
   Note that some of the types' built-in defaults use the ``DATAROOT`` directory as
@@ -741,6 +758,9 @@ Signatures
   .. versionadded:: 3.5
     The list of ``dirs...`` given to ``DIRECTORY`` may use
     "generator expressions" too.
+
+  .. versionadded:: 3.31
+    The ``TYPE`` argument now supports type ``LIBEXEC``.
 
 .. signature::
   install(SCRIPT <file> [...])
@@ -806,6 +826,7 @@ Signatures
   the generated file will be called ``<export-name>.cmake`` but the ``FILE``
   option may be used to specify a different name.  The value given to
   the ``FILE`` option must be a file name with the ``.cmake`` extension.
+
   If a ``CONFIGURATIONS`` option is given then the file will only be installed
   when one of the named configurations is installed.  Additionally, the
   generated import file will reference only the matching target
@@ -903,6 +924,61 @@ Signatures
   may load this file with the include command and reference the ``myexe``
   executable from the installation tree using the imported target name
   ``mp_myexe`` as if the target were built in its own tree.
+
+.. signature::
+  install(PACKAGE_INFO <package-name> [...])
+
+  .. versionadded:: 3.31
+  .. note::
+
+    Experimental. Gated by ``CMAKE_EXPERIMENTAL_EXPORT_PACKAGE_INFO``.
+
+  Installs a |CPS|_ file exporting targets for dependent projects:
+
+  .. code-block:: cmake
+
+    install(PACKAGE_INFO <package-name> EXPORT <export-name>
+            [APPENDIX <appendix-name>]
+            [DESTINATION <dir>]
+            [LOWER_CASE_FILE]
+            [VERSION <version>
+             [COMPAT_VERSION <version>]
+             [VERSION_SCHEMA <string>]]
+            [DEFAULT_TARGETS <target>...]
+            [DEFAULT_CONFIGURATIONS <config>...]
+            [PERMISSIONS <permission>...]
+            [CONFIGURATIONS <config>...]
+            [COMPONENT <component>]
+            [EXCLUDE_FROM_ALL])
+
+  The ``PACKAGE_INFO`` form generates and installs a |CPS| file which describes
+  installed targets such that they can be consumed by another project.
+  Target installations are associated with the export ``<export-name>``
+  using the ``EXPORT`` option of the :command:`install(TARGETS)` signature
+  documented above.  Unlike :command:`install(EXPORT)`, this information is not
+  expressed in CMake code, and can be consumed by tools other than CMake.  When
+  imported into another CMake project, the imported targets will be prefixed
+  with ``<package-name>::``.  By default, the generated file will be called
+  ``<package-name>[-<appendix-name>].cps``.  If ``LOWER_CASE_FILE`` is given,
+  the package name as it appears on disk (in both the file name and install
+  destination) will be first converted to lower case.
+
+  If ``DESTINATION`` is not specified, a platform-specific default is used.
+
+  If ``APPENDIX`` is specified, rather than generating a top level package
+  specification, the specified targets will be exported as an appendix to the
+  named package.  Appendices may be used to separate less commonly used targets
+  (along with their external dependencies) from the rest of a package.  This
+  enables consumers to ignore transitive dependencies for targets that they
+  don't use, and also allows a single logical "package" to be composed of
+  artifacts produced by multiple build trees.
+
+  Appendices are not permitted to change basic package metadata; therefore,
+  none of ``VERSION``, ``COMPAT_VERSION``, ``VERSION_SCHEMA``,
+  ``DEFAULT_TARGETS`` or ``DEFAULT_CONFIGURATIONS`` may be specified in
+  combination with ``APPENDIX``.  Additionally, it is strongly recommended that
+  use of ``LOWER_CASE_FILE`` should be consistent between the main package and
+  any appendices.
 
 .. signature::
   install(RUNTIME_DEPENDENCY_SET <set-name> [...])
@@ -1096,3 +1172,6 @@ and by CPack. You can also invoke this script manually with
   This is an environment variable rather than a CMake variable. It allows you
   to change the installation prefix on UNIX systems. See :envvar:`DESTDIR` for
   details.
+
+.. _CPS: https://cps-org.github.io/cps/
+.. |CPS| replace:: Common Package Specification

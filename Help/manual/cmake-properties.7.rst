@@ -217,6 +217,7 @@ Properties on Targets
    /prop_tgt/EXCLUDE_FROM_ALL
    /prop_tgt/EXCLUDE_FROM_DEFAULT_BUILD
    /prop_tgt/EXCLUDE_FROM_DEFAULT_BUILD_CONFIG
+   /prop_tgt/EXPORT_BUILD_DATABASE
    /prop_tgt/EXPORT_COMPILE_COMMANDS
    /prop_tgt/EXPORT_FIND_PACKAGE_NAME
    /prop_tgt/EXPORT_NAME
@@ -335,6 +336,7 @@ Properties on Targets
    /prop_tgt/LINK_INTERFACE_MULTIPLICITY_CONFIG
    /prop_tgt/LINK_LIBRARIES
    /prop_tgt/LINK_LIBRARIES_ONLY_TARGETS
+   /prop_tgt/LINK_LIBRARIES_STRATEGY
    /prop_tgt/LINK_LIBRARY_OVERRIDE
    /prop_tgt/LINK_LIBRARY_OVERRIDE_LIBRARY
    /prop_tgt/LINK_OPTIONS

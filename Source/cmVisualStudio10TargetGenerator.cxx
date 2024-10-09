@@ -477,11 +477,6 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
     Elem e0(BuildFileStream, "Project");
     e0.Attribute("DefaultTargets", "Build");
     const char* toolsVersion = this->GlobalGenerator->GetToolsVersion();
-    if (this->GlobalGenerator->GetVersion() ==
-          cmGlobalVisualStudioGenerator::VSVersion::VS12 &&
-        this->GlobalGenerator->TargetsWindowsCE()) {
-      toolsVersion = "4.0";
-    }
     e0.Attribute("ToolsVersion", toolsVersion);
     e0.Attribute("xmlns",
                  "http://schemas.microsoft.com/developer/msbuild/2003");
@@ -644,11 +639,8 @@ void cmVisualStudio10TargetGenerator::WriteClassicMsBuildProjectFile(
 
       // Disable the project upgrade prompt that is displayed the first time a
       // project using an older toolset version is opened in a newer version of
-      // the IDE (respected by VS 2013 and above).
-      if (this->GlobalGenerator->GetVersion() >=
-          cmGlobalVisualStudioGenerator::VSVersion::VS12) {
-        e1.Element("VCProjectUpgraderObjectName", "NoUpgrade");
-      }
+      // the IDE.
+      e1.Element("VCProjectUpgraderObjectName", "NoUpgrade");
 
       if (const char* vcTargetsPath =
             this->GlobalGenerator->GetCustomVCTargetsPath()) {
@@ -915,22 +907,14 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
     return;
   }
 
-  if (this->HasCustomCommandsSource()) {
-    std::string message = cmStrCat(
-      "The target \"", this->GeneratorTarget->GetName(),
-      "\" does not currently support add_custom_command as the Visual Studio "
-      "generators have not yet learned how to generate custom commands in "
-      ".Net SDK-style projects.");
-    this->Makefile->IssueMessage(MessageType::FATAL_ERROR, message);
-    return;
-  }
-
   Elem e0(BuildFileStream, "Project");
   e0.Attribute("Sdk", *this->GeneratorTarget->GetProperty("DOTNET_SDK"));
 
   {
     Elem e1(e0, "PropertyGroup");
     this->WriteCommonPropertyGroupGlobals(e1);
+
+    e1.Element("Configurations", cmJoinStrings(this->Configurations, ";", ""));
 
     e1.Element("EnableDefaultItems", "false");
     // Disable the project upgrade prompt that is displayed the first time a
@@ -1012,6 +996,8 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
     ConvertToWindowsSlash(outDir);
     e1.Element("OutputPath", outDir);
 
+    e1.Element("AssemblyName", GetAssemblyName(config));
+
     Options& o = *(this->ClOptions[config]);
     OptionsHelper oh(o, e1);
     oh.OutputFlagMap();
@@ -1022,6 +1008,7 @@ void cmVisualStudio10TargetGenerator::WriteSdkStyleProjectFile(
   }
 
   this->WriteDotNetDocumentationFile(e0);
+  this->WriteCustomCommands(e0);
   this->WriteAllSources(e0);
   this->WriteEmbeddedResourceGroup(e0);
   this->WriteXamlFilesGroup(e0);
@@ -1081,15 +1068,6 @@ void cmVisualStudio10TargetGenerator::WriteCommonPropertyGroupGlobals(Elem& e1)
     }
     e1.Element(globalKey, *value);
   }
-}
-
-bool cmVisualStudio10TargetGenerator::HasCustomCommandsSource() const
-{
-  auto const& config_sources = this->GeneratorTarget->GetAllConfigSources();
-  return std::any_of(config_sources.begin(), config_sources.end(),
-                     [](cmGeneratorTarget::AllConfigSource const& si) {
-                       return si.Source->GetCustomCommand();
-                     });
 }
 
 void cmVisualStudio10TargetGenerator::WritePackageReferences(Elem& e0)
@@ -1617,13 +1595,7 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesManaged(
 
   this->WriteMSToolConfigurationValuesCommon(e1, config);
 
-  std::string postfixName =
-    cmStrCat(cmSystemTools::UpperCase(config), "_POSTFIX");
-  std::string assemblyName = this->GeneratorTarget->GetOutputName(
-    config, cmStateEnums::RuntimeBinaryArtifact);
-  if (cmValue postfix = this->GeneratorTarget->GetProperty(postfixName)) {
-    assemblyName += *postfix;
-  }
+  std::string assemblyName = GetAssemblyName(config);
   e1.Element("AssemblyName", assemblyName);
 
   if (cmStateEnums::EXECUTABLE == this->GeneratorTarget->GetType()) {
@@ -1855,6 +1827,15 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
               symbolic = sf->GetPropertyAsBool("SYMBOLIC");
             }
           }
+
+          // Without UpToDateCheckInput VS will ignore the dependency files
+          // when doing it's fast up-to-date check and the command will not run
+          if (this->ProjectType == VsProjectType::csproj &&
+              this->GeneratorTarget->IsDotNetSdkTarget()) {
+            Elem e1(e0, "ItemGroup");
+            Elem e2(e1, "UpToDateCheckInput");
+            e2.Attribute("Include", dep);
+          }
         }
       }
       if (this->ProjectType != VsProjectType::csproj) {
@@ -1948,10 +1929,16 @@ void cmVisualStudio10TargetGenerator::WriteCustomRuleCSharp(
   }
   this->CSharpCustomCommandNames.insert(name);
   Elem e1(e0, "Target");
-  e1.Attribute("Condition", this->CalcCondition(config));
+  e1.Attribute("Condition", cmStrCat("'$(Configuration)' == '", config, '\''));
   e1.S << "\n    Name=\"" << name << "\"";
   e1.S << "\n    Inputs=\"" << cmVS10EscapeAttr(inputs) << "\"";
   e1.S << "\n    Outputs=\"" << cmVS10EscapeAttr(outputs) << "\"";
+
+  // Run before sources are compiled...
+  e1.S << "\n    BeforeTargets=\"CoreCompile\""; // BeforeBuild
+  // ...but after output directory has been created
+  e1.S << "\n    DependsOnTargets=\"PrepareForBuild\"";
+
   if (!comment.empty()) {
     Elem(e1, "Exec").Attribute("Command", cmStrCat("echo ", comment));
   }
@@ -2557,66 +2544,73 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
     }
 
     const char* tool = nullptr;
-    switch (si.Kind) {
-      case cmGeneratorTarget::SourceKindAppManifest:
-        tool = "AppxManifest";
-        break;
-      case cmGeneratorTarget::SourceKindCertificate:
-        tool = "None";
-        break;
-      case cmGeneratorTarget::SourceKindCustomCommand:
-        // Handled elsewhere.
-        break;
-      case cmGeneratorTarget::SourceKindExternalObject:
-        tool = "Object";
-        break;
-      case cmGeneratorTarget::SourceKindExtra:
-        this->WriteExtraSource(e1, si.Source, toolSettings);
-        break;
-      case cmGeneratorTarget::SourceKindHeader:
-        this->WriteHeaderSource(e1, si.Source, toolSettings);
-        break;
-      case cmGeneratorTarget::SourceKindIDL:
-        tool = "Midl";
-        break;
-      case cmGeneratorTarget::SourceKindManifest:
-        // Handled elsewhere.
-        break;
-      case cmGeneratorTarget::SourceKindModuleDefinition:
-        tool = "None";
-        break;
-      case cmGeneratorTarget::SourceKindCxxModuleSource:
-      case cmGeneratorTarget::SourceKindUnityBatched:
-      case cmGeneratorTarget::SourceKindObjectSource: {
-        const std::string& lang = si.Source->GetLanguage();
-        if (lang == "C"_s || lang == "CXX"_s) {
-          tool = "ClCompile";
-        } else if (lang == "ASM_MARMASM"_s &&
-                   this->GlobalGenerator->IsMarmasmEnabled()) {
-          tool = "MARMASM";
-        } else if (lang == "ASM_MASM"_s &&
-                   this->GlobalGenerator->IsMasmEnabled()) {
-          tool = "MASM";
-        } else if (lang == "ASM_NASM"_s &&
-                   this->GlobalGenerator->IsNasmEnabled()) {
-          tool = "NASM";
-        } else if (lang == "RC"_s) {
-          tool = "ResourceCompile";
-        } else if (lang == "CSharp"_s) {
-          tool = "Compile";
-        } else if (lang == "CUDA"_s &&
-                   this->GlobalGenerator->IsCudaEnabled()) {
-          tool = "CudaCompile";
-        } else {
+    const cmValue toolOverride = si.Source->GetProperty("VS_TOOL_OVERRIDE");
+
+    if (cmNonempty(toolOverride)) {
+      // Custom tool specified: the file will be built in a user-defined way
+      this->WriteExtraSource(e1, si.Source, toolSettings);
+    } else {
+      switch (si.Kind) {
+        case cmGeneratorTarget::SourceKindAppManifest:
+          tool = "AppxManifest";
+          break;
+        case cmGeneratorTarget::SourceKindCertificate:
           tool = "None";
-        }
-      } break;
-      case cmGeneratorTarget::SourceKindResx:
-        this->ResxObjs.push_back(si.Source);
-        break;
-      case cmGeneratorTarget::SourceKindXaml:
-        this->XamlObjs.push_back(si.Source);
-        break;
+          break;
+        case cmGeneratorTarget::SourceKindCustomCommand:
+          // Handled elsewhere.
+          break;
+        case cmGeneratorTarget::SourceKindExternalObject:
+          tool = "Object";
+          break;
+        case cmGeneratorTarget::SourceKindExtra:
+          this->WriteExtraSource(e1, si.Source, toolSettings);
+          break;
+        case cmGeneratorTarget::SourceKindHeader:
+          this->WriteHeaderSource(e1, si.Source, toolSettings);
+          break;
+        case cmGeneratorTarget::SourceKindIDL:
+          tool = "Midl";
+          break;
+        case cmGeneratorTarget::SourceKindManifest:
+          // Handled elsewhere.
+          break;
+        case cmGeneratorTarget::SourceKindModuleDefinition:
+          tool = "None";
+          break;
+        case cmGeneratorTarget::SourceKindCxxModuleSource:
+        case cmGeneratorTarget::SourceKindUnityBatched:
+        case cmGeneratorTarget::SourceKindObjectSource: {
+          const std::string& lang = si.Source->GetLanguage();
+          if (lang == "C"_s || lang == "CXX"_s) {
+            tool = "ClCompile";
+          } else if (lang == "ASM_MARMASM"_s &&
+                     this->GlobalGenerator->IsMarmasmEnabled()) {
+            tool = "MARMASM";
+          } else if (lang == "ASM_MASM"_s &&
+                     this->GlobalGenerator->IsMasmEnabled()) {
+            tool = "MASM";
+          } else if (lang == "ASM_NASM"_s &&
+                     this->GlobalGenerator->IsNasmEnabled()) {
+            tool = "NASM";
+          } else if (lang == "RC"_s) {
+            tool = "ResourceCompile";
+          } else if (lang == "CSharp"_s) {
+            tool = "Compile";
+          } else if (lang == "CUDA"_s &&
+                     this->GlobalGenerator->IsCudaEnabled()) {
+            tool = "CudaCompile";
+          } else {
+            tool = "None";
+          }
+        } break;
+        case cmGeneratorTarget::SourceKindResx:
+          this->ResxObjs.push_back(si.Source);
+          break;
+        case cmGeneratorTarget::SourceKindXaml:
+          this->XamlObjs.push_back(si.Source);
+          break;
+      }
     }
 
     std::string config;
@@ -3280,6 +3274,19 @@ std::string cmVisualStudio10TargetGenerator::GetTargetOutputName() const
   const auto& nameComponents =
     this->GeneratorTarget->GetFullNameComponents(config);
   return cmStrCat(nameComponents.prefix, nameComponents.base);
+}
+
+std::string cmVisualStudio10TargetGenerator::GetAssemblyName(
+  std::string const& config) const
+{
+  std::string postfixName =
+    cmStrCat(cmSystemTools::UpperCase(config), "_POSTFIX");
+  std::string assemblyName = this->GeneratorTarget->GetOutputName(
+    config, cmStateEnums::RuntimeBinaryArtifact);
+  if (cmValue postfix = this->GeneratorTarget->GetProperty(postfixName)) {
+    assemblyName += *postfix;
+  }
+  return assemblyName;
 }
 
 bool cmVisualStudio10TargetGenerator::ComputeClOptions()
@@ -4465,14 +4472,21 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     this->AddTargetsFileAndConfigPair(ti, config);
   }
 
-  std::vector<std::string> const& ldirs = cli.GetDirectories();
   std::vector<std::string> linkDirs;
+  std::vector<std::string> const& ldirs = cli.GetDirectories();
   for (std::string const& d : ldirs) {
     // first just full path
     linkDirs.push_back(d);
     // next path with configuration type Debug, Release, etc
     linkDirs.emplace_back(cmStrCat(d, "/$(Configuration)"));
   }
+
+  std::string const& linkDirsString = this->Makefile->GetSafeDefinition(
+    cmStrCat("CMAKE_", linkLanguage, "_STANDARD_LINK_DIRECTORIES"));
+  for (const std::string& d : cmList(linkDirsString)) {
+    linkDirs.push_back(d);
+  }
+
   linkDirs.push_back("%(AdditionalLibraryDirectories)");
   linkOptions.AddFlag("AdditionalLibraryDirectories", linkDirs);
 
@@ -5111,11 +5125,11 @@ std::string ComputeCertificateThumbprint(const std::string& source)
     cmsys::Encoding::ToWide(source.c_str()).c_str(), GENERIC_READ,
     FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-  if (certFile != INVALID_HANDLE_VALUE && certFile != nullptr) {
+  if (certFile != INVALID_HANDLE_VALUE && certFile) {
     DWORD fileSize = GetFileSize(certFile, nullptr);
     if (fileSize != INVALID_FILE_SIZE) {
       auto certData = cm::make_unique<BYTE[]>(fileSize);
-      if (certData != nullptr) {
+      if (certData) {
         DWORD dwRead = 0;
         if (ReadFile(certFile, certData.get(), fileSize, &dwRead, nullptr)) {
           cryptBlob.cbData = fileSize;
@@ -5126,11 +5140,11 @@ std::string ComputeCertificateThumbprint(const std::string& source)
             // Open the certificate as a store
             certStore =
               PFXImportCertStore(&cryptBlob, nullptr, CRYPT_EXPORTABLE);
-            if (certStore != nullptr) {
+            if (certStore) {
               // There should only be 1 cert.
               certContext =
                 CertEnumCertificatesInStore(certStore, certContext);
-              if (certContext != nullptr) {
+              if (certContext) {
                 // The hash is 20 bytes
                 BYTE hashData[20];
                 DWORD hashLength = 20;
@@ -5925,7 +5939,8 @@ void cmVisualStudio10TargetGenerator::UpdateCache()
 {
   std::vector<std::string> packageReferences;
 
-  if (this->GeneratorTarget->HasPackageReferences()) {
+  if (this->GeneratorTarget->IsDotNetSdkTarget() ||
+      this->GeneratorTarget->HasPackageReferences()) {
     // Store a cache entry that later determines, if a package restore is
     // required.
     this->GeneratorTarget->Makefile->AddCacheDefinition(
@@ -5942,7 +5957,7 @@ void cmVisualStudio10TargetGenerator::UpdateCache()
     OrderedTargetDependSet depends(unordered, CMAKE_CHECK_BUILD_SYSTEM_TARGET);
 
     for (cmGeneratorTarget const* dt : depends) {
-      if (dt->HasPackageReferences()) {
+      if (dt->IsDotNetSdkTarget() || dt->HasPackageReferences()) {
         this->GeneratorTarget->Makefile->AddCacheDefinition(
           cmStrCat(this->GeneratorTarget->GetName(),
                    "_REQUIRES_VS_PACKAGE_RESTORE"),

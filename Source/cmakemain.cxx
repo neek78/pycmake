@@ -75,7 +75,7 @@ const cmDocumentationEntry cmDocumentationUsageNote = {
   "Run 'cmake --help' for more information."
 };
 
-const cmDocumentationEntry cmDocumentationOptions[34] = {
+const cmDocumentationEntry cmDocumentationOptions[35] = {
   { "--preset <preset>,--preset=<preset>", "Specify a configure preset." },
   { "--list-presets[=<type>]", "List available presets." },
   { "--workflow [<options>]", "Run a workflow preset." },
@@ -99,6 +99,8 @@ const cmDocumentationEntry cmDocumentationOptions[34] = {
     "more." },
   { "--system-information [file]", "Dump information about this system." },
   { "--python-information", "Dump information about python compiled into this cmake." },
+  { "--print-config-dir",
+    "Print CMake config directory for user-wide FileAPI queries." },
   { "--log-level=<ERROR|WARNING|NOTICE|STATUS|VERBOSE|DEBUG|TRACE>",
     "Set the verbosity of messages from CMake files. "
     "--loglevel is also accepted for backward compatibility reasons." },
@@ -1058,6 +1060,11 @@ int do_workflow(int ac, char const* const* av)
         break;
       }
     }
+    if (!matched && i == 0) {
+      inputArgs.insert(inputArgs.begin(), "--preset");
+      matched = true;
+      parsed = arguments[0].parse("--preset", i, inputArgs);
+    }
     if (!(matched && parsed)) {
       if (!matched) {
         presetName.clear();
@@ -1071,7 +1078,7 @@ int do_workflow(int ac, char const* const* av)
   if (presetName.empty() && listPresets == WorkflowListPresets::No) {
     /* clang-format off */
     std::cerr <<
-      "Usage: cmake --workflow [options]\n"
+      "Usage: cmake --workflow <options>\n"
       "Options:\n"
       "  --preset <preset> = Workflow preset to execute.\n"
       "  --list-presets    = List available workflow presets.\n"

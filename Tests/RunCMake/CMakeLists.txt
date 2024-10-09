@@ -340,6 +340,7 @@ if(CMAKE_Fortran_COMPILER)
 endif()
 
 add_RunCMake_test(BuildDepends
+  -DMAKE_SUPPORTS_SPACES=${MAKE_SUPPORTS_SPACES}
   -DMSVC_VERSION=${MSVC_VERSION}
   -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
   -DCMAKE_C_LINK_DEPENDS_USE_COMPILER=${CMAKE_C_LINK_DEPENDS_USE_COMPILER}
@@ -368,7 +369,7 @@ if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
 endif()
 add_RunCMake_test(CompilerNotFound)
 if(DEFINED CMake_TEST_OBJC)
-  list(APPEND CompilerTest_ARGS -DCMake_TEST_OBJC=${CMake_TEST_OBJC})
+  list(APPEND CMake_TEST_LANG_VARS -DCMake_TEST_OBJC=${CMake_TEST_OBJC})
 endif()
 if(CMAKE_Fortran_COMPILER)
   # lfortran < 1.24 cannot handle long file names.  Fortran is not
@@ -376,19 +377,21 @@ if(CMAKE_Fortran_COMPILER)
   if(CMAKE_C_COMPILER_ID STREQUAL "LCC" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "1.24")
     string(LENGTH "${CMAKE_CURRENT_BINARY_DIR}" _CCBD_LEN)
     if(_CCBD_LEN LESS 35)
-      list(APPEND CompilerTest_ARGS -DCMake_TEST_Fortran=1)
+      list(APPEND CMake_TEST_LANG_VARS -DCMake_TEST_Fortran=1)
     endif()
     unset(_CCBD_LEN)
   else()
-    list(APPEND CompilerTest_ARGS -DCMake_TEST_Fortran=1)
+    list(APPEND CMake_TEST_LANG_VARS -DCMake_TEST_Fortran=1)
   endif()
 endif()
 foreach(lang IN ITEMS CUDA HIP ISPC)
   if(CMake_TEST_${lang})
-    list(APPEND CompilerTest_ARGS -DCMake_TEST_${lang}=1)
+    list(APPEND CMake_TEST_LANG_VARS -DCMake_TEST_${lang}=1)
   endif()
 endforeach()
-add_RunCMake_test(CompilerTest)
+add_RunCMake_test(CompilerId ${CMake_TEST_LANG_VARS})
+set_property(TEST RunCMake.CompilerId APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC" "Fortran")
+add_RunCMake_test(CompilerTest ${CMake_TEST_LANG_VARS})
 set_property(TEST RunCMake.CompilerTest APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC" "Fortran")
 add_RunCMake_test(Configure -DMSVC_IDE=${MSVC_IDE})
 add_RunCMake_test(DisallowedCommands)
@@ -409,6 +412,7 @@ if(CMAKE_USE_SYSTEM_JSONCPP)
 endif()
 add_RunCMake_test(FileAPI -DPython_EXECUTABLE=${Python_EXECUTABLE}
                           -DCMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID})
+add_RunCMake_test(ConfigDir)
 add_RunCMake_test(FindBoost)
 add_RunCMake_test(FindLua)
 add_RunCMake_test(FindOpenGL)
@@ -491,6 +495,7 @@ if(UNIX AND CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG)
     )
 endif()
 add_RunCMake_test(ScriptMode)
+add_RunCMake_test(StandardLinkDirectories)
 add_RunCMake_test(Swift -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                         -DCMake_TEST_Swift=${CMake_TEST_Swift}
                         -DXCODE_VERSION=${XCODE_VERSION})
@@ -594,6 +599,7 @@ foreach(var
     CMake_TEST_TLS_VERIFY_URL
     CMake_TEST_TLS_VERIFY_URL_BAD
     CMake_TEST_TLS_VERSION
+    CMake_TEST_TLS_VERSION_URL_BAD
     )
   if(DEFINED ${var})
     list(APPEND file-DOWNLOAD_ARGS -D${var}=${${var}})
@@ -777,9 +783,6 @@ if("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
     -DCMAKE_C_COMPILER_VERSION=${CMAKE_C_COMPILER_VERSION}
     )
   add_RunCMake_test(VS10ProjectUseDebugLibraries)
-  if( vs12 AND wince )
-    add_RunCMake_test( VS10ProjectWinCE "-DRunCMake_GENERATOR_PLATFORM=${wince_sdk}")
-  endif()
 endif()
 
 if(CMAKE_GENERATOR MATCHES "^Visual Studio (1[6-9]|[2-9][0-9])"
@@ -836,6 +839,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "(Linux|Darwin|Windows)"
 endif()
 
 add_RunCMake_test(LinkLibrariesProcessing)
+add_RunCMake_test(LinkLibrariesStrategy)
 add_RunCMake_test(File_Archive)
 add_RunCMake_test(File_Configure)
 add_RunCMake_test(File_Generate)
@@ -1176,6 +1180,7 @@ add_RunCMake_test(AutoExportDll
   )
 
 add_RunCMake_test(AndroidMK)
+add_RunCMake_test(PackageInfo)
 
 if(CMake_TEST_ANDROID_NDK OR CMake_TEST_ANDROID_STANDALONE_TOOLCHAIN)
   if(NOT "${CMAKE_GENERATOR}" MATCHES "Make|Ninja|Visual Studio 1[456]")
