@@ -494,10 +494,6 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
     return result;
   }
 
-  if (this->ExecuteCommandCallback) {
-    this->ExecuteCommandCallback();
-  }
-
   // Place this call on the call stack.
   cmMakefileCall stack_manager(this, lff, std::move(deferId), status);
   static_cast<void>(stack_manager);
@@ -551,6 +547,10 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
       result = false;
       cmSystemTools::SetFatalErrorOccurred();
     }
+  }
+
+  if (this->ExecuteCommandCallback) {
+    this->ExecuteCommandCallback();
   }
 
   return result;
@@ -4750,14 +4750,14 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
   }
 
   // Deprecate old policies.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0129 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0139 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.
           id == cmPolicies::CMP0065 || id == cmPolicies::CMP0083 ||
           id == cmPolicies::CMP0091 || id == cmPolicies::CMP0104 ||
           id == cmPolicies::CMP0123 || id == cmPolicies::CMP0126 ||
-          id == cmPolicies::CMP0128)) &&
+          id == cmPolicies::CMP0128 || id == cmPolicies::CMP0136)) &&
       (!this->IsSet("CMAKE_WARN_DEPRECATED") ||
        this->IsOn("CMAKE_WARN_DEPRECATED"))) {
     this->IssueMessage(MessageType::DEPRECATION_WARNING,
