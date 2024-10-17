@@ -2333,10 +2333,10 @@ int cmGlobalGenerator::Build(
                                          outputflag, timeout)) {
       cmSystemTools::SetRunCommandHideConsole(hideconsole);
       cmSystemTools::Error(
-        cmStrCat("Generator: execution of make failed. Make command was: ",
+        cmStrCat("Generator: build tool execution failed, command was: ",
                  makeCommandStr));
       ostr << *outputPtr
-           << "\nGenerator: execution of make failed. Make command was: "
+           << "\nGenerator: build tool execution failed, command was: "
            << outputMakeCommandStr << std::endl;
 
       return 1;
@@ -2978,7 +2978,6 @@ void cmGlobalGenerator::AddGlobalTarget_Test(
   }
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCTestCommand());
-  singleLine.push_back("--force-new-ctest-process");
   cmList args(mf->GetDefinition("CMAKE_CTEST_ARGUMENTS"));
   for (auto const& arg : args) {
     singleLine.push_back(arg);

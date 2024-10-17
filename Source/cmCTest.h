@@ -19,7 +19,6 @@
 #include "cmProcessOutput.h"
 
 class cmCTestBuildHandler;
-class cmCTestBuildAndTestHandler;
 class cmCTestCoverageHandler;
 class cmCTestScriptHandler;
 class cmCTestTestHandler;
@@ -67,7 +66,7 @@ public:
   Part GetPartFromName(const std::string& name);
 
   /** Process Command line arguments */
-  int Run(std::vector<std::string>&, std::string* output = nullptr);
+  int Run(std::vector<std::string> const& args);
 
   /**
    * Initialize and finalize testing
@@ -299,21 +298,9 @@ public:
   void SetProduceXML(bool v);
 
   /**
-   * Run command specialized for tests. Returns process status and retVal is
-   * return value or exception. If environment is non-null, it is used to set
-   * environment variables prior to running the test. After running the test,
-   * environment variables are restored to their previous values.
-   */
-  bool RunTest(const std::vector<std::string>& args, std::string* output,
-               int* retVal, std::ostream* logfile, cmDuration testTimeOut,
-               std::vector<std::string>* environment,
-               Encoding encoding = cmProcessOutput::Auto);
-
-  /**
    * Get the handler object
    */
   cmCTestBuildHandler* GetBuildHandler();
-  cmCTestBuildAndTestHandler* GetBuildAndTestHandler();
   cmCTestCoverageHandler* GetCoverageHandler();
   cmCTestScriptHandler* GetScriptHandler();
   cmCTestTestHandler* GetTestHandler();
@@ -330,6 +317,11 @@ public:
                                               const char* dconfig,
                                               const std::string& cmake_var,
                                               bool suppress = false);
+
+  /**
+   * Set CMake variables from CTest Options
+   */
+  void SetCMakeVariables(cmMakefile& mf);
 
   /** Decode a URL to the original string.  */
   static std::string DecodeURL(const std::string&);
@@ -367,9 +359,9 @@ public:
   void SetConfigType(const std::string& ct);
 
   /** Various log types */
-  enum
+  enum LogType
   {
-    DEBUG = 0,
+    DEBUG,
     OUTPUT,
     HANDLER_OUTPUT,
     HANDLER_PROGRESS_OUTPUT,
@@ -377,12 +369,10 @@ public:
     HANDLER_VERBOSE_OUTPUT,
     WARNING,
     ERROR_MESSAGE,
-    OTHER
   };
 
   /** Add log to the output */
-  void Log(int logType, const char* file, int line, const char* msg,
-           bool suppress = false);
+  void Log(LogType logType, std::string msg, bool suppress = false);
 
   /** Color values */
   enum class Color
@@ -425,9 +415,6 @@ public:
   bool GetVerbose() const;
   bool GetExtraVerbose() const;
 
-  /** Direct process output to given streams.  */
-  void SetStreams(std::ostream* out, std::ostream* err);
-
   void AddSiteProperties(cmXMLWriter& xml);
 
   bool GetLabelSummary() const;
@@ -462,8 +449,6 @@ public:
   void GenerateSubprojectsOutput(cmXMLWriter& xml);
   std::vector<std::string> GetLabelsForSubprojects();
 
-  void SetRunCurrentScript(bool value);
-
 private:
   void SetPersistentOptionIfNotEmpty(const std::string& value,
                                      const std::string& optionName);
@@ -485,20 +470,16 @@ private:
   int Initialize(const std::string& binary_dir, cmCTestStartCommand* command);
 
   /** parse the option after -D and convert it into the appropriate steps */
-  bool AddTestsForDashboardType(std::string& targ);
+  bool AddTestsForDashboardType(std::string const& targ);
 
   /** read as "emit an error message for an unknown -D value" */
-  void ErrorMessageUnknownDashDValue(std::string& val);
+  void ErrorMessageUnknownDashDValue(std::string const& val);
 
   /** add a variable definition from a command line -D value */
   bool AddVariableDefinition(const std::string& arg);
 
   /** set command line arguments read from a test preset */
   bool SetArgsFromPreset(const std::string& presetName, bool listPresets);
-
-  /** parse and process most common command line arguments */
-  bool HandleCommandLineArguments(size_t& i, std::vector<std::string>& args,
-                                  std::string& errormsg);
 
 #if !defined(_WIN32)
   /** returns true iff the console supports progress output */
@@ -511,10 +492,6 @@ private:
   /** returns true iff the console supports colored output */
   static bool ColoredOutputSupportedByConsole();
 
-  /** handle the -S -SP and -SR arguments */
-  bool HandleScriptArguments(size_t& i, std::vector<std::string>& args,
-                             bool& SRArgumentSpecified);
-
   /** Reread the configuration file */
   bool UpdateCTestConfiguration();
 
@@ -526,20 +503,7 @@ private:
   static bool CheckArgument(const std::string& arg, cm::string_view varg1,
                             const char* varg2 = nullptr);
 
-  /** Output errors from a test */
-  void OutputTestErrors(std::vector<char> const& process_output);
-
-  /** Handle the --test-action command line argument */
-  bool HandleTestActionArgument(const char* ctestExec, size_t& i,
-                                const std::vector<std::string>& args,
-                                bool& validArg);
-
-  /** Handle the --test-model command line argument */
-  bool HandleTestModelArgument(const char* ctestExec, size_t& i,
-                               const std::vector<std::string>& args,
-                               bool& validArg);
-
-  int RunCMakeAndTest(std::string* output);
+  int RunCMakeAndTest();
   int ExecuteTests();
 
   /** return true iff change directory was successful */
@@ -553,14 +517,12 @@ private:
   do {                                                                        \
     std::ostringstream cmCTestLog_msg;                                        \
     cmCTestLog_msg << msg;                                                    \
-    (ctSelf)->Log(cmCTest::logType, __FILE__, __LINE__,                       \
-                  cmCTestLog_msg.str().c_str());                              \
+    (ctSelf)->Log(cmCTest::logType, cmCTestLog_msg.str());                    \
   } while (false)
 
 #define cmCTestOptionalLog(ctSelf, logType, msg, suppress)                    \
   do {                                                                        \
     std::ostringstream cmCTestLog_msg;                                        \
     cmCTestLog_msg << msg;                                                    \
-    (ctSelf)->Log(cmCTest::logType, __FILE__, __LINE__,                       \
-                  cmCTestLog_msg.str().c_str(), suppress);                    \
+    (ctSelf)->Log(cmCTest::logType, cmCTestLog_msg.str(), suppress);          \
   } while (false)

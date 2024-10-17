@@ -250,7 +250,7 @@ struct UsageRequirementProperty
 
   void CopyFromEntries(cmBTStringRange entries)
   {
-    return cm::append(this->Entries, entries);
+    cm::append(this->Entries, entries);
   }
 
   enum class Action
@@ -354,6 +354,8 @@ struct TargetProperty
   }
 
   cm::static_string_view const Name;
+  // Explicit initialization is needed for AppleClang in Xcode 8 and below
+  // NOLINTNEXTLINE(readability-redundant-member-init)
   cm::optional<cm::static_string_view> const Default = {};
   InitCondition const InitConditional = InitCondition::Always;
   Repetition const Repeat = Repetition::Once;
@@ -551,6 +553,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "UNITY_BUILD_UNIQUE_ID"_s, IC::CanCompileSources },
   { "UNITY_BUILD_BATCH_SIZE"_s, "8"_s, IC::CanCompileSources },
   { "UNITY_BUILD_MODE"_s, "BATCH"_s, IC::CanCompileSources },
+  { "UNITY_BUILD_RELOCATABLE"_s, IC::CanCompileSources },
   { "OPTIMIZE_DEPENDENCIES"_s, IC::CanCompileSources },
   { "VERIFY_INTERFACE_HEADER_SETS"_s },
   // -- Android
@@ -2047,10 +2050,13 @@ struct ReadOnlyProperty
 {
   ReadOnlyProperty(ReadOnlyCondition cond)
     : Condition{ cond }
-    , Policy{} {};
+  {
+  }
   ReadOnlyProperty(ReadOnlyCondition cond, cmPolicies::PolicyID id)
     : Condition{ cond }
-    , Policy{ id } {};
+    , Policy{ id }
+  {
+  }
 
   ReadOnlyCondition Condition;
   cm::optional<cmPolicies::PolicyID> Policy;
