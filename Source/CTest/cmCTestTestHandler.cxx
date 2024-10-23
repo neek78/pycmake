@@ -8,7 +8,6 @@
 #include <cstddef> // IWYU pragma: keep
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <ctime>
 #include <functional>
 #include <iomanip>
@@ -97,8 +96,7 @@ bool ReadSubdirectory(std::string fname, cmExecutionStatus& status)
   {
     cmWorkingDirectory workdir(fname);
     if (workdir.Failed()) {
-      status.SetError("Failed to change directory to " + fname + " : " +
-                      std::strerror(workdir.GetLastResult()));
+      status.SetError(workdir.GetError());
       return false;
     }
     const char* testFilename;
@@ -1788,7 +1786,7 @@ std::string cmCTestTestHandler::FindExecutable(
   for (unsigned int ai = 0; ai < attempted.size() && fullPath.empty(); ++ai) {
     // first check without exe extension
     if (cmSystemTools::FileExists(attempted[ai], true)) {
-      fullPath = cmSystemTools::CollapseFullPath(attempted[ai]);
+      fullPath = cmSystemTools::ToNormalizedPathOnDisk(attempted[ai]);
       resultingConfig = attemptedConfigs[ai];
     }
     // then try with the exe extension
@@ -1797,7 +1795,7 @@ std::string cmCTestTestHandler::FindExecutable(
       tempPath =
         cmStrCat(attempted[ai], cmSystemTools::GetExecutableExtension());
       if (cmSystemTools::FileExists(tempPath, true)) {
-        fullPath = cmSystemTools::CollapseFullPath(tempPath);
+        fullPath = cmSystemTools::ToNormalizedPathOnDisk(tempPath);
         resultingConfig = attemptedConfigs[ai];
       } else {
         failed.push_back(tempPath);
