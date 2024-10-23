@@ -116,7 +116,10 @@ bool cmPythonCore::PrintPythonInfo(std::wostream& os)
     try {
         os << "\n";
         os << "compiled with python " << PY_VERSION << "\n";
-        os << "running with python " << Py_GetVersion() << "\n\n";
+        os << "running with python " << Py_GetVersion() << "\n";
+        os << "build info " << Py_GetBuildInfo() << "\n";
+        os << "compiler " << Py_GetCompiler() << "\n";
+        os << "platform " << Py_GetPlatform() << "\n";
 
         os << "starting python path: " << Py_GetPath() << "\n\n";
 
