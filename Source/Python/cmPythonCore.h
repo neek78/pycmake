@@ -27,6 +27,8 @@ public:
 
   static std::filesystem::path GetModulePath();
   static std::string GetModuleName();
+  static pybind11::object GetPythonPath();
+  static std::wstring GetPythonPathStr();
 
   void DisableBytecodeCache();
 

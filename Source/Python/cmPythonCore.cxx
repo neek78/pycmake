@@ -10,30 +10,12 @@
 
 #include <string>
 #include <sstream>
-#include <vector>
 
 #include <pybind11/embed.h>
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
 
 namespace py = pybind11;
-
-void cmPythonCore::AppendPythonPath(const std::filesystem::path& path)
-{
-    // std::cout << "Appending " << path << " to sys.path\n";
-
-    //py::module_ sys = py::module_::import("sys");
-    py::module_ sys = cmPythonModules::GetModuleSys(); 
-
-    auto p = sys.attr("path");
-
-    // this needs pybind11/stl/filesystem.h to work.
-    // ... and it still doesn't work. std::filesystem::path objects get
-    // converted (correctly) to pathlib.PosixPath objects - but the python module 
-    // loader insists on only str objects (as of 3.11.3) and will quietly ignore
-    // non-str objects
-    p.attr("append")(path.c_str());
-}
 
 void cmPythonCore::DisableBytecodeCache()
 {
@@ -49,7 +31,7 @@ bool cmPythonCore::init()
     // The owner of us doesn't care - it just needs to 
     // know construction failed, so just return false after logging the problem
     try {
-        // for now turn of bytecode caching so we don't create __pycache__ dirs everywhere.
+        // for now turn off bytecode caching so we don't create __pycache__ dirs everywhere.
         // perhaps it's worth turning this on in future once things have settled down.
         DisableBytecodeCache();
 
@@ -67,7 +49,7 @@ bool cmPythonCore::init()
         cmSystemTools::Error(ss.str());
         return false;
     }
-    catch(const std::exception& e ) {
+    catch(const std::exception& e) {
         std::stringstream ss;
         ss << "Error loading module " << PYTHON_CMAKE_MOD 
             << "  - " << e.what() << std::endl;
@@ -76,6 +58,34 @@ bool cmPythonCore::init()
     }
 
     return true;
+}
+
+py::object cmPythonCore::GetPythonPath()
+{
+    // executes sys.path = we do it this way as Py_GetPath() is deprecated
+    py::module_ sys = cmPythonModules::GetModuleSys(); 
+    return sys.attr("path");
+}
+
+void cmPythonCore::AppendPythonPath(const std::filesystem::path& path)
+{
+    py::object p = GetPythonPath();
+
+    // this needs pybind11/stl/filesystem.h to work.
+    // ... and it still doesn't work. std::filesystem::path objects get
+    // converted (correctly) to pathlib.PosixPath objects - but the python module 
+    // loader insists on only str objects (as of 3.11.3) and will quietly ignore
+    // non-str objects
+    // hence, we explicitly call c_str()
+    p.attr("append")(path.c_str());
+}
+
+std::wstring cmPythonCore::GetPythonPathStr()
+{
+    // join the python path down to a string for use in the --python-information output
+    py::str res(":");
+    auto s = res.attr("join")(GetPythonPath());
+    return s.cast<std::wstring>();
 }
 
 std::filesystem::path cmPythonCore::GetModulePath()
@@ -105,9 +115,6 @@ void cmPythonCore::buildRootModule()
 
 void cmPythonCore::ipython()
 {
-    //auto m = py::module_::import("IPython");
-    //m.attr("embed")();
-    //py::exec("import IPython\nIPython.embed()");
     py::exec("import IPython;IPython.embed()");
 }
 
@@ -115,20 +122,22 @@ bool cmPythonCore::PrintPythonInfo(std::wostream& os)
 {
     try {
         os << "\n";
-        os << "compiled with python " << PY_VERSION << "\n";
-        os << "running with python " << Py_GetVersion() << "\n";
-        os << "build info " << Py_GetBuildInfo() << "\n";
-        os << "compiler " << Py_GetCompiler() << "\n";
-        os << "platform " << Py_GetPlatform() << "\n";
+        os << "compiled with python - " << PY_VERSION << "\n";
+        os << "running with python - " << Py_GetVersion() << "\n";
+        os << "build info - " << Py_GetBuildInfo() << "\n";
+        os << "compiler - " << Py_GetCompiler() << "\n";
+        os << "platform - " << Py_GetPlatform() << "\n";
 
-        os << "starting python path: " << Py_GetPath() << "\n\n";
+        os << "starting python path - " << GetPythonPathStr() << "\n\n";
+        //os << "starting python path old: " << Py_GetPath() << "\n\n";
 
-        os << "cmake module python path: " << GetModulePath().c_str() << "\n\n";
-        os << "cmake root module name: " << GetModuleName().c_str() << "\n\n";
+        os << "cmake module python path - " << GetModulePath().c_str() << "\n\n";
+        os << "cmake root module name - " << GetModuleName().c_str() << "\n\n";
 
+        // PyConfig.home
         auto* home = Py_GetPythonHome();
         if(home) {
-            os << "python home " << home << "\n";
+            os << "python home - " << home << "\n";
         } else {
             os << "python home not set" << "\n";
         }
