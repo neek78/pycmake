@@ -23,6 +23,7 @@ cmPythonSourceFile::cmPythonSourceFile(const cmSourceFile& sourceFile)
 
 std::string cmPythonSourceFile::str() const
 {
+    // yeah, do something better ere
     return "source file!";
 }
 

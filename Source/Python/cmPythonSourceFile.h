@@ -7,8 +7,8 @@
 #include <pybind11/embed.h>
 
 class cmSourceFile;
-class cmPythonSourceFile
 
+class cmPythonSourceFile
 {
 public:
     static void bind(pybind11::module_& m);
