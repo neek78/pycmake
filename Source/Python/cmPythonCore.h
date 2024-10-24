@@ -28,14 +28,17 @@ public:
   static std::filesystem::path GetModulePath();
   static std::string GetModuleName();
   static pybind11::object GetPythonPath();
+  static pybind11::object GetPythonHome();
   static std::wstring GetPythonPathStr();
+  static std::optional<std::wstring> GetPythonHomeStr();
 
   void DisableBytecodeCache();
 
 private:
   void buildRootModule();
 
-  pybind11::scoped_interpreter Guard;
+  static std::wstring JoinList(const pybind11::object& o);
+  std::unique_ptr<pybind11::scoped_interpreter> Guard;
 
   // we hold the next two here to keep them alive - they're more conveniently
   // accessed through the cmPythonModules interface
