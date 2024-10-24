@@ -390,11 +390,7 @@ int do_cmake(int ac, char const* const* av)
     // only one core can exist at a time (as it holds the python scoped_interpreter
     // so make sure this occurs before the creation of cmake below)
     cmPythonCore core;
-    if(core.init()) {
-        return core.PrintPythonInfo(std::wcout) ? 0 : 1;
-    } else {
-        return 1; // failed to init python at all 
-    }
+    return core.PrintPythonInfo(std::wcout) ? 0 : 1;
 #else
     std::cerr << "no python support compiled into this cmake.\n";
     return 1;

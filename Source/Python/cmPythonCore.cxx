@@ -33,12 +33,9 @@ bool cmPythonCore::init()
     // The owner of us doesn't care - it just needs to 
     // know construction failed, so just return false after logging the problem
     try {
-        // check for double init.
-        assert(!Guard);
-
         // init the scoped interpreter here (it can throw)
         msg = "initialising python interpreter";
-        Guard = std::make_unique<pybind11::scoped_interpreter>();
+        InitGuard();
 
         // for now turn off bytecode caching so we don't create __pycache__ dirs everywhere.
         // perhaps it's worth turning this on in future once things have settled down.
@@ -69,22 +66,18 @@ bool cmPythonCore::init()
     return true;
 }
 
+void cmPythonCore::InitGuard()
+{
+    // check for double init.
+    assert(!Guard);
+
+    Guard = std::make_unique<pybind11::scoped_interpreter>();
+}
+
 py::object cmPythonCore::GetPythonPath()
 {
     // go via sys.path = we do it this way as Py_GetPath() is deprecated
     return cmPythonModules::GetModuleSys().attr("path");
-}
-
-std::optional<std::wstring> cmPythonCore::GetPythonHomeStr()
-{
-    // go via sys.path = we do it this way as Py_GetPath() is deprecated
-    PyConfig config;
-    PyConfig_InitPythonConfig(&config);
-
-    if (config.home == nullptr) {
-        return {};
-    }
-    return std::wstring(config.home);
 }
 
 void cmPythonCore::AppendPythonPath(const std::filesystem::path& path)
@@ -147,33 +140,40 @@ void cmPythonCore::ipython()
 
 bool cmPythonCore::PrintPythonInfo(std::wostream& os)
 {
-    // check init()'s been called
-    assert(Guard);
-
+    const char* msg = "";
     try {
         os << "\n";
+        // These calls can be made safely before python's initialised (ie Guard is built).
+        // So call them now in case init fails. 
         os << "compiled with python - " << PY_VERSION << "\n";
         os << "running with python - " << Py_GetVersion() << "\n";
         os << "build info - " << Py_GetBuildInfo() << "\n";
         os << "compiler - " << Py_GetCompiler() << "\n";
         os << "platform - " << Py_GetPlatform() << "\n";
 
-        // no longer use Py_GetPath() as it's deprecated. 
-        os << "starting python path - " << GetPythonPathStr() << "\n\n";
-        //os << "starting python path old: " << Py_GetPath() << "\n\n";
+        // PyConfig.home
+        PyConfig config;
+        PyConfig_InitPythonConfig(&config);
 
+        if (config.home == nullptr) {
+            os << "python home not set" << "\n";
+        } else {
+            os << "python home - " << config.home << "\n";
+        }
+
+        // be safe here.. have hit a few SEGVs along the way
+        os.flush();
+
+        msg = "initialising python interpreter";
+        InitGuard();
+
+        msg = "interrogating dirs";
+        os << "initial python path - " << GetPythonPathStr() << "\n\n";
         os << "cmake module python path - " << GetModulePath().c_str() << "\n\n";
         os << "cmake root module name - " << GetModuleName().c_str() << "\n\n";
 
-        // PyConfig.home
-        auto home = GetPythonHomeStr();
-        if(home) {
-            os << "python home - " << *home << "\n";
-        } else {
-            os << "python home not set" << "\n";
-        }
     } catch (const std::exception& e) {
-        os << "error getting python version info - " << e.what() << "\n";
+        os << "error " << msg << " - " << e.what() << "\n";
         return false;
     }
     return true;
