@@ -91,7 +91,8 @@ html_favicon = '@conf_path@/static/cmake-favicon.ico'
 linkcheck_ignore = [
     r'about:',
     r'https://gitlab\.kitware\.com/cmake/community/-/wikis/doc/cpack',
-    r'https://www.intel.com/',
+    r'https://www\.intel\.com/',
+    r'https://www\.tasking\.com($|/)',
 ]
 
 linkcheck_allowed_redirects = {
@@ -103,3 +104,5 @@ linkcheck_allowed_redirects = {
     r'https://openjdk\.java\.net/jeps/313': r'https://openjdk\.org:443/jeps/313',
     r'https://www\.sphinx-doc\.org': r'https://www\.sphinx-doc\.org/en/master/',
 }
+
+linkcheck_report_timeouts_as_broken = False

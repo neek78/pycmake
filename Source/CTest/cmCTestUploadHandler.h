@@ -9,6 +9,8 @@
 
 #include "cmCTestGenericHandler.h"
 
+class cmCTest;
+
 /** \class cmCTestUploadHandler
  * \brief Helper class for CTest
  *
@@ -20,14 +22,12 @@ class cmCTestUploadHandler : public cmCTestGenericHandler
 public:
   using Superclass = cmCTestGenericHandler;
 
-  cmCTestUploadHandler();
+  cmCTestUploadHandler(cmCTest* ctest);
 
   /*
    * The main entry point for this class
    */
   int ProcessHandler() override;
-
-  void Initialize() override;
 
   /** Specify a set of files to submit.  */
   void SetFiles(std::set<std::string> const& files);

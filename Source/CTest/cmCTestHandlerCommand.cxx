@@ -164,7 +164,7 @@ bool cmCTestHandlerCommand::InitialPass(std::vector<std::string> const& args,
   }
 
   cmCTestLog(this->CTest, DEBUG, "Initialize handler" << std::endl);
-  cmCTestGenericHandler* handler = this->InitializeHandler();
+  auto handler = this->InitializeHandler();
   if (!handler) {
     cmCTestLog(this->CTest, ERROR_MESSAGE,
                "Cannot instantiate test handler " << this->GetName()
@@ -200,11 +200,15 @@ bool cmCTestHandlerCommand::InitialPass(std::vector<std::string> const& args,
     return false;
   }
 
+  // reread time limit, as the variable may have been modified.
+  this->CTest->SetTimeLimit(this->Makefile->GetDefinition("CTEST_TIME_LIMIT"));
+  handler->SetCMakeInstance(this->Makefile->GetCMakeInstance());
+
   int res = handler->ProcessHandler();
   if (!this->ReturnValue.empty()) {
     this->Makefile->AddDefinition(this->ReturnValue, std::to_string(res));
   }
-  this->ProcessAdditionalValues(handler);
+  this->ProcessAdditionalValues(handler.get());
   // log the error message if there was an error
   if (captureCMakeError) {
     const char* returnString = "0";
@@ -221,10 +225,6 @@ bool cmCTestHandlerCommand::InitialPass(std::vector<std::string> const& args,
     this->Makefile->AddDefinition(this->CaptureCMakeError, returnString);
   }
   return true;
-}
-
-void cmCTestHandlerCommand::ProcessAdditionalValues(cmCTestGenericHandler*)
-{
 }
 
 void cmCTestHandlerCommand::BindArguments()

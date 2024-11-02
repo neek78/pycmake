@@ -17,6 +17,7 @@
 class cmGeneratedFileStream;
 class cmMakefile;
 class cmXMLWriter;
+class cmCTest;
 
 class cmCTestCoverageHandlerContainer
 {
@@ -44,9 +45,7 @@ public:
    */
   int ProcessHandler() override;
 
-  cmCTestCoverageHandler();
-
-  void Initialize() override;
+  cmCTestCoverageHandler(cmCTest* ctest);
 
   /**
    * This method is called when reading CTest custom file

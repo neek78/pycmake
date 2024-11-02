@@ -10,6 +10,8 @@
 
 #include "cmCTestGenericHandler.h"
 
+class cmCTest;
+
 /** \class cmCTestUpdateHandler
  * \brief A class that handles ctest -S invocations
  *
@@ -24,7 +26,7 @@ public:
    */
   int ProcessHandler() override;
 
-  cmCTestUpdateHandler();
+  cmCTestUpdateHandler(cmCTest* ctest);
 
   enum
   {
@@ -37,11 +39,6 @@ public:
     e_P4,
     e_LAST
   };
-
-  /**
-   * Initialize handler
-   */
-  void Initialize() override;
 
 private:
   // Some structures needed for update
@@ -57,8 +54,11 @@ private:
 
   // The VCS command to update the working tree.
   std::string UpdateCommand;
-  int UpdateType;
+  std::string SourceDirectory;
+  int UpdateType = e_CVS;
 
   int DetectVCS(const std::string& dir);
   bool SelectVCS();
+
+  friend class cmCTestUpdateCommand;
 };

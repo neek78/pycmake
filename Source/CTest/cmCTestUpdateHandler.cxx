@@ -19,7 +19,6 @@
 #include "cmGeneratedFileStream.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
-#include "cmValue.h"
 #include "cmVersion.h"
 #include "cmXMLWriter.h"
 
@@ -36,13 +35,9 @@ static const char* cmCTestUpdateHandlerUpdateToString(int type)
   return cmCTestUpdateHandlerUpdateStrings[type];
 }
 
-cmCTestUpdateHandler::cmCTestUpdateHandler() = default;
-
-void cmCTestUpdateHandler::Initialize()
+cmCTestUpdateHandler::cmCTestUpdateHandler(cmCTest* ctest)
+  : Superclass(ctest)
 {
-  this->Superclass::Initialize();
-  this->UpdateCommand.clear();
-  this->UpdateType = e_CVS;
 }
 
 int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
@@ -109,8 +104,7 @@ int cmCTestUpdateHandler::ProcessHandler()
   static_cast<void>(fixLocale);
 
   // Get source dir
-  cmValue sourceDirectory = this->GetOption("SourceDirectory");
-  if (!sourceDirectory) {
+  if (this->SourceDirectory.empty()) {
     cmCTestLog(this->CTest, ERROR_MESSAGE,
                "Cannot find SourceDirectory  key in the DartConfiguration.tcl"
                  << std::endl);
@@ -123,7 +117,7 @@ int cmCTestUpdateHandler::ProcessHandler()
   }
 
   cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
-                     "   Updating the repository: " << *sourceDirectory
+                     "   Updating the repository: " << this->SourceDirectory
                                                     << std::endl,
                      this->Quiet);
 
@@ -163,7 +157,7 @@ int cmCTestUpdateHandler::ProcessHandler()
       break;
   }
   vc->SetCommandLineTool(this->UpdateCommand);
-  vc->SetSourceDirectory(*sourceDirectory);
+  vc->SetSourceDirectory(this->SourceDirectory);
 
   // Cleanup the working tree.
   vc->Cleanup();
@@ -301,7 +295,7 @@ bool cmCTestUpdateHandler::SelectVCS()
   this->UpdateCommand = this->CTest->GetCTestConfiguration("UpdateCommand");
 
   // Detect the VCS managing the source tree.
-  this->UpdateType = this->DetectVCS(this->GetOption("SourceDirectory"));
+  this->UpdateType = this->DetectVCS(this->SourceDirectory);
   if (this->UpdateType == e_UNKNOWN) {
     // The source tree does not have a recognized VCS.  Check the
     // configuration value or command name.

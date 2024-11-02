@@ -9,6 +9,7 @@
 
 #include "cmCTest.h"
 #include "cmCTestBuildHandler.h"
+#include "cmCTestGenericHandler.h"
 #include "cmCommand.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
@@ -17,8 +18,6 @@
 #include "cmSystemTools.h"
 #include "cmValue.h"
 #include "cmake.h"
-
-class cmExecutionStatus;
 
 std::unique_ptr<cmCommand> cmCTestBuildCommand::Clone()
 {
@@ -41,12 +40,9 @@ void cmCTestBuildCommand::BindArguments()
 
 cmCTestBuildCommand::~cmCTestBuildCommand() = default;
 
-cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
+std::unique_ptr<cmCTestGenericHandler> cmCTestBuildCommand::InitializeHandler()
 {
-  cmCTestBuildHandler* handler = this->CTest->GetBuildHandler();
-  handler->Initialize();
-
-  this->Handler = handler;
+  auto handler = cm::make_unique<cmCTestBuildHandler>(this->CTest);
 
   cmValue ctestBuildCommand =
     this->Makefile->GetDefinition("CTEST_BUILD_COMMAND");
@@ -137,20 +133,19 @@ cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
   }
 
   handler->SetQuiet(this->Quiet);
-  return handler;
+  return std::unique_ptr<cmCTestGenericHandler>(std::move(handler));
 }
 
-bool cmCTestBuildCommand::InitialPass(std::vector<std::string> const& args,
-                                      cmExecutionStatus& status)
+void cmCTestBuildCommand::ProcessAdditionalValues(
+  cmCTestGenericHandler* generic)
 {
-  bool ret = this->cmCTestHandlerCommand::InitialPass(args, status);
+  auto const* handler = static_cast<cmCTestBuildHandler*>(generic);
   if (!this->NumberErrors.empty()) {
-    this->Makefile->AddDefinition(
-      this->NumberErrors, std::to_string(this->Handler->GetTotalErrors()));
+    this->Makefile->AddDefinition(this->NumberErrors,
+                                  std::to_string(handler->GetTotalErrors()));
   }
   if (!this->NumberWarnings.empty()) {
-    this->Makefile->AddDefinition(
-      this->NumberWarnings, std::to_string(this->Handler->GetTotalWarnings()));
+    this->Makefile->AddDefinition(this->NumberWarnings,
+                                  std::to_string(handler->GetTotalWarnings()));
   }
-  return ret;
 }
