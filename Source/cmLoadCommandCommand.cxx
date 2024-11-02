@@ -22,6 +22,7 @@
 #include <cm/memory>
 
 #include "cmCPluginAPI.h"
+#include "cmCommand.h"
 #include "cmDynamicLoader.h"
 #include "cmExecutionStatus.h"
 #include "cmListFileCache.h"
