@@ -22,7 +22,6 @@
 #include <cm/memory>
 
 #include "cmCPluginAPI.h"
-#include "cmCommand.h"
 #include "cmDynamicLoader.h"
 #include "cmExecutionStatus.h"
 #include "cmListFileCache.h"
@@ -261,11 +260,10 @@ bool cmLoadCommandCommand(std::vector<std::string> const& args,
   if (initFunction) {
     return status.GetMakefile().GetState()->AddScriptedCommand(
       args[0],
-      BT<cmState::Command>(
-        cmLegacyCommandWrapper(cm::make_unique<cmLoadedCommand>(initFunction)),
-        status.GetMakefile().GetBacktrace()),
-      status.GetMakefile(),
-      cmStateEnums::ScriptedCommandType::Command);
+      BT<cmState::Command>(cmLoadedCommand(initFunction),
+                           status.GetMakefile().GetBacktrace()),
+        status.GetMakefile(),
+        cmStateEnums::ScriptedCommandType::Command);
   }
   status.SetError("Attempt to load command failed. "
                   "No init function found.");
