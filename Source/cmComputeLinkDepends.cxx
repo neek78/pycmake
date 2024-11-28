@@ -257,7 +257,7 @@ const LinkLibraryFeatureAttributeSet& GetLinkLibraryFeatureAttributes(
         if (processingOption.match(1) == "LIBRARY_TYPE") {
           featureAttributes.LibraryTypes.clear();
           for (auto const& value :
-               cmTokenize(processingOption.match(2), ","_s)) {
+               cmTokenize(processingOption.match(2), ',')) {
             if (value == "STATIC") {
               featureAttributes.LibraryTypes.emplace(
                 cmStateEnums::STATIC_LIBRARY);
@@ -292,7 +292,8 @@ const LinkLibraryFeatureAttributeSet& GetLinkLibraryFeatureAttributes(
           }
         } else if (processingOption.match(1) == "OVERRIDE") {
           featureAttributes.Override.clear();
-          auto values = cmTokenize(processingOption.match(2), ","_s);
+          std::vector<std::string> values =
+            cmTokenize(processingOption.match(2), ',');
           featureAttributes.Override.insert(values.begin(), values.end());
         }
       } else {
@@ -372,40 +373,19 @@ public:
       case cmPolicies::OLD:
         // rely on default initialization of the class
         break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        makefile->GetCMakeInstance()->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0156),
-          target->GetBacktrace());
-        CM_FALLTHROUGH;
       case cmPolicies::NEW: {
         // Policy 0179 applies only when policy 0156 is new
-        switch (target->GetPolicyStatusCMP0179()) {
-          case cmPolicies::WARN:
-            if (!makefile->GetCMakeInstance()->GetIsInTryCompile() &&
-                makefile->PolicyOptionalWarningEnabled(
-                  "CMAKE_POLICY_WARNING_CMP0179")) {
-              makefile->GetCMakeInstance()->IssueMessage(
-                MessageType::AUTHOR_WARNING,
-                cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0179),
-                         "\nSince the policy is not set, static libraries "
-                         "de-duplication will keep the last occurrence of the "
-                         "static libraries."),
-                target->GetBacktrace());
-            }
-            CM_FALLTHROUGH;
-          case cmPolicies::OLD:
-            break;
-          case cmPolicies::REQUIRED_IF_USED:
-          case cmPolicies::REQUIRED_ALWAYS:
-            makefile->GetCMakeInstance()->IssueMessage(
-              MessageType::FATAL_ERROR,
-              cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0179),
-              target->GetBacktrace());
-            CM_FALLTHROUGH;
-          case cmPolicies::NEW:
-            break;
+        if (target->GetPolicyStatusCMP0179() == cmPolicies::WARN &&
+            !makefile->GetCMakeInstance()->GetIsInTryCompile() &&
+            makefile->PolicyOptionalWarningEnabled(
+              "CMAKE_POLICY_WARNING_CMP0179")) {
+          makefile->GetCMakeInstance()->IssueMessage(
+            MessageType::AUTHOR_WARNING,
+            cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0179),
+                     "\nSince the policy is not set, static libraries "
+                     "de-duplication will keep the last occurrence of the "
+                     "static libraries."),
+            target->GetBacktrace());
         }
 
         if (auto libProcessing = makefile->GetDefinition(cmStrCat(
@@ -448,6 +428,15 @@ public:
               cmStrCat("Erroneous option(s) for 'CMAKE_", linkLanguage,
                        "_LINK_LIBRARIES_PROCESSING':\n", errorMessage),
               target->GetBacktrace());
+          }
+          // For some environments, deduplication should be activated only if
+          // both policies CMP0156 and CMP0179 are NEW
+          if (makefile->GetDefinition(cmStrCat(
+                "CMAKE_", linkLanguage, "_PLATFORM_LINKER_ID")) == "LLD"_s &&
+              makefile->GetDefinition("CMAKE_EXECUTABLE_FORMAT") == "ELF"_s &&
+              target->GetPolicyStatusCMP0179() != cmPolicies::NEW &&
+              this->Deduplication == All) {
+            this->Deduplication = Shared;
           }
         }
       }
@@ -621,7 +610,7 @@ cmComputeLinkDepends::cmComputeLinkDepends(const cmGeneratorTarget* target,
   , DebugMode(this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE") ||
               this->Target->GetProperty("LINK_DEPENDS_DEBUG_MODE").IsOn())
   , LinkLanguage(linkLanguage)
-  , LinkType(CMP0003_ComputeLinkType(
+  , LinkType(ComputeLinkType(
       this->Config, this->Makefile->GetCMakeInstance()->GetDebugConfigs()))
   , Strategy(strategy)
 
@@ -668,13 +657,14 @@ cmComputeLinkDepends::cmComputeLinkDepends(const cmGeneratorTarget* target,
       *linkLibraryOverride, target->GetLocalGenerator(), config, target, &dag,
       target, linkLanguage);
 
-    auto overrideList = cmTokenize(overrideValue, ","_s);
+    std::vector<std::string> overrideList =
+      cmTokenize(overrideValue, ',', cmTokenizerMode::New);
     if (overrideList.size() >= 2) {
       auto const& feature = overrideList.front();
-      for_each(overrideList.cbegin() + 1, overrideList.cend(),
-               [this, &feature](std::string const& item) {
-                 this->LinkLibraryOverride.emplace(item, feature);
-               });
+      std::for_each(overrideList.cbegin() + 1, overrideList.cend(),
+                    [this, &feature](std::string const& item) {
+                      this->LinkLibraryOverride.emplace(item, feature);
+                    });
     }
   }
 }

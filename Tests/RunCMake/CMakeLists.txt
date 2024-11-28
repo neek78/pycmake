@@ -240,6 +240,7 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
   set_property(TEST RunCMake.Ninja APPEND PROPERTY LABELS "Fortran")
   set(NinjaMultiConfig_ARGS
     -DCYGWIN=${CYGWIN} -DMSYS=${MSYS}
+    -DCMAKE_EXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}
     )
   if(ninja_test_with_qt_version)
     list(APPEND NinjaMultiConfig_ARGS
@@ -473,6 +474,7 @@ set_property(TEST RunCMake.LanguageStandards APPEND PROPERTY LABELS "CUDA" "HIP"
 
 add_RunCMake_test(LinkItemValidation)
 add_RunCMake_test(LinkStatic)
+add_RunCMake_test(ARCHIVER-prefix -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Cray|PGI|NVHPC|XL|XLClang|IBMClang|Fujitsu|FujitsuClang)$")
   add_RunCMake_test(MetaCompileFeatures)
 endif()
@@ -506,6 +508,12 @@ add_RunCMake_test(ToolchainFile)
 add_RunCMake_test(find_dependency)
 add_RunCMake_test(CompileDefinitions)
 add_RunCMake_test(CompileWarningAsError -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+if(CMAKE_C_COMPILER_ID MATCHES "AppleClang|MSVC"
+    OR (CMAKE_SYSTEM_NAME MATCHES "Linux|Windows" AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+    OR (CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_C_COMPILER_ID STREQUAL "SunPro")
+    OR (CMAKE_SYSTEM_NAME STREQUAL "AIX" AND CMAKE_C_COMPILER_ID STREQUAL "XL"))
+  add_RunCMake_test(LinkWarningAsError)
+endif()
 set_property(TEST RunCMake.CompileWarningAsError APPEND PROPERTY LABELS "CUDA")
 add_RunCMake_test(CompileFeatures -DCMake_NO_C_STANDARD=${CMake_NO_C_STANDARD} -DCMake_NO_CXX_STANDARD=${CMake_NO_CXX_STANDARD})
 add_RunCMake_test(Policy)
@@ -875,7 +883,9 @@ add_RunCMake_test(target_link_libraries-LINK_GROUP -DCMAKE_SYSTEM_NAME=${CMAKE_S
                                                    -DCMAKE_IMPORT_LIBRARY_PREFIX=${CMAKE_IMPORT_LIBRARY_PREFIX}
                                                    -DCMAKE_IMPORT_LIBRARY_SUFFIX=${CMAKE_IMPORT_LIBRARY_SUFFIX}
                                                    -DCMAKE_LINK_LIBRARY_FLAG=${CMAKE_LINK_LIBRARY_FLAG})
-add_RunCMake_test(target_link_libraries-LINKER-prefix -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
+add_RunCMake_test(target_link_libraries-LINKER-prefix -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                                                      -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+                                                      -DCMAKE_C_COMPILER_FRONTEND_VARIANT=${CMAKE_C_COMPILER_FRONTEND_VARIANT})
 add_RunCMake_test(add_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
 add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                       -DCMake_TEST_CUDA=${CMake_TEST_CUDA})

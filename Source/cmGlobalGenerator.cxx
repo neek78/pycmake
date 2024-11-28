@@ -1057,12 +1057,6 @@ void cmGlobalGenerator::CheckCompilerIdCompatibility(
         // OLD behavior is to convert AppleClang to Clang.
         mf->AddDefinition(compilerIdVar, "Clang");
         break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0025));
-        break;
       case cmPolicies::NEW:
         // NEW behavior is to keep AppleClang.
         break;
@@ -1093,12 +1087,6 @@ void cmGlobalGenerator::CheckCompilerIdCompatibility(
           mf->AddDefinition("CMAKE_COMPILER_IS_GNUCXX", "1");
         }
         break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0047));
-        CM_FALLTHROUGH;
       case cmPolicies::NEW:
         // NEW behavior is to keep QCC.
         break;
@@ -1123,12 +1111,6 @@ void cmGlobalGenerator::CheckCompilerIdCompatibility(
       case cmPolicies::OLD:
         // OLD behavior is to convert XLClang to XL.
         mf->AddDefinition(compilerIdVar, "XL");
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0089));
         break;
       case cmPolicies::NEW:
         // NEW behavior is to keep AppleClang.
@@ -1172,12 +1154,6 @@ void cmGlobalGenerator::CheckCompilerIdCompatibility(
           mf->RemoveDefinition(emulated);
         }
         break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          MessageType::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0129));
-        CM_FALLTHROUGH;
       case cmPolicies::NEW:
         // NEW behavior is to keep LCC.
         break;
@@ -1820,15 +1796,21 @@ void cmGlobalGenerator::WriteJsonContent(const std::string& path,
 
 void cmGlobalGenerator::WriteInstallJson() const
 {
-  if (this->GetCMakeInstance()->GetState()->GetGlobalPropertyAsBool(
-        "INSTALL_PARALLEL")) {
-    Json::Value index(Json::objectValue);
-    index["InstallScripts"] = Json::arrayValue;
-    for (const auto& file : this->InstallScripts) {
-      index["InstallScripts"].append(file);
-    }
-    this->WriteJsonContent("CMakeFiles/InstallScripts.json", index);
+  Json::Value index(Json::objectValue);
+  index["InstallScripts"] = Json::arrayValue;
+  for (const auto& file : this->InstallScripts) {
+    index["InstallScripts"].append(file);
   }
+  index["Parallel"] =
+    this->GetCMakeInstance()->GetState()->GetGlobalPropertyAsBool(
+      "INSTALL_PARALLEL");
+  if (this->SupportsDefaultConfigs()) {
+    index["Configs"] = Json::arrayValue;
+    for (auto const& config : this->GetDefaultConfigs()) {
+      index["Configs"].append(config);
+    }
+  }
+  this->WriteJsonContent("CMakeFiles/InstallScripts.json", index);
 }
 #endif
 
@@ -2820,8 +2802,6 @@ static bool RaiseCMP0037Message(cmake* cm, cmTarget* tgt,
     case cmPolicies::OLD:
       break;
     case cmPolicies::NEW:
-    case cmPolicies::REQUIRED_IF_USED:
-    case cmPolicies::REQUIRED_ALWAYS:
       issueMessage = true;
       messageType = MessageType::FATAL_ERROR;
       break;
@@ -3028,8 +3008,6 @@ void cmGlobalGenerator::ReserveGlobalTargetCodegen()
     case cmPolicies::OLD:
       break;
     case cmPolicies::NEW:
-    case cmPolicies::REQUIRED_IF_USED:
-    case cmPolicies::REQUIRED_ALWAYS:
       issueMessage = true;
       messageType = MessageType::FATAL_ERROR;
       break;
@@ -3066,8 +3044,11 @@ void cmGlobalGenerator::AddGlobalTarget_EditCache(
   std::string edit_cmd = this->GetEditCacheCommand();
   if (!edit_cmd.empty()) {
     singleLine.push_back(std::move(edit_cmd));
-    if (this->GetCMakeInstance()->GetIgnoreWarningAsError()) {
+    if (this->GetCMakeInstance()->GetIgnoreCompileWarningAsError()) {
       singleLine.push_back("--compile-no-warning-as-error");
+    }
+    if (this->GetCMakeInstance()->GetIgnoreLinkWarningAsError()) {
+      singleLine.push_back("--link-no-warning-as-error");
     }
     singleLine.push_back("-S$(CMAKE_SOURCE_DIR)");
     singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
@@ -3102,8 +3083,11 @@ void cmGlobalGenerator::AddGlobalTarget_RebuildCache(
   cmCustomCommandLine singleLine;
   singleLine.push_back(cmSystemTools::GetCMakeCommand());
   singleLine.push_back("--regenerate-during-build");
-  if (this->GetCMakeInstance()->GetIgnoreWarningAsError()) {
+  if (this->GetCMakeInstance()->GetIgnoreCompileWarningAsError()) {
     singleLine.push_back("--compile-no-warning-as-error");
+  }
+  if (this->GetCMakeInstance()->GetIgnoreLinkWarningAsError()) {
+    singleLine.push_back("--link-no-warning-as-error");
   }
   singleLine.push_back("-S$(CMAKE_SOURCE_DIR)");
   singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
@@ -4022,4 +4006,17 @@ cmGlobalGenerator::StripCommandStyle cmGlobalGenerator::GetStripCommandStyle(
 void cmGlobalGenerator::AddInstallScript(std::string const& file)
 {
   this->InstallScripts.push_back(file);
+}
+
+void cmGlobalGenerator::AddTestFile(std::string const& file)
+{
+  this->TestFiles.push_back(file);
+}
+
+void cmGlobalGenerator::AddCMakeFilesToRebuild(
+  std::vector<std::string>& files) const
+{
+  files.insert(files.end(), this->InstallScripts.begin(),
+               this->InstallScripts.end());
+  files.insert(files.end(), this->TestFiles.begin(), this->TestFiles.end());
 }

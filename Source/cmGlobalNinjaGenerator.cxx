@@ -1956,7 +1956,9 @@ void cmGlobalNinjaGenerator::WriteTargetRebuildManifest(std::ostream& os)
     cmNinjaRule rule("RERUN_CMAKE");
     rule.Command = cmStrCat(
       this->CMakeCmd(), " --regenerate-during-build",
-      cm->GetIgnoreWarningAsError() ? " --compile-no-warning-as-error" : "",
+      cm->GetIgnoreCompileWarningAsError() ? " --compile-no-warning-as-error"
+                                           : "",
+      cm->GetIgnoreLinkWarningAsError() ? " --link-no-warning-as-error" : "",
       " -S",
       lg->ConvertToOutputFormat(lg->GetSourceDirectory(),
                                 cmOutputConverter::SHELL),
@@ -3293,6 +3295,7 @@ void cmGlobalNinjaMultiGenerator::AddRebuildManifestOutputs(
   if (!this->DefaultFileConfig.empty()) {
     outputs.push_back(this->NinjaOutputPath(NINJA_BUILD_FILE));
   }
+  this->AddCMakeFilesToRebuild(outputs);
 }
 
 void cmGlobalNinjaMultiGenerator::GetQtAutoGenConfigs(

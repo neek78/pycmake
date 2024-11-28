@@ -113,6 +113,9 @@ function(run_cmake test)
     if(RunCMake_TEST_LCC AND NOT RunCMake_TEST_NO_CMP0129)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0129=NEW)
     endif()
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "AIX")
+      list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0182=NEW)
+    endif()
     if(RunCMake_MAKE_PROGRAM)
       list(APPEND RunCMake_TEST_OPTIONS "-DCMAKE_MAKE_PROGRAM=${RunCMake_MAKE_PROGRAM}")
     endif()
@@ -227,8 +230,9 @@ function(run_cmake test)
   Compatibility with CMake < 3\.10 will be removed from a future version of
   CMake.
 
-  Update the VERSION argument <min> value or use a \.\.\.<max> suffix to tell
-  CMake that the project does not need compatibility with older versions\.
+  Update the VERSION argument <min> value\.  Or, use the <min>\.\.\.<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier\.
 +
 ]] "" actual_stderr "${actual_stderr}")
   endif()

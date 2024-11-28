@@ -30,6 +30,7 @@
 #include "cmFileSet.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
+#include "cmGeneratorOptions.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmGlobalVisualStudio10Generator.h"
@@ -1870,7 +1871,9 @@ void cmVisualStudio10TargetGenerator::WriteCustomRule(
       BuildInParallel buildInParallel = BuildInParallel::No;
       if (command.GetCMP0147Status() == cmPolicies::NEW &&
           !command.GetUsesTerminal() &&
-          !(command.HasMainDependency() && source->GetIsGenerated())) {
+          !(command.HasMainDependency() && source->GetIsGenerated()) &&
+          !source->GetPropertyAsBool(
+            "VS_CUSTOM_COMMAND_DISABLE_PARALLEL_BUILD")) {
         buildInParallel = BuildInParallel::Yes;
       }
       this->WriteCustomRuleCpp(*spe2, c, script, additional_inputs.str(),
@@ -4426,12 +4429,9 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
     linkType = "EXE";
   }
   std::string flags;
-  std::string linkFlagVarBase = cmStrCat("CMAKE_", linkType, "_LINKER_FLAGS");
-  flags += ' ';
-  flags += this->Makefile->GetRequiredDefinition(linkFlagVarBase);
-  std::string linkFlagVar = cmStrCat(linkFlagVarBase, '_', CONFIG);
-  flags += ' ';
-  flags += this->Makefile->GetRequiredDefinition(linkFlagVar);
+  this->LocalGenerator->AddConfigVariableFlags(
+    flags, cmStrCat("CMAKE_", linkType, "_LINKER_FLAGS"),
+    this->GeneratorTarget, cmBuildStep::Link, linkLanguage, config);
   cmValue targetLinkFlags = this->GeneratorTarget->GetProperty("LINK_FLAGS");
   if (targetLinkFlags) {
     flags += ' ';
@@ -4447,6 +4447,9 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
   this->GeneratorTarget->GetLinkOptions(opts, config, linkLanguage);
   // LINK_OPTIONS are escaped.
   this->LocalGenerator->AppendCompileOptions(flags, opts);
+
+  this->LocalGenerator->AppendWarningAsErrorLinkerFlags(
+    flags, this->GeneratorTarget, linkLanguage);
 
   cmComputeLinkInformation* pcli =
     this->GeneratorTarget->GetLinkInformation(config);

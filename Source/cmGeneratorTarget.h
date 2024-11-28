@@ -264,9 +264,6 @@ public:
 
   cmLinkInterface const* GetLinkInterface(
     const std::string& config, const cmGeneratorTarget* headTarget) const;
-  void ComputeLinkInterface(const std::string& config,
-                            cmOptionalLinkInterface& iface,
-                            const cmGeneratorTarget* head) const;
 
   enum class UseTo
   {
@@ -671,6 +668,10 @@ public:
                                    const std::string& language) const;
   std::vector<BT<std::string>> GetStaticLibraryLinkOptions(
     std::string const& config, std::string const& language) const;
+
+  std::vector<BT<std::string>>& ResolveArchiverWrapper(
+    std::vector<BT<std::string>>& result, const std::string& language,
+    bool joinItems = false) const;
 
   void GetLinkDirectories(std::vector<std::string>& result,
                           const std::string& config,
@@ -1356,6 +1357,10 @@ private:
                                           std::string const& linkFeature,
                                           LookupLinkItemScope* scope,
                                           LookupSelf lookupSelf) const;
+
+  std::vector<BT<std::string>>& ResolvePrefixWrapper(
+    std::vector<BT<std::string>>& result, cm::string_view prefix,
+    const std::string& language, bool joinItems) const;
 
   std::vector<BT<std::string>> GetSourceFilePaths(
     std::string const& config) const;

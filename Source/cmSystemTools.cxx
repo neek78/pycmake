@@ -22,6 +22,10 @@
 
 #include <iterator>
 
+#ifdef _WIN32
+#  include <unordered_map>
+#endif
+
 #include <cm/optional>
 #include <cmext/algorithm>
 #include <cmext/string_view>
@@ -31,6 +35,7 @@
 #include "cmDuration.h"
 #include "cmELF.h"
 #include "cmMessageMetadata.h"
+#include "cmPathResolver.h"
 #include "cmProcessOutput.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
@@ -127,6 +132,116 @@ cmSystemTools::InterruptCallback s_InterruptCallback;
 cmSystemTools::MessageCallback s_MessageCallback;
 cmSystemTools::OutputCallback s_StderrCallback;
 cmSystemTools::OutputCallback s_StdoutCallback;
+
+#ifdef _WIN32
+std::string GetDosDriveWorkingDirectory(char letter)
+{
+  // The Windows command processor tracks a per-drive working
+  // directory for compatibility with MS-DOS by using special
+  // environment variables named "=C:".
+  // https://web.archive.org/web/20100522040616/
+  // https://blogs.msdn.com/oldnewthing/archive/2010/05/06/10008132.aspx
+  return cmSystemTools::GetEnvVar(cmStrCat('=', letter, ':'))
+    .value_or(std::string());
+}
+
+cmsys::Status ReadNameOnDisk(std::string const& path, std::string& name)
+{
+  std::wstring wp = cmsys::Encoding::ToWide(path);
+  HANDLE h = CreateFileW(
+    wp.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (h == INVALID_HANDLE_VALUE) {
+    return cmsys::Status::Windows_GetLastError();
+  }
+
+  WCHAR local_fni[((sizeof(FILE_NAME_INFO) - 1) / sizeof(WCHAR)) + 1024];
+  size_t fni_size = sizeof(local_fni);
+  auto* fni = reinterpret_cast<FILE_NAME_INFO*>(local_fni);
+  if (!GetFileInformationByHandleEx(h, FileNameInfo, fni, fni_size)) {
+    DWORD e = GetLastError();
+    if (e != ERROR_MORE_DATA) {
+      CloseHandle(h);
+      return cmsys::Status::Windows(e);
+    }
+    fni_size = fni->FileNameLength;
+    fni = static_cast<FILE_NAME_INFO*>(malloc(fni_size));
+    if (!fni) {
+      e = ERROR_NOT_ENOUGH_MEMORY;
+      CloseHandle(h);
+      return cmsys::Status::Windows(e);
+    }
+    if (!GetFileInformationByHandleEx(h, FileNameInfo, fni, fni_size)) {
+      e = GetLastError();
+      free(fni);
+      CloseHandle(h);
+      return cmsys::Status::Windows(e);
+    }
+  }
+
+  std::wstring wn{ fni->FileName, fni->FileNameLength / sizeof(WCHAR) };
+  std::string nn = cmsys::Encoding::ToNarrow(wn);
+  std::string::size_type last_slash = nn.find_last_of("/\\");
+  if (last_slash != std::string::npos) {
+    name = nn.substr(last_slash + 1);
+  }
+  if (fni != reinterpret_cast<FILE_NAME_INFO*>(local_fni)) {
+    free(fni);
+  }
+  CloseHandle(h);
+  return cmsys::Status::Success();
+}
+#endif
+
+class RealSystem : public cm::PathResolver::System
+{
+public:
+  ~RealSystem() override = default;
+  cmsys::Status ReadSymlink(std::string const& path,
+                            std::string& link) override
+  {
+    return cmSystemTools::ReadSymlink(path, link);
+  }
+  bool PathExists(std::string const& path) override
+  {
+    return cmSystemTools::PathExists(path);
+  }
+  std::string GetWorkingDirectory() override
+  {
+    return cmSystemTools::GetLogicalWorkingDirectory();
+  }
+#ifdef _WIN32
+  std::string GetWorkingDirectoryOnDrive(char letter) override
+  {
+    return GetDosDriveWorkingDirectory(letter);
+  }
+
+  struct NameOnDisk
+  {
+    cmsys::Status Status;
+    std::string Name;
+  };
+  using NameOnDiskMap = std::unordered_map<std::string, NameOnDisk>;
+  NameOnDiskMap CachedNameOnDisk;
+
+  cmsys::Status ReadName(std::string const& path, std::string& name) override
+  {
+    // Cache results to avoid repeated filesystem access.
+    // We assume any files created by our own process keep their case.
+    // Index the cache by lower-case paths to make it case-insensitive.
+    std::string path_lower = cmSystemTools::LowerCase(path);
+    auto i = this->CachedNameOnDisk.find(path_lower);
+    if (i == this->CachedNameOnDisk.end()) {
+      i = this->CachedNameOnDisk.emplace(path_lower, NameOnDisk()).first;
+      i->second.Status = ReadNameOnDisk(path, i->second.Name);
+    }
+    name = i->second.Name;
+    return i->second.Status;
+  }
+#endif
+};
+
+RealSystem RealOS;
 
 } // namespace
 
@@ -986,36 +1101,22 @@ std::string cmSystemTools::GetComspec()
 
 #endif
 
-std::string cmSystemTools::GetRealPathResolvingWindowsSubst(
-  const std::string& path, std::string* errorMessage)
+std::string cmSystemTools::GetRealPath(const std::string& path,
+                                       std::string* errorMessage)
 {
 #ifdef _WIN32
-  // uv_fs_realpath uses Windows Vista API so fallback to kwsys if not found
   std::string resolved_path;
-  uv_fs_t req;
-  int err = uv_fs_realpath(nullptr, &req, path.c_str(), nullptr);
-  if (!err) {
-    resolved_path = std::string((char*)req.ptr);
-    cmSystemTools::ConvertToUnixSlashes(resolved_path);
-    // Normalize to upper-case drive letter as GetActualCaseForPath does.
-    if (resolved_path.size() > 1 && resolved_path[1] == ':') {
-      resolved_path[0] = toupper(resolved_path[0]);
+  using namespace cm::PathResolver;
+  // IWYU pragma: no_forward_declare cm::PathResolver::Policies::RealPath
+  static const Resolver<Policies::RealPath> resolver(RealOS);
+  cmsys::Status status = resolver.Resolve(path, resolved_path);
+  if (!status) {
+    if (errorMessage) {
+      *errorMessage = status.GetString();
+      resolved_path.clear();
+    } else {
+      resolved_path = path;
     }
-  } else if (err == UV_ENOSYS) {
-    resolved_path = cmsys::SystemTools::GetRealPath(path, errorMessage);
-  } else if (errorMessage) {
-    LPSTR message = nullptr;
-    DWORD size = FormatMessageA(
-      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-      nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&message,
-      0, nullptr);
-    *errorMessage = std::string(message, size);
-    LocalFree(message);
-
-    resolved_path = "";
-  } else {
-    resolved_path = path;
   }
   return resolved_path;
 #else
@@ -1662,11 +1763,10 @@ std::vector<std::string> cmSystemTools::SplitEnvPathNormalized(
 
 std::string cmSystemTools::ToNormalizedPathOnDisk(std::string p)
 {
-  p = cmSystemTools::CollapseFullPath(p);
-  cmSystemTools::ConvertToUnixSlashes(p);
-#ifdef _WIN32
-  p = cmSystemTools::GetActualCaseForPathCached(p);
-#endif
+  using namespace cm::PathResolver;
+  // IWYU pragma: no_forward_declare cm::PathResolver::Policies::LogicalPath
+  static const Resolver<Policies::LogicalPath> resolver(RealOS);
+  resolver.Resolve(std::move(p), p);
   return p;
 }
 
@@ -1916,12 +2016,12 @@ bool cmSystemTools::CreateTar(const std::string& outFileName,
                               std::string const& format, int compressionLevel)
 {
 #if !defined(CMAKE_BOOTSTRAP)
-  cmWorkingDirectory workdir(cmSystemTools::GetCurrentWorkingDirectory());
+  cmWorkingDirectory workdir(cmSystemTools::GetLogicalWorkingDirectory());
   if (!workingDirectory.empty()) {
     workdir.SetDirectory(workingDirectory);
   }
 
-  const std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+  const std::string cwd = cmSystemTools::GetLogicalWorkingDirectory();
   cmsys::ofstream fout(outFileName.c_str(), std::ios::out | std::ios::binary);
   if (!fout) {
     std::string e = cmStrCat("Cannot open output file \"", outFileName,
@@ -2555,30 +2655,48 @@ unsigned int cmSystemTools::RandomSeed()
 #endif
 }
 
-static std::string cmSystemToolsCMakeCommand;
-static std::string cmSystemToolsCTestCommand;
-static std::string cmSystemToolsCPackCommand;
-static std::string cmSystemToolsCMakeCursesCommand;
-static std::string cmSystemToolsCMakeGUICommand;
-static std::string cmSystemToolsCMClDepsCommand;
-static std::string cmSystemToolsCMakeRoot;
-static std::string cmSystemToolsHTMLDoc;
-void cmSystemTools::FindCMakeResources(const char* argv0)
+namespace {
+std::string InitLogicalWorkingDirectory()
 {
-  std::string exe_dir;
+  std::string cwd = cmsys::SystemTools::GetCurrentWorkingDirectory();
+  std::string pwd;
+  if (cmSystemTools::GetEnv("PWD", pwd)) {
+    std::string const pwd_real = cmSystemTools::GetRealPath(pwd);
+    if (pwd_real == cwd) {
+      cwd = std::move(pwd);
+    }
+  }
+  return cwd;
+}
+
+std::string cmSystemToolsLogicalWorkingDirectory =
+  InitLogicalWorkingDirectory();
+
+std::string cmSystemToolsCMakeCommand;
+std::string cmSystemToolsCTestCommand;
+std::string cmSystemToolsCPackCommand;
+std::string cmSystemToolsCMakeCursesCommand;
+std::string cmSystemToolsCMakeGUICommand;
+std::string cmSystemToolsCMClDepsCommand;
+std::string cmSystemToolsCMakeRoot;
+std::string cmSystemToolsHTMLDoc;
+
+#if defined(__APPLE__)
+bool IsCMakeAppBundleExe(std::string const& exe)
+{
+  return cmHasLiteralSuffix(cmSystemTools::LowerCase(exe), "/macos/cmake");
+}
+#endif
+
+std::string FindOwnExecutable(const char* argv0)
+{
 #if defined(_WIN32) && !defined(__CYGWIN__)
-  (void)argv0; // ignore this on windows
+  static_cast<void>(argv0);
   wchar_t modulepath[_MAX_PATH];
   ::GetModuleFileNameW(nullptr, modulepath, sizeof(modulepath));
-  std::string path = cmsys::Encoding::ToNarrow(modulepath);
-  std::string realPath =
-    cmSystemTools::GetRealPathResolvingWindowsSubst(path, nullptr);
-  if (realPath.empty()) {
-    realPath = path;
-  }
-  exe_dir = cmSystemTools::GetFilenamePath(realPath);
+  std::string exe = cmsys::Encoding::ToNarrow(modulepath);
 #elif defined(__APPLE__)
-  (void)argv0; // ignore this on OS X
+  static_cast<void>(argv0);
 #  define CM_EXE_PATH_LOCAL_SIZE 16384
   char exe_path_local[CM_EXE_PATH_LOCAL_SIZE];
 #  if defined(MAC_OS_X_VERSION_10_3) && !defined(MAC_OS_X_VERSION_10_4)
@@ -2592,41 +2710,133 @@ void cmSystemTools::FindCMakeResources(const char* argv0)
     exe_path = static_cast<char*>(malloc(exe_path_size));
     _NSGetExecutablePath(exe_path, &exe_path_size);
   }
-  exe_dir =
-    cmSystemTools::GetFilenamePath(cmSystemTools::GetRealPath(exe_path));
+  std::string exe = exe_path;
   if (exe_path != exe_path_local) {
     free(exe_path);
   }
-  if (cmSystemTools::GetFilenameName(exe_dir) == "MacOS") {
+  if (IsCMakeAppBundleExe(exe)) {
     // The executable is inside an application bundle.
-    // Look for ..<CMAKE_BIN_DIR> (install tree) and then fall back to
-    // ../../../bin (build tree).
-    exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
-    if (cmSystemTools::FileExists(exe_dir + CMAKE_BIN_DIR "/cmake")) {
-      exe_dir += CMAKE_BIN_DIR;
-    } else {
-      exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
-      exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
+    // The install tree has "..<CMAKE_BIN_DIR>/cmake-gui".
+    // The build tree has '../../../cmake-gui".
+    std::string dir = cmSystemTools::GetFilenamePath(exe);
+    dir = cmSystemTools::GetFilenamePath(dir);
+    exe = cmStrCat(dir, CMAKE_BIN_DIR "/cmake-gui");
+    if (!cmSystemTools::PathExists(exe)) {
+      dir = cmSystemTools::GetFilenamePath(dir);
+      dir = cmSystemTools::GetFilenamePath(dir);
+      exe = cmStrCat(dir, "/cmake-gui");
     }
   }
 #else
   std::string errorMsg;
   std::string exe;
-  if (cmSystemTools::FindProgramPath(argv0, exe, errorMsg)) {
-    // remove symlinks
-    exe = cmSystemTools::GetRealPath(exe);
-    exe_dir = cmSystemTools::GetFilenamePath(exe);
-  } else {
+  if (!cmSystemTools::FindProgramPath(argv0, exe, errorMsg)) {
     // ???
   }
 #endif
-  exe_dir = cmSystemTools::GetActualCaseForPath(exe_dir);
-  cmSystemToolsCMakeCommand =
-    cmStrCat(exe_dir, "/cmake", cmSystemTools::GetExecutableExtension());
+  exe = cmSystemTools::ToNormalizedPathOnDisk(std::move(exe));
+  return exe;
+}
+
+#ifndef CMAKE_BOOTSTRAP
+bool ResolveSymlinkToOwnExecutable(std::string& exe, std::string& exe_dir)
+{
+  std::string linked_exe;
+  if (!cmSystemTools::ReadSymlink(exe, linked_exe)) {
+    return false;
+  }
+#  if defined(__APPLE__)
+  // Ignore "cmake-gui -> ../MacOS/CMake".
+  if (IsCMakeAppBundleExe(linked_exe)) {
+    return false;
+  }
+#  endif
+  if (cmSystemTools::FileIsFullPath(linked_exe)) {
+    exe = std::move(linked_exe);
+  } else {
+    exe = cmStrCat(exe_dir, '/', std::move(linked_exe));
+  }
+  exe = cmSystemTools::ToNormalizedPathOnDisk(std::move(exe));
+  exe_dir = cmSystemTools::GetFilenamePath(exe);
+  return true;
+}
+
+bool FindCMakeResourcesInInstallTree(std::string const& exe_dir)
+{
+  // Install tree has
+  // - "<prefix><CMAKE_BIN_DIR>/cmake"
+  // - "<prefix><CMAKE_DATA_DIR>"
+  // - "<prefix><CMAKE_DOC_DIR>"
+  if (cmHasLiteralSuffix(exe_dir, CMAKE_BIN_DIR)) {
+    std::string const prefix =
+      exe_dir.substr(0, exe_dir.size() - cmStrLen(CMAKE_BIN_DIR));
+    // Set cmSystemToolsCMakeRoot set to the location expected in an
+    // install tree, even if it does not exist, so that
+    // cmake::AddCMakePaths can print the location in its error message.
+    cmSystemToolsCMakeRoot = cmStrCat(prefix, CMAKE_DATA_DIR);
+    if (cmSystemTools::FileExists(
+          cmStrCat(cmSystemToolsCMakeRoot, "/Modules/CMake.cmake"))) {
+      if (cmSystemTools::FileExists(
+            cmStrCat(prefix, CMAKE_DOC_DIR "/html/index.html"))) {
+        cmSystemToolsHTMLDoc = cmStrCat(prefix, CMAKE_DOC_DIR "/html");
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+void FindCMakeResourcesInBuildTree(std::string const& exe_dir)
+{
+  // Build tree has "<build>/bin[/<config>]/cmake" and
+  // "<build>/CMakeFiles/CMakeSourceDir.txt".
+  std::string dir = cmSystemTools::GetFilenamePath(exe_dir);
+  std::string src_dir_txt = cmStrCat(dir, "/CMakeFiles/CMakeSourceDir.txt");
+  cmsys::ifstream fin(src_dir_txt.c_str());
+  std::string src_dir;
+  if (fin && cmSystemTools::GetLineFromStream(fin, src_dir) &&
+      cmSystemTools::FileIsDirectory(src_dir)) {
+    cmSystemToolsCMakeRoot = src_dir;
+  } else {
+    dir = cmSystemTools::GetFilenamePath(dir);
+    src_dir_txt = cmStrCat(dir, "/CMakeFiles/CMakeSourceDir.txt");
+    cmsys::ifstream fin2(src_dir_txt.c_str());
+    if (fin2 && cmSystemTools::GetLineFromStream(fin2, src_dir) &&
+        cmSystemTools::FileIsDirectory(src_dir)) {
+      cmSystemToolsCMakeRoot = src_dir;
+    }
+  }
+  if (!cmSystemToolsCMakeRoot.empty() && cmSystemToolsHTMLDoc.empty() &&
+      cmSystemTools::FileExists(
+        cmStrCat(dir, "/Utilities/Sphinx/html/index.html"))) {
+    cmSystemToolsHTMLDoc = cmStrCat(dir, "/Utilities/Sphinx/html");
+  }
+}
+#endif
+}
+
+void cmSystemTools::FindCMakeResources(const char* argv0)
+{
+  std::string exe = FindOwnExecutable(argv0);
 #ifdef CMAKE_BOOTSTRAP
+  // The bootstrap cmake knows its resource locations.
+  cmSystemToolsCMakeRoot = CMAKE_BOOTSTRAP_SOURCE_DIR;
+  cmSystemToolsCMakeCommand = exe;
   // The bootstrap cmake does not provide the other tools,
   // so use the directory where they are about to be built.
-  exe_dir = CMAKE_BOOTSTRAP_BINARY_DIR "/bin";
+  std::string exe_dir = CMAKE_BOOTSTRAP_BINARY_DIR "/bin";
+#else
+  // Find resources relative to our own executable.
+  std::string exe_dir = cmSystemTools::GetFilenamePath(exe);
+  bool found = false;
+  do {
+    found = FindCMakeResourcesInInstallTree(exe_dir);
+  } while (!found && ResolveSymlinkToOwnExecutable(exe, exe_dir));
+  if (!found) {
+    FindCMakeResourcesInBuildTree(exe_dir);
+  }
+  cmSystemToolsCMakeCommand =
+    cmStrCat(exe_dir, "/cmake", cmSystemTools::GetExecutableExtension());
 #endif
   cmSystemToolsCTestCommand =
     cmStrCat(exe_dir, "/ctest", cmSystemTools::GetExecutableExtension());
@@ -2647,52 +2857,6 @@ void cmSystemTools::FindCMakeResources(const char* argv0)
   if (!cmSystemTools::FileExists(cmSystemToolsCMClDepsCommand)) {
     cmSystemToolsCMClDepsCommand.clear();
   }
-
-#ifndef CMAKE_BOOTSTRAP
-  // Install tree has
-  // - "<prefix><CMAKE_BIN_DIR>/cmake"
-  // - "<prefix><CMAKE_DATA_DIR>"
-  // - "<prefix><CMAKE_DOC_DIR>"
-  if (cmHasLiteralSuffix(exe_dir, CMAKE_BIN_DIR)) {
-    std::string const prefix =
-      exe_dir.substr(0, exe_dir.size() - cmStrLen(CMAKE_BIN_DIR));
-    cmSystemToolsCMakeRoot = cmStrCat(prefix, CMAKE_DATA_DIR);
-    if (cmSystemTools::FileExists(
-          cmStrCat(prefix, CMAKE_DOC_DIR "/html/index.html"))) {
-      cmSystemToolsHTMLDoc = cmStrCat(prefix, CMAKE_DOC_DIR "/html");
-    }
-  }
-  if (cmSystemToolsCMakeRoot.empty() ||
-      !cmSystemTools::FileExists(
-        cmStrCat(cmSystemToolsCMakeRoot, "/Modules/CMake.cmake"))) {
-    // Build tree has "<build>/bin[/<config>]/cmake" and
-    // "<build>/CMakeFiles/CMakeSourceDir.txt".
-    std::string dir = cmSystemTools::GetFilenamePath(exe_dir);
-    std::string src_dir_txt = cmStrCat(dir, "/CMakeFiles/CMakeSourceDir.txt");
-    cmsys::ifstream fin(src_dir_txt.c_str());
-    std::string src_dir;
-    if (fin && cmSystemTools::GetLineFromStream(fin, src_dir) &&
-        cmSystemTools::FileIsDirectory(src_dir)) {
-      cmSystemToolsCMakeRoot = src_dir;
-    } else {
-      dir = cmSystemTools::GetFilenamePath(dir);
-      src_dir_txt = cmStrCat(dir, "/CMakeFiles/CMakeSourceDir.txt");
-      cmsys::ifstream fin2(src_dir_txt.c_str());
-      if (fin2 && cmSystemTools::GetLineFromStream(fin2, src_dir) &&
-          cmSystemTools::FileIsDirectory(src_dir)) {
-        cmSystemToolsCMakeRoot = src_dir;
-      }
-    }
-    if (!cmSystemToolsCMakeRoot.empty() && cmSystemToolsHTMLDoc.empty() &&
-        cmSystemTools::FileExists(
-          cmStrCat(dir, "/Utilities/Sphinx/html/index.html"))) {
-      cmSystemToolsHTMLDoc = cmStrCat(dir, "/Utilities/Sphinx/html");
-    }
-  }
-#else
-  // Bootstrap build knows its source.
-  cmSystemToolsCMakeRoot = CMAKE_BOOTSTRAP_SOURCE_DIR;
-#endif
 }
 
 std::string const& cmSystemTools::GetCMakeCommand()
@@ -2779,10 +2943,18 @@ cm::optional<std::string> cmSystemTools::GetCMakeConfigDirectory()
   return config;
 }
 
-std::string cmSystemTools::GetCurrentWorkingDirectory()
+std::string const& cmSystemTools::GetLogicalWorkingDirectory()
 {
-  return cmSystemTools::ToNormalizedPathOnDisk(
-    cmsys::SystemTools::GetCurrentWorkingDirectory());
+  return cmSystemToolsLogicalWorkingDirectory;
+}
+
+cmsys::Status cmSystemTools::SetLogicalWorkingDirectory(std::string const& lwd)
+{
+  cmsys::Status status = cmSystemTools::ChangeDirectory(lwd);
+  if (status) {
+    cmSystemToolsLogicalWorkingDirectory = lwd;
+  }
+  return status;
 }
 
 void cmSystemTools::MakefileColorEcho(int color, const char* message,

@@ -25,6 +25,7 @@
 #include "cmFileSet.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
+#include "cmGeneratorOptions.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
 #include "cmLinkLineComputer.h" // IWYU pragma: keep
@@ -74,8 +75,6 @@ cmMakefileTargetGenerator::cmMakefileTargetGenerator(cmGeneratorTarget* target)
       this->CMP0113New = false;
       break;
     case cmPolicies::NEW:
-    case cmPolicies::REQUIRED_IF_USED:
-    case cmPolicies::REQUIRED_ALWAYS:
       this->CMP0113New = true;
       break;
   }
@@ -157,6 +156,8 @@ void cmMakefileTargetGenerator::GetTargetLinkFlags(
     flags, this->GeneratorTarget, this->GetConfigName(), linkLanguage);
   this->LocalGenerator->AppendPositionIndependentLinkerFlags(
     flags, this->GeneratorTarget, this->GetConfigName(), linkLanguage);
+  this->LocalGenerator->AppendWarningAsErrorLinkerFlags(
+    flags, this->GeneratorTarget, linkLanguage);
   this->LocalGenerator->AppendDependencyInfoLinkerFlags(
     flags, this->GeneratorTarget, this->GetConfigName(), linkLanguage);
 }
@@ -1707,7 +1708,8 @@ void cmMakefileTargetGenerator::WriteDeviceLinkRule(
   vars.Flags = flags.c_str();
 
   std::string compileCmd = this->GetLinkRule("CMAKE_CUDA_DEVICE_LINK_COMPILE");
-  auto rulePlaceholderExpander = localGen->CreateRulePlaceholderExpander();
+  auto rulePlaceholderExpander = localGen->CreateRulePlaceholderExpander(
+    cmBuildStep::Link, this->GetGeneratorTarget(), "CUDA");
   rulePlaceholderExpander->ExpandRuleVariables(localGen, compileCmd, vars);
 
   commands.emplace_back(compileCmd);

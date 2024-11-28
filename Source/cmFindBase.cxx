@@ -133,7 +133,7 @@ bool cmFindBase::ParseArguments(std::vector<std::string> const& argsIn)
       newStyle = true;
     } else if (args[j] == "REGISTRY_VIEW") {
       if (++j == args.size()) {
-        this->SetError("missing required argument for \"REGISTRY_VIEW\"");
+        this->SetError("missing required argument for REGISTRY_VIEW");
         return false;
       }
       auto view = cmWindowsRegistry::ToView(args[j]);
@@ -141,18 +141,18 @@ bool cmFindBase::ParseArguments(std::vector<std::string> const& argsIn)
         this->RegistryView = *view;
       } else {
         this->SetError(
-          cmStrCat("given invalid value for \"REGISTRY_VIEW\": ", args[j]));
+          cmStrCat("given invalid value for REGISTRY_VIEW: ", args[j]));
         return false;
       }
     } else if (args[j] == "VALIDATOR") {
       if (++j == args.size()) {
-        this->SetError("missing required argument for \"VALIDATOR\"");
+        this->SetError("missing required argument for VALIDATOR");
         return false;
       }
       auto command = this->Makefile->GetState()->GetCommand(args[j]);
       if (!command) {
         this->SetError(cmStrCat(
-          "command specified for \"VALIDATOR\" is undefined: ", args[j], '.'));
+          "command specified for VALIDATOR is undefined: ", args[j], '.'));
         return false;
       }
       // ensure a macro is not specified as validator
@@ -164,7 +164,7 @@ bool cmFindBase::ParseArguments(std::vector<std::string> const& argsIn)
                                                        item.c_str()) == 0;
                        }) != macros.end()) {
         this->SetError(cmStrCat(
-          "command specified for \"VALIDATOR\" is not a function: ", args[j],
+          "command specified for VALIDATOR is not a function: ", args[j],
           '.'));
         return false;
       }
@@ -611,65 +611,62 @@ cmFindBaseDebugState::cmFindBaseDebugState(std::string commandName,
 
 cmFindBaseDebugState::~cmFindBaseDebugState()
 {
-  if (this->FindCommand->DebugMode) {
-    std::string buffer =
-      cmStrCat(this->CommandName, " called with the following settings:\n");
-    buffer += cmStrCat("  VAR: ", this->FindCommand->VariableName, "\n");
-    buffer += cmStrCat(
-      "  NAMES: ", cmWrap("\"", this->FindCommand->Names, "\"", "\n         "),
-      "\n");
-    buffer += cmStrCat(
-      "  Documentation: ", this->FindCommand->VariableDocumentation, "\n");
-    buffer += "  Framework\n";
-    buffer += cmStrCat("    Only Search Frameworks: ",
-                       this->FindCommand->SearchFrameworkOnly, "\n");
-
-    buffer += cmStrCat("    Search Frameworks Last: ",
-                       this->FindCommand->SearchFrameworkLast, "\n");
-    buffer += cmStrCat("    Search Frameworks First: ",
-                       this->FindCommand->SearchFrameworkFirst, "\n");
-    buffer += "  AppBundle\n";
-    buffer += cmStrCat("    Only Search AppBundle: ",
-                       this->FindCommand->SearchAppBundleOnly, "\n");
-    buffer += cmStrCat("    Search AppBundle Last: ",
-                       this->FindCommand->SearchAppBundleLast, "\n");
-    buffer += cmStrCat("    Search AppBundle First: ",
-                       this->FindCommand->SearchAppBundleFirst, "\n");
-
-    if (this->FindCommand->NoDefaultPath) {
-      buffer += "  NO_DEFAULT_PATH Enabled\n";
-    } else {
-      buffer += cmStrCat(
-        "  CMAKE_FIND_USE_CMAKE_PATH: ", !this->FindCommand->NoCMakePath, "\n",
-        "  CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: ",
-        !this->FindCommand->NoCMakeEnvironmentPath, "\n",
-        "  CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: ",
-        !this->FindCommand->NoSystemEnvironmentPath, "\n",
-        "  CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: ",
-        !this->FindCommand->NoCMakeSystemPath, "\n",
-        "  CMAKE_FIND_USE_INSTALL_PREFIX: ",
-        !this->FindCommand->NoCMakeInstallPath, "\n");
-    }
-
-    buffer +=
-      cmStrCat(this->CommandName, " considered the following locations:\n");
-    for (auto const& state : this->FailedSearchLocations) {
-      std::string path = cmStrCat("  ", state.path);
-      if (!state.regexName.empty()) {
-        path = cmStrCat(path, "/", state.regexName);
-      }
-      buffer += cmStrCat(path, "\n");
-    }
-
-    if (!this->FoundSearchLocation.path.empty()) {
-      buffer += cmStrCat("The item was found at\n  ",
-                         this->FoundSearchLocation.path, "\n");
-    } else {
-      buffer += "The item was not found.\n";
-    }
-
-    this->FindCommand->DebugMessage(buffer);
+  if (!this->FindCommand->DebugMode) {
+    return;
   }
+
+  // clang-format off
+  auto buffer =
+    cmStrCat(
+      this->CommandName, " called with the following settings:"
+      "\n  VAR: ", this->FindCommand->VariableName,
+      "\n  NAMES: ", cmWrap('"', this->FindCommand->Names, '"', "\n         "),
+      "\n  Documentation: ", this->FindCommand->VariableDocumentation,
+      "\n  Framework"
+      "\n    Only Search Frameworks: ", this->FindCommand->SearchFrameworkOnly,
+      "\n    Search Frameworks Last: ", this->FindCommand->SearchFrameworkLast,
+      "\n    Search Frameworks First: ", this->FindCommand->SearchFrameworkFirst,
+      "\n  AppBundle"
+      "\n    Only Search AppBundle: ", this->FindCommand->SearchAppBundleOnly,
+      "\n    Search AppBundle Last: ", this->FindCommand->SearchAppBundleLast,
+      "\n    Search AppBundle First: ", this->FindCommand->SearchAppBundleFirst,
+      "\n"
+    );
+  // clang-format on
+
+  if (this->FindCommand->NoDefaultPath) {
+    buffer += "  NO_DEFAULT_PATH Enabled\n";
+  } else {
+    // clang-format off
+    buffer += cmStrCat(
+      "  CMAKE_FIND_USE_CMAKE_PATH: ", !this->FindCommand->NoCMakePath,
+      "\n  CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: ", !this->FindCommand->NoCMakeEnvironmentPath,
+      "\n  CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: ", !this->FindCommand->NoSystemEnvironmentPath,
+      "\n  CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: ", !this->FindCommand->NoCMakeSystemPath,
+      "\n  CMAKE_FIND_USE_INSTALL_PREFIX: ", !this->FindCommand->NoCMakeInstallPath,
+      "\n"
+     );
+    // clang-format on
+  }
+
+  buffer +=
+    cmStrCat(this->CommandName, " considered the following locations:\n");
+  for (auto const& state : this->FailedSearchLocations) {
+    std::string path = cmStrCat("  ", state.path);
+    if (!state.regexName.empty()) {
+      path = cmStrCat(path, '/', state.regexName);
+    }
+    buffer += cmStrCat(path, '\n');
+  }
+
+  if (!this->FoundSearchLocation.path.empty()) {
+    buffer += cmStrCat("The item was found at\n  ",
+                       this->FoundSearchLocation.path, '\n');
+  } else {
+    buffer += "The item was not found.\n";
+  }
+
+  this->FindCommand->DebugMessage(buffer);
 }
 
 void cmFindBaseDebugState::FoundAt(std::string const& path,

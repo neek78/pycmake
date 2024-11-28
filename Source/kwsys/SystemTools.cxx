@@ -490,74 +490,16 @@ public:
   }
 };
 
-#ifdef _WIN32
-#  if defined(_WIN64)
-static constexpr size_t FNV_OFFSET_BASIS = 14695981039346656037ULL;
-static constexpr size_t FNV_PRIME = 1099511628211ULL;
-#  else
-static constexpr size_t FNV_OFFSET_BASIS = 2166136261U;
-static constexpr size_t FNV_PRIME = 16777619U;
-#  endif
-
-// Case insensitive Fnv1a hash
-struct SystemToolsPathCaseHash
-{
-  size_t operator()(std::string const& path) const
-  {
-    size_t hash = FNV_OFFSET_BASIS;
-    for (auto c : path) {
-      hash ^= static_cast<size_t>(std::tolower(c));
-      hash *= FNV_PRIME;
-    }
-
-    return hash;
-  }
-};
-
-struct SystemToolsPathCaseEqual
-{
-  bool operator()(std::string const& l, std::string const& r) const
-  {
-#  ifdef _MSC_VER
-    return _stricmp(l.c_str(), r.c_str()) == 0;
-#  elif defined(__GNUC__)
-    return strcasecmp(l.c_str(), r.c_str()) == 0;
-#  else
-    return SystemTools::Strucmp(l.c_str(), r.c_str()) == 0;
-#  endif
-  }
-};
-#endif
-
 /**
  * SystemTools static variables singleton class.
  */
 class SystemToolsStatic
 {
 public:
-  using StringMap = std::map<std::string, std::string>;
-#if KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP
-  /**
-   * Path translation table from dir to refdir
-   * Each time 'dir' will be found it will be replace by 'refdir'
-   */
-  StringMap TranslationMap;
-#endif
 #ifdef _WIN32
-  static std::string GetCasePathName(std::string const& pathIn,
-                                     bool const cache);
-  static std::string GetActualCaseForPathCached(std::string const& path);
+  static std::string GetCasePathName(std::string const& pathIn);
   static const char* GetEnvBuffered(const char* key);
-  std::unordered_map<std::string, std::string, SystemToolsPathCaseHash,
-                     SystemToolsPathCaseEqual>
-    FindFileMap;
-  std::unordered_map<std::string, std::string, SystemToolsPathCaseHash,
-                     SystemToolsPathCaseEqual>
-    PathCaseMap;
   std::map<std::string, std::string> EnvMap;
-#endif
-#ifdef __CYGWIN__
-  StringMap Cyg2Win32Map;
 #endif
 
   /**
@@ -585,8 +527,7 @@ public:
 static SystemToolsStatic* SystemToolsStatics;
 
 #ifdef _WIN32
-std::string SystemToolsStatic::GetCasePathName(std::string const& pathIn,
-                                               bool const cache)
+std::string SystemToolsStatic::GetCasePathName(std::string const& pathIn)
 {
   std::string casePath;
 
@@ -639,51 +580,21 @@ std::string SystemToolsStatic::GetCasePathName(std::string const& pathIn,
         std::string test_str = casePath;
         test_str += path_components[idx];
 
-        bool found_in_cache = false;
-        if (cache) {
-          auto const it = SystemToolsStatics->FindFileMap.find(test_str);
-          if (it != SystemToolsStatics->FindFileMap.end()) {
-            path_components[idx] = it->second;
-            found_in_cache = true;
-          }
-        }
-
-        if (!found_in_cache) {
-          WIN32_FIND_DATAW findData;
-          HANDLE hFind =
-            ::FindFirstFileW(Encoding::ToWide(test_str).c_str(), &findData);
-          if (INVALID_HANDLE_VALUE != hFind) {
-            auto case_file_name = Encoding::ToNarrow(findData.cFileName);
-            if (cache) {
-              SystemToolsStatics->FindFileMap.emplace(test_str,
-                                                      case_file_name);
-            }
-            path_components[idx] = std::move(case_file_name);
-            ::FindClose(hFind);
-          } else {
-            converting = false;
-          }
+        WIN32_FIND_DATAW findData;
+        HANDLE hFind =
+          ::FindFirstFileW(Encoding::ToWide(test_str).c_str(), &findData);
+        if (INVALID_HANDLE_VALUE != hFind) {
+          auto case_file_name = Encoding::ToNarrow(findData.cFileName);
+          path_components[idx] = std::move(case_file_name);
+          ::FindClose(hFind);
+        } else {
+          converting = false;
         }
       }
     }
 
     casePath += path_components[idx];
   }
-  return casePath;
-}
-
-std::string SystemToolsStatic::GetActualCaseForPathCached(std::string const& p)
-{
-  std::string casePath;
-
-  auto it = SystemToolsStatics->PathCaseMap.find(p);
-  if (it != SystemToolsStatics->PathCaseMap.end()) {
-    casePath = it->second;
-  } else {
-    casePath = SystemToolsStatic::GetCasePathName(p, true);
-    SystemToolsStatics->PathCaseMap.emplace(p, casePath);
-  }
-
   return casePath;
 }
 #endif
@@ -3392,6 +3303,14 @@ Status SystemTools::ReadSymlink(std::string const& newName,
   }
   std::wstring substituteName(substituteNameData, substituteNameLength);
   origName = Encoding::ToNarrow(substituteName);
+  // Symbolic links to absolute paths may use a NT Object Path prefix.
+  // If the path begins with "\??\UNC\", replace it with "\\".
+  // Otherwise, if the path begins with "\??\", remove the prefix.
+  if (origName.compare(0, 8, "\\??\\UNC\\") == 0) {
+    origName.erase(1, 6);
+  } else if (origName.compare(0, 4, "\\??\\") == 0) {
+    origName.erase(0, 4);
+  }
 #else
   char buf[KWSYS_SYSTEMTOOLS_MAXPATH + 1];
   int count = static_cast<int>(
@@ -3486,72 +3405,6 @@ bool SystemTools::FindProgramPath(const char* argv0, std::string& pathOut,
   return true;
 }
 
-#if KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP
-void SystemTools::AddTranslationPath(const std::string& a,
-                                     const std::string& b)
-{
-  std::string path_a = a;
-  std::string path_b = b;
-  SystemTools::ConvertToUnixSlashes(path_a);
-  SystemTools::ConvertToUnixSlashes(path_b);
-  // First check this is a directory path, since we don't want the table to
-  // grow too fat
-  if (SystemTools::FileIsDirectory(path_a)) {
-    // Make sure the path is a full path and does not contain no '..'
-    // Ken--the following code is incorrect. .. can be in a valid path
-    // for example  /home/martink/MyHubba...Hubba/Src
-    if (SystemTools::FileIsFullPath(path_b) &&
-        path_b.find("..") == std::string::npos) {
-      // Before inserting make sure path ends with '/'
-      if (!path_a.empty() && path_a.back() != '/') {
-        path_a += '/';
-      }
-      if (!path_b.empty() && path_b.back() != '/') {
-        path_b += '/';
-      }
-      if (!(path_a == path_b)) {
-        SystemToolsStatics->TranslationMap.insert(
-          SystemToolsStatic::StringMap::value_type(std::move(path_a),
-                                                   std::move(path_b)));
-      }
-    }
-  }
-}
-
-void SystemTools::AddKeepPath(const std::string& dir)
-{
-  std::string cdir;
-  Realpath(SystemTools::CollapseFullPath(dir), cdir);
-  SystemTools::AddTranslationPath(cdir, dir);
-}
-
-void SystemTools::CheckTranslationPath(std::string& path)
-{
-  // Do not translate paths that are too short to have meaningful
-  // translations.
-  if (path.size() < 2) {
-    return;
-  }
-
-  // Always add a trailing slash before translation.  It does not
-  // matter if this adds an extra slash, but we do not want to
-  // translate part of a directory (like the foo part of foo-dir).
-  path += '/';
-
-  // In case a file was specified we still have to go through this:
-  // Now convert any path found in the table back to the one desired:
-  for (auto const& pair : SystemToolsStatics->TranslationMap) {
-    // We need to check of the path is a substring of the other path
-    if (path.compare(0, pair.first.size(), pair.first) == 0) {
-      path = path.replace(0, pair.first.size(), pair.second);
-    }
-  }
-
-  // Remove the trailing slash we added before.
-  path.pop_back();
-}
-#endif
-
 static void SystemToolsAppendComponents(
   std::vector<std::string>& out_components,
   std::vector<std::string>::iterator first,
@@ -3614,23 +3467,6 @@ std::string CollapseFullPathImpl(std::string const& in_path,
   // Transform the path back to a string.
   std::string newPath = SystemTools::JoinPath(out_components);
 
-#if KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP
-  // Update the translation table with this potentially new path.  I am not
-  // sure why this line is here, it seems really questionable, but yet I
-  // would put good money that if I remove it something will break, basically
-  // from what I can see it created a mapping from the collapsed path, to be
-  // replaced by the input path, which almost completely does the opposite of
-  // this function, the only thing preventing this from happening a lot is
-  // that if the in_path has a .. in it, then it is not added to the
-  // translation table. So for most calls this either does nothing due to the
-  // ..  or it adds a translation between identical paths as nothing was
-  // collapsed, so I am going to try to comment it out, and see what hits the
-  // fan, hopefully quickly.
-  // Commented out line below:
-  // SystemTools::AddTranslationPath(newPath, in_path);
-
-  SystemTools::CheckTranslationPath(newPath);
-#endif
 #ifdef _WIN32
   SystemTools::ConvertToUnixSlashes(newPath);
 #endif
@@ -3740,16 +3576,7 @@ std::string SystemTools::RelativePath(const std::string& local,
 std::string SystemTools::GetActualCaseForPath(const std::string& p)
 {
 #ifdef _WIN32
-  return SystemToolsStatic::GetCasePathName(p, false);
-#else
-  return p;
-#endif
-}
-
-std::string SystemTools::GetActualCaseForPathCached(const std::string& p)
-{
-#ifdef _WIN32
-  return SystemToolsStatic::GetActualCaseForPathCached(p);
+  return SystemToolsStatic::GetCasePathName(p);
 #else
   return p;
 #endif
@@ -4961,51 +4788,6 @@ void SystemTools::ClassInitialize()
 
   // Create statics singleton instance
   SystemToolsStatics = new SystemToolsStatic;
-
-#if KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP
-// Add some special translation paths for unix.  These are not added
-// for windows because drive letters need to be maintained.  Also,
-// there are not sym-links and mount points on windows anyway.
-#  if !defined(_WIN32) || defined(__CYGWIN__)
-  // The tmp path is frequently a logical path so always keep it:
-  SystemTools::AddKeepPath("/tmp/");
-
-  // If the current working directory is a logical path then keep the
-  // logical name.
-  std::string pwd_str;
-  if (SystemTools::GetEnv("PWD", pwd_str)) {
-    char buf[2048];
-    if (const char* cwd = Getcwd(buf, 2048)) {
-      // The current working directory may be a logical path.  Find
-      // the shortest logical path that still produces the correct
-      // physical path.
-      std::string cwd_changed;
-      std::string pwd_changed;
-
-      // Test progressively shorter logical-to-physical mappings.
-      std::string cwd_str = cwd;
-      std::string pwd_path;
-      Realpath(pwd_str, pwd_path);
-      while (cwd_str == pwd_path && cwd_str != pwd_str) {
-        // The current pair of paths is a working logical mapping.
-        cwd_changed = cwd_str;
-        pwd_changed = pwd_str;
-
-        // Strip off one directory level and see if the logical
-        // mapping still works.
-        pwd_str = SystemTools::GetFilenamePath(pwd_str);
-        cwd_str = SystemTools::GetFilenamePath(cwd_str);
-        Realpath(pwd_str, pwd_path);
-      }
-
-      // Add the translation to keep the logical path name.
-      if (!cwd_changed.empty() && !pwd_changed.empty()) {
-        SystemTools::AddTranslationPath(cwd_changed, pwd_changed);
-      }
-    }
-  }
-#  endif
-#endif
 }
 
 void SystemTools::ClassFinalize()

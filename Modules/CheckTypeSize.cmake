@@ -54,6 +54,7 @@ Check sizeof a type
   ``LANGUAGE <language>``
     Use the ``<language>`` compiler to perform the check.
     Acceptable values are ``C`` and ``CXX``.
+    If not specified, it defaults to ``C``.
 
 Despite the name of the macro you may use it to check the size of more
 complex expressions, too.  To check e.g.  for the size of a struct
@@ -83,6 +84,62 @@ the way the check is run:
 
 ``CMAKE_EXTRA_INCLUDE_FILES``
   list of extra headers to include.
+
+Examples
+^^^^^^^^
+
+Consider the code:
+
+.. code-block:: cmake
+
+  include(CheckTypeSize)
+
+  # Check for size of long.
+  check_type_size(long SIZEOF_LONG)
+  message("HAVE_SIZEOF_LONG: ${HAVE_SIZEOF_LONG}")
+  message("SIZEOF_LONG: ${SIZEOF_LONG}")
+  message("SIZEOF_LONG_CODE: ${SIZEOF_LONG_CODE}")
+
+On a 64-bit architecture, the output may look something like this::
+
+  HAVE_SIZEOF_LONG: TRUE
+  SIZEOF_LONG: 8
+  SIZEOF_LONG_CODE: #define SIZEOF_LONG 8
+
+On Apple platforms, when :variable:`CMAKE_OSX_ARCHITECTURES` has multiple
+architectures, types may have architecture-dependent sizes.
+For example, with the code
+
+.. code-block:: cmake
+
+  include(CheckTypeSize)
+
+  check_type_size(long SIZEOF_LONG)
+  message("HAVE_SIZEOF_LONG: ${HAVE_SIZEOF_LONG}")
+  message("SIZEOF_LONG: ${SIZEOF_LONG}")
+  foreach(key IN LISTS SIZE_OF_LONG_KEYS)
+    message("key: ${key}")
+    message("value: ${SIZE_OF_LONG-${key}}")
+  endforeach()
+  message("SIZEOF_LONG_CODE:
+  ${SIZEOF_LONG_CODE}")
+
+the result may be::
+
+  HAVE_SIZEOF_LONG: TRUE
+  SIZEOF_LONG: 0
+  key: __i386
+  value: 4
+  key: __x86_64
+  value: 8
+  SIZEOF_LONG_CODE:
+  #if defined(__i386)
+  # define SIZE_OF_LONG 4
+  #elif defined(__x86_64)
+  # define SIZE_OF_LONG 8
+  #else
+  # error SIZE_OF_LONG unknown
+  #endif
 #]=======================================================================]
 
 include(CheckIncludeFile)

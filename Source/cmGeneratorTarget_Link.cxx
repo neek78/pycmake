@@ -459,8 +459,6 @@ bool cmGeneratorTarget::VerifyLinkItemColons(LinkItemRole role,
     } break;
     case cmPolicies::OLD:
       return true;
-    case cmPolicies::REQUIRED_IF_USED:
-    case cmPolicies::REQUIRED_ALWAYS:
     case cmPolicies::NEW:
       // Issue the fatal message.
       break;
@@ -683,13 +681,6 @@ cmLinkInterface const* cmGeneratorTarget::GetLinkInterface(
   }
 
   return iface.Exists ? &iface : nullptr;
-}
-
-void cmGeneratorTarget::ComputeLinkInterface(
-  const std::string& config, cmOptionalLinkInterface& iface,
-  cmGeneratorTarget const* headTarget) const
-{
-  this->ComputeLinkInterface(config, iface, headTarget, false);
 }
 
 void cmGeneratorTarget::ComputeLinkInterface(
@@ -1330,8 +1321,6 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
         case cmPolicies::WARN:
         case cmPolicies::OLD:
           break;
-        case cmPolicies::REQUIRED_IF_USED:
-        case cmPolicies::REQUIRED_ALWAYS:
         case cmPolicies::NEW:
           dagChecker.SetTransitivePropertiesOnlyCMP0131();
           break;
@@ -1390,8 +1379,6 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
             case cmPolicies::OLD:
               noMessage = true;
               break;
-            case cmPolicies::REQUIRED_IF_USED:
-            case cmPolicies::REQUIRED_ALWAYS:
             case cmPolicies::NEW:
               // Issue the fatal message.
               break;
@@ -1455,8 +1442,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
   std::vector<std::string> debugConfigs =
     this->Makefile->GetCMakeInstance()->GetDebugConfigs();
 
-  cmTargetLinkLibraryType linkType =
-    CMP0003_ComputeLinkType(config, debugConfigs);
+  cmTargetLinkLibraryType linkType = ComputeLinkType(config, debugConfigs);
   cmTarget::LinkLibraryVectorType const& oldllibs =
     this->Target->GetOriginalLinkLibraries();
 

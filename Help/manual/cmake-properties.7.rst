@@ -97,6 +97,7 @@ Properties on Directories
    /prop_dir/VARIABLES
    /prop_dir/VS_GLOBAL_SECTION_POST_section
    /prop_dir/VS_GLOBAL_SECTION_PRE_section
+   /prop_dir/VS_SOLUTION_ITEMS
    /prop_dir/VS_STARTUP_PROJECT
 
 .. _`Target Properties`:
@@ -342,6 +343,7 @@ Properties on Targets
    /prop_tgt/LINK_OPTIONS
    /prop_tgt/LINK_SEARCH_END_STATIC
    /prop_tgt/LINK_SEARCH_START_STATIC
+   /prop_tgt/LINK_WARNING_AS_ERROR
    /prop_tgt/LINK_WHAT_YOU_USE
    /prop_tgt/LINKER_LANGUAGE
    /prop_tgt/LINKER_TYPE
@@ -584,6 +586,7 @@ Properties on Source Files
    /prop_sf/UNITY_GROUP
    /prop_sf/VS_COPY_TO_OUT_DIR
    /prop_sf/VS_CSHARP_tagname
+   /prop_sf/VS_CUSTOM_COMMAND_DISABLE_PARALLEL_BUILD
    /prop_sf/VS_DEPLOYMENT_CONTENT
    /prop_sf/VS_DEPLOYMENT_LOCATION
    /prop_sf/VS_INCLUDE_IN_VSIX

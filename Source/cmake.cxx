@@ -293,7 +293,7 @@ cmDocumentationEntry cmake::CMAKE_STANDARD_OPTIONS_TABLE[18] = {
 };
 
 cmake::cmake(Role role, cmState::Mode mode, cmState::ProjectKind projectKind)
-  : CMakeWorkingDirectory(cmSystemTools::GetCurrentWorkingDirectory())
+  : CMakeWorkingDirectory(cmSystemTools::GetLogicalWorkingDirectory())
   , FileTimeCache(cm::make_unique<cmFileTimeCache>())
 #ifndef CMAKE_BOOTSTRAP
   , VariableWatch(cm::make_unique<cmVariableWatch>())
@@ -644,8 +644,8 @@ bool cmake::SetCacheArgs(const std::vector<std::string>& args)
     // Documented behavior of CMAKE{,_CURRENT}_{SOURCE,BINARY}_DIR is to be
     // set to $PWD for -P mode.
     state->SetWorkingMode(SCRIPT_MODE);
-    state->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
-    state->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+    state->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
+    state->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
     state->ReadListFile(args, path);
     return true;
   };
@@ -799,16 +799,16 @@ void cmake::ReadListFile(const std::vector<std::string>& args,
 
 bool cmake::FindPackage(const std::vector<std::string>& args)
 {
-  this->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
-  this->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+  this->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
+  this->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
 
   this->SetGlobalGenerator(cm::make_unique<cmGlobalGenerator>(this));
 
   cmStateSnapshot snapshot = this->GetCurrentSnapshot();
   snapshot.GetDirectory().SetCurrentBinary(
-    cmSystemTools::GetCurrentWorkingDirectory());
+    cmSystemTools::GetLogicalWorkingDirectory());
   snapshot.GetDirectory().SetCurrentSource(
-    cmSystemTools::GetCurrentWorkingDirectory());
+    cmSystemTools::GetLogicalWorkingDirectory());
   // read in the list file to fill the cache
   snapshot.SetDefaultDefinitions();
   auto mfu = cm::make_unique<cmMakefile>(this->GetGlobalGenerator(), snapshot);
@@ -1138,7 +1138,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       "--debug-find-pkg", "Provide a package argument for --debug-find-pkg",
       CommandArgument::Values::One, CommandArgument::RequiresSeparator::Yes,
       [](std::string const& value, cmake* state) -> bool {
-        std::vector<std::string> find_pkgs(cmTokenize(value, ","));
+        std::vector<std::string> find_pkgs(cmTokenize(value, ','));
         std::cout << "Running with debug output on for the 'find' commands "
                      "for package(s)";
         for (auto const& v : find_pkgs) {
@@ -1152,7 +1152,7 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       "--debug-find-var", CommandArgument::Values::One,
       CommandArgument::RequiresSeparator::Yes,
       [](std::string const& value, cmake* state) -> bool {
-        std::vector<std::string> find_vars(cmTokenize(value, ","));
+        std::vector<std::string> find_vars(cmTokenize(value, ','));
         std::cout << "Running with debug output on for the variable(s)";
         for (auto const& v : find_vars) {
           std::cout << ' ' << v;
@@ -1248,7 +1248,15 @@ void cmake::SetArgs(const std::vector<std::string>& args)
       [](std::string const&, cmake* state) -> bool {
         std::cout << "Ignoring COMPILE_WARNING_AS_ERROR target property and "
                      "CMAKE_COMPILE_WARNING_AS_ERROR variable.\n";
-        state->SetIgnoreWarningAsError(true);
+        state->SetIgnoreCompileWarningAsError(true);
+        return true;
+      } },
+    CommandArgument{
+      "--link-no-warning-as-error", CommandArgument::Values::Zero,
+      [](std::string const&, cmake* state) -> bool {
+        std::cout << "Ignoring LINK_WARNING_AS_ERROR target property and "
+                     "CMAKE_LINK_WARNING_AS_ERROR variable.\n";
+        state->SetIgnoreLinkWarningAsError(true);
         return true;
       } },
     CommandArgument{ "--debugger", CommandArgument::Values::Zero,
@@ -1478,10 +1486,10 @@ void cmake::SetArgs(const std::vector<std::string>& args)
   }
 
   if (!haveSourceDir) {
-    this->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+    this->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
   }
   if (!haveBinaryDir) {
-    this->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+    this->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
   }
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -1847,12 +1855,12 @@ bool cmake::SetDirectoriesFromFile(const std::string& arg)
       this->SetHomeDirectoryViaCommandLine(listPath);
       if (no_build_tree) {
         this->SetHomeOutputDirectory(
-          cmSystemTools::GetCurrentWorkingDirectory());
+          cmSystemTools::GetLogicalWorkingDirectory());
       }
     } else if (no_source_tree && no_build_tree) {
       this->SetHomeDirectory(listPath);
       this->SetHomeOutputDirectory(
-        cmSystemTools::GetCurrentWorkingDirectory());
+        cmSystemTools::GetLogicalWorkingDirectory());
     } else if (no_build_tree) {
       this->SetHomeOutputDirectory(listPath);
     }
@@ -1869,7 +1877,7 @@ bool cmake::SetDirectoriesFromFile(const std::string& arg)
       // We didn't find a CMakeCache.txt and it wasn't specified
       // with -B. Assume the current working directory as the build tree.
       this->SetHomeOutputDirectory(
-        cmSystemTools::GetCurrentWorkingDirectory());
+        cmSystemTools::GetLogicalWorkingDirectory());
       used_provided_path = false;
     }
   }
@@ -2380,7 +2388,6 @@ int cmake::Configure()
 int cmake::ActualConfigure()
 {
   // Construct right now our path conversion table before it's too late:
-  this->UpdateConversionPathTable();
   this->CleanupCommandsAndMacros();
 
   cmSystemTools::RemoveADirectory(this->GetHomeOutputDirectory() +
@@ -2958,7 +2965,7 @@ int cmake::Generate()
   this->SaveCache(this->GetHomeOutputDirectory());
 
 #if !defined(CMAKE_BOOTSTRAP)
-  this->GetGlobalGenerator()->WriteInstallJson();
+  this->GlobalGenerator->WriteInstallJson();
   this->FileAPI->WriteReplies();
 #endif
 
@@ -3235,31 +3242,6 @@ void cmake::PrintGeneratorList()
 #endif
 }
 
-void cmake::UpdateConversionPathTable()
-{
-  // Update the path conversion table with any specified file:
-  cmValue tablepath =
-    this->State->GetInitializedCacheValue("CMAKE_PATH_TRANSLATION_FILE");
-
-  if (tablepath) {
-    cmsys::ifstream table(tablepath->c_str());
-    if (!table) {
-      cmSystemTools::Error("CMAKE_PATH_TRANSLATION_FILE set to " + *tablepath +
-                           ". CMake can not open file.");
-      cmSystemTools::ReportLastSystemError("CMake can not open file.");
-    } else {
-      std::string a;
-      std::string b;
-      while (!table.eof()) {
-        // two entries per line
-        table >> a;
-        table >> b;
-        cmSystemTools::AddTranslationPath(a, b);
-      }
-    }
-  }
-}
-
 int cmake::CheckBuildSystem()
 {
   // We do not need to rerun CMake.  Check dependency integrity.
@@ -3500,7 +3482,7 @@ int cmake::GetSystemInformation(std::vector<std::string>& args)
 {
   // so create the directory
   std::string resultFile;
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+  std::string cwd = cmSystemTools::GetLogicalWorkingDirectory();
   std::string destPath = cwd + "/__cmake_systeminformation";
   cmSystemTools::RemoveADirectory(destPath);
   if (!cmSystemTools::MakeDirectory(destPath)) {
@@ -3638,8 +3620,8 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
 
 #if !defined(CMAKE_BOOTSTRAP)
   if (!presetName.empty() || listPresets) {
-    this->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
-    this->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+    this->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
+    this->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
 
     cmCMakePresetsGraph settingsFile;
     auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());
@@ -3984,8 +3966,8 @@ int cmake::Workflow(const std::string& presetName,
                     WorkflowListPresets listPresets, WorkflowFresh fresh)
 {
 #ifndef CMAKE_BOOTSTRAP
-  this->SetHomeDirectory(cmSystemTools::GetCurrentWorkingDirectory());
-  this->SetHomeOutputDirectory(cmSystemTools::GetCurrentWorkingDirectory());
+  this->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
+  this->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
 
   cmCMakePresetsGraph settingsFile;
   auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());

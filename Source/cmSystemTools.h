@@ -404,6 +404,12 @@ public:
   static std::vector<std::string> SplitEnvPath(cm::string_view in);
   static std::vector<std::string> SplitEnvPathNormalized(cm::string_view in);
 
+  /** Convert an input path to an absolute path with no '/..' components.
+      Backslashes in the input path are converted to forward slashes.
+      Relative paths are interpreted w.r.t. GetLogicalWorkingDirectory.
+      On Windows, the on-disk capitalization is loaded for existing paths.
+      This is similar to 'realpath', but preserves symlinks that are
+      not erased by '../' components.  */
   static std::string ToNormalizedPathOnDisk(std::string p);
 
 #ifndef CMAKE_BOOTSTRAP
@@ -534,8 +540,11 @@ public:
   static cm::optional<std::string> GetSystemConfigDirectory();
   static cm::optional<std::string> GetCMakeConfigDirectory();
 
-  /** Get the CWD mapped through the KWSys translation map.  */
-  static std::string GetCurrentWorkingDirectory();
+  static std::string const& GetLogicalWorkingDirectory();
+
+  /** The logical working directory may contain symlinks but must not
+      contain any '../' path components.  */
+  static cmsys::Status SetLogicalWorkingDirectory(std::string const& lwd);
 
   /** Echo a message in color using KWSys's Terminal cprintf.  */
   static void MakefileColorEcho(int color, const char* message, bool newLine,
@@ -596,11 +605,9 @@ public:
   static std::string GetComspec();
 #endif
 
-  /** Get the real path for a given path, removing all symlinks.
-      This variant of GetRealPath also works on Windows but will
-      resolve subst drives too.  */
-  static std::string GetRealPathResolvingWindowsSubst(
-    const std::string& path, std::string* errorMessage = nullptr);
+  /** Get the real path for a given path, removing all symlinks.  */
+  static std::string GetRealPath(const std::string& path,
+                                 std::string* errorMessage = nullptr);
 
   /** Perform one-time initialization of libuv.  */
   static void InitializeLibUV();
