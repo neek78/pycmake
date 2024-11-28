@@ -293,17 +293,6 @@ py::object cmPythonDirAttr::GetPolicyStatus(const pybind11::object& policy) cons
 
         case cmPolicies::NEW:
             return py::bool_(true);
-
-        case cmPolicies::REQUIRED_IF_USED:
-        case cmPolicies::REQUIRED_ALWAYS:
-            py::str err = 
-                py::str(cmPolicies::GetRequiredPolicyError(pid)) +
-                "\nThe call to get_policy_status "_pys +  
-                py::str(policy) +
-                " ...) at which this "_pys +
-                "error appears requests the policy, and this version of CMake "_pys +
-                "requires that the policy be set to NEW before it is checked."_pys;
-            throw py::value_error(err);
     }
 
     // not reached
