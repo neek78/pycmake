@@ -1777,7 +1777,7 @@ private:
 
 void cmMakefile::Configure()
 {
-  const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
+  const std::string currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
   std::string currentStart = cmStrCat(currentSrc, "/CMakeLists.txt");
   const std::string pythonStart = cmStrCat(currentSrc, "/", PYTHON_SCRIPT_NAME);
 
