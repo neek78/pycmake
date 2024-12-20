@@ -373,6 +373,8 @@ struct TargetProperty
 
 TargetProperty const StaticTargetProperties[] = {
   /* clang-format off */
+  // -- Debugger Properties
+  { "DEBUGGER_WORKING_DIRECTORY"_s, IC::ExecutableTarget },
   // Compilation properties
   { "COMPILE_WARNING_AS_ERROR"_s, IC::CanCompileSources },
   { "INTERPROCEDURAL_OPTIMIZATION"_s, IC::CanCompileSources },
@@ -628,6 +630,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "XCODE_SCHEME_MALLOC_GUARD_EDGES"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_GUARD_MALLOC"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_LAUNCH_MODE"_s, IC::NeedsXcodeAndCanCompileSources },
+  { "XCODE_SCHEME_LLDB_INIT_FILE"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_ZOMBIE_OBJECTS"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_MALLOC_STACK"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_DYNAMIC_LINKER_API_USAGE"_s, IC::NeedsXcodeAndCanCompileSources },

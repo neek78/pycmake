@@ -41,6 +41,26 @@ public:
   using Encoding = cmProcessOutput::Encoding;
 
   /**
+   * Return a lower case string
+   */
+  static std::string LowerCase(cm::string_view);
+  static std::string LowerCase(char const* s)
+  {
+    return LowerCase(cm::string_view{ s });
+  }
+  using cmsys::SystemTools::LowerCase;
+
+  /**
+   * Return an upper case string
+   */
+  static std::string UpperCase(cm::string_view);
+  static std::string UpperCase(char const* s)
+  {
+    return UpperCase(cm::string_view{ s });
+  }
+  using cmsys::SystemTools::UpperCase;
+
+  /**
    * Look for and replace registry values in a string
    */
   static void ExpandRegistryValues(std::string& source,
@@ -583,6 +603,15 @@ public:
   /** Encode a string as a URL.  */
   static std::string EncodeURL(std::string const& in,
                                bool escapeSlashes = true);
+
+  enum class DirCase
+  {
+    Sensitive,
+    Insensitive,
+  };
+
+  /** Returns nullopt when `dir` is not a valid directory */
+  static cm::optional<DirCase> GetDirCase(std::string const& dir);
 
 #ifdef _WIN32
   struct WindowsFileRetry

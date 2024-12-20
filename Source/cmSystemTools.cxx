@@ -22,7 +22,7 @@
 
 #include <iterator>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #  include <unordered_map>
 #endif
 
@@ -118,6 +118,12 @@
 #  include <malloc.h> /* for malloc/free on QNX */
 #endif
 
+#ifdef __linux__
+#  include <linux/fs.h>
+
+#  include <sys/ioctl.h>
+#endif
+
 #if !defined(_WIN32) && !defined(__ANDROID__)
 #  include <sys/utsname.h>
 #endif
@@ -191,6 +197,61 @@ cmsys::Status ReadNameOnDisk(std::string const& path, std::string& name)
   CloseHandle(h);
   return cmsys::Status::Success();
 }
+#elif defined(__APPLE__)
+cmsys::Status ReadNameOnDiskIterateDir(std::string const& path,
+                                       std::string& name)
+{
+  // Read contents of the parent directory to find the
+  // entry matching the given path.
+  std::string const bn = cmSystemTools::GetFilenameName(path);
+  std::string const dn = cmSystemTools::GetFilenamePath(path);
+  DIR* d = opendir(dn.c_str());
+  while (struct dirent* dr = readdir(d)) {
+    if (strcasecmp(dr->d_name, bn.c_str()) == 0) {
+      name = dr->d_name;
+      closedir(d);
+      return cmsys::Status::Success();
+    }
+  }
+  closedir(d);
+  return cmsys::Status::POSIX(ENOENT);
+}
+
+cmsys::Status ReadNameOnDiskFcntlGetPath(std::string const& path,
+                                         std::string& name)
+{
+  // macOS (and *BSD) offer a syscall to get an on-disk path to
+  // a descriptor's file.
+  int fd = open(path.c_str(), O_SYMLINK | O_RDONLY);
+  if (fd == -1) {
+    return cmsys::Status::POSIX(errno);
+  }
+  char out[MAXPATHLEN + 1];
+  if (fcntl(fd, F_GETPATH, out) == -1) {
+    int e = errno;
+    close(fd);
+    return cmsys::Status::POSIX(e);
+  }
+  close(fd);
+  name = cmSystemTools::GetFilenameName(out);
+  return cmsys::Status::Success();
+}
+
+cmsys::Status ReadNameOnDisk(std::string const& path, std::string& name)
+{
+  struct stat stat_path;
+  if (lstat(path.c_str(), &stat_path) != 0) {
+    return cmsys::Status::POSIX(errno);
+  }
+  // macOS (and *BSD) use namei(9) to cache file paths.  Use it unless
+  // the inode has multiple hardlinks: if it is opened through multiple
+  // paths, the results may be unpredictable.
+  if (S_ISDIR(stat_path.st_mode) || stat_path.st_nlink < 2) {
+    return ReadNameOnDiskFcntlGetPath(path, name);
+  }
+  // Fall back to reading the parent directory.
+  return ReadNameOnDiskIterateDir(path, name);
+}
 #endif
 
 class RealSystem : public cm::PathResolver::System
@@ -215,7 +276,9 @@ public:
   {
     return GetDosDriveWorkingDirectory(letter);
   }
+#endif
 
+#if defined(_WIN32) || defined(__APPLE__)
   struct NameOnDisk
   {
     cmsys::Status Status;
@@ -329,6 +392,28 @@ void cmSystemTools::ExpandRegistryValues(std::string& source,
   }
 }
 #endif
+
+// Return a lower case string
+std::string cmSystemTools::LowerCase(cm::string_view s)
+{
+  std::string n;
+  n.resize(s.size());
+  for (size_t i = 0; i < s.size(); i++) {
+    n[i] = static_cast<std::string::value_type>(tolower(s[i]));
+  }
+  return n;
+}
+
+// Return an upper case string
+std::string cmSystemTools::UpperCase(cm::string_view s)
+{
+  std::string n;
+  n.resize(s.size());
+  for (size_t i = 0; i < s.size(); i++) {
+    n[i] = static_cast<std::string::value_type>(toupper(s[i]));
+  }
+  return n;
+}
 
 std::string cmSystemTools::HelpFileName(cm::string_view str)
 {
@@ -1100,6 +1185,76 @@ std::string cmSystemTools::GetComspec()
 }
 
 #endif
+
+// File changes involve removing SETUID/SETGID bits when a file is modified.
+// This behavior is consistent across most Unix-like operating systems.
+class FileModeGuard
+{
+public:
+  FileModeGuard(const std::string& file_path, std::string* emsg);
+  bool Restore(std::string* emsg);
+  bool HasErrors() const;
+
+private:
+#ifndef _WIN32
+  mode_t mode_;
+#endif
+  std::string filepath_;
+};
+
+FileModeGuard::FileModeGuard(const std::string& file_path, std::string* emsg)
+{
+#ifndef _WIN32
+  struct stat file_stat;
+  if (stat(file_path.c_str(), &file_stat) != 0) {
+    if (emsg) {
+      *emsg = cmStrCat("Cannot get file stat: ", strerror(errno));
+    }
+    return;
+  }
+
+  mode_ = file_stat.st_mode;
+#else
+  static_cast<void>(emsg);
+#endif
+  filepath_ = file_path;
+}
+
+bool FileModeGuard::Restore(std::string* emsg)
+{
+  assert(filepath_.empty() == false);
+
+#ifndef _WIN32
+  struct stat file_stat;
+  if (stat(filepath_.c_str(), &file_stat) != 0) {
+    if (emsg) {
+      *emsg = cmStrCat("Cannot get file stat: ", strerror(errno));
+    }
+    return false;
+  }
+
+  // Nothing changed; everything is in the expected state
+  if (file_stat.st_mode == mode_) {
+    return true;
+  }
+
+  if (chmod(filepath_.c_str(), mode_) != 0) {
+    if (emsg) {
+      *emsg = cmStrCat("Cannot restore the file mode: ", strerror(errno));
+    }
+    return false;
+  }
+#else
+  static_cast<void>(emsg);
+#endif
+
+  return true;
+}
+
+bool FileModeGuard::HasErrors() const
+{
+  return filepath_.empty();
+}
 
 std::string cmSystemTools::GetRealPath(const std::string& path,
                                        std::string* errorMessage)
@@ -3171,6 +3326,11 @@ cm::optional<bool> AdjustRPathELF(std::string const& file,
     return cmSystemTools::RemoveRPath(file, emsg, changed);
   }
 
+  FileModeGuard file_mode_guard(file, emsg);
+  if (file_mode_guard.HasErrors()) {
+    return false;
+  }
+
   {
     // Open the file for update.
     cmsys::ofstream f(file.c_str(),
@@ -3208,6 +3368,10 @@ cm::optional<bool> AdjustRPathELF(std::string const& file,
         return false;
       }
     }
+  }
+
+  if (!file_mode_guard.Restore(emsg)) {
+    return false;
   }
 
   // Everything was updated successfully.
@@ -3703,6 +3867,11 @@ static cm::optional<bool> RemoveRPathELF(std::string const& file,
     bytesBegin = elf.GetDynamicEntryPosition(0);
   }
 
+  FileModeGuard file_mode_guard(file, emsg);
+  if (file_mode_guard.HasErrors()) {
+    return false;
+  }
+
   // Open the file for update.
   cmsys::ofstream f(file.c_str(),
                     std::ios::in | std::ios::out | std::ios::binary);
@@ -3746,6 +3915,13 @@ static cm::optional<bool> RemoveRPathELF(std::string const& file,
     }
   }
 
+  // Close the handle to allow further operations on the file
+  f.close();
+
+  if (!file_mode_guard.Restore(emsg)) {
+    return false;
+  }
+
   // Everything was updated successfully.
   if (removed) {
     *removed = true;
@@ -3764,15 +3940,28 @@ static cm::optional<bool> RemoveRPathXCOFF(std::string const& file,
   (void)emsg;
   return cm::nullopt; // Cannot handle XCOFF files.
 #else
-  cmXCOFF xcoff(file.c_str(), cmXCOFF::Mode::ReadWrite);
-  if (!xcoff) {
-    return cm::nullopt; // Not a valid XCOFF file.
+  bool rm = false;
+
+  FileModeGuard file_mode_guard(file, emsg);
+  if (file_mode_guard.HasErrors()) {
+    return false;
   }
-  bool rm = xcoff.RemoveLibPath();
-  if (!xcoff) {
-    if (emsg) {
-      *emsg = xcoff.GetErrorMessage();
+
+  {
+    cmXCOFF xcoff(file.c_str(), cmXCOFF::Mode::ReadWrite);
+    if (!xcoff) {
+      return cm::nullopt; // Not a valid XCOFF file.
     }
+    rm = xcoff.RemoveLibPath();
+    if (!xcoff) {
+      if (emsg) {
+        *emsg = xcoff.GetErrorMessage();
+      }
+      return false;
+    }
+  }
+
+  if (!file_mode_guard.Restore(emsg)) {
     return false;
   }
 
@@ -3882,6 +4071,38 @@ std::string cmSystemTools::EncodeURL(std::string const& in, bool escapeSlashes)
     out.append(hexCh);
   }
   return out;
+}
+
+cm::optional<cmSystemTools::DirCase> cmSystemTools::GetDirCase(
+  std::string const& dir)
+{
+  if (!cmSystemTools::FileIsDirectory(dir)) {
+    return cm::nullopt;
+  }
+#if defined(_WIN32) || defined(__APPLE__)
+  return DirCase::Insensitive;
+#elif defined(__linux__)
+  int fd = open(dir.c_str(), O_RDONLY);
+  if (fd == -1) {
+    // cannot open dir but it exists, assume dir is case sensitive.
+    return DirCase::Sensitive;
+  }
+  int attr = 0;
+  int ioctl_res = ioctl(fd, FS_IOC_GETFLAGS, &attr);
+  close(fd);
+
+  if (ioctl_res == -1) {
+    return DirCase::Sensitive;
+  }
+
+  // FS_CASEFOLD_FD from linux/fs.h, in Linux libc-dev 5.4+
+  // For compat with old libc-dev, define it here.
+  const int CMAKE_FS_CASEFOLD_FL = 0x40000000;
+  return (attr & CMAKE_FS_CASEFOLD_FL) != 0 ? DirCase::Insensitive
+                                            : DirCase::Sensitive;
+#else
+  return DirCase::Sensitive;
+#endif
 }
 
 cmsys::Status cmSystemTools::CreateSymlink(std::string const& origName,

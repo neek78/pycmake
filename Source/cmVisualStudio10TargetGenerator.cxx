@@ -282,6 +282,7 @@ cmVisualStudio10TargetGenerator::cmVisualStudio10TargetGenerator(
     this->Makefile->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
   this->NsightTegra = gg->IsNsightTegra();
   this->Android = gg->TargetsAndroid();
+  this->WindowsKernelMode = gg->TargetsWindowsKernelModeDriver();
   auto scanProp = target->GetProperty("CXX_SCAN_FOR_MODULES");
   for (auto const& config : this->Configurations) {
     if (scanProp.IsSet()) {
@@ -299,9 +300,6 @@ cmVisualStudio10TargetGenerator::cmVisualStudio10TargetGenerator(
          &this->NsightTegraVersion[0], &this->NsightTegraVersion[1],
          &this->NsightTegraVersion[2], &this->NsightTegraVersion[3]);
   this->MSTools = !this->NsightTegra && !this->Android;
-  this->Managed = false;
-  this->TargetCompileAsWinRT = false;
-  this->IsMissingFiles = false;
   this->DefaultArtifactDir =
     cmStrCat(this->LocalGenerator->GetCurrentBinaryDirectory(), '/',
              this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget));
@@ -1437,7 +1435,11 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues(Elem& e0)
         switch (this->GeneratorTarget->GetType()) {
           case cmStateEnums::SHARED_LIBRARY:
           case cmStateEnums::MODULE_LIBRARY:
-            configType = "DynamicLibrary";
+            if (this->WindowsKernelMode) {
+              configType = "Driver";
+            } else {
+              configType = "DynamicLibrary";
+            }
             break;
           case cmStateEnums::OBJECT_LIBRARY:
           case cmStateEnums::STATIC_LIBRARY:
@@ -1481,6 +1483,10 @@ void cmVisualStudio10TargetGenerator::WriteProjectConfigurationValues(Elem& e0)
       this->WriteNsightTegraConfigurationValues(e1, c);
     } else if (this->Android) {
       this->WriteAndroidConfigurationValues(e1, c);
+    }
+
+    if (this->WindowsKernelMode) {
+      this->WriteMSDriverConfigurationValues(e1, c);
     }
   }
 }
@@ -1606,6 +1612,14 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesManaged(
 
   OptionsHelper oh(o, e1);
   oh.OutputFlagMap();
+}
+
+void cmVisualStudio10TargetGenerator::WriteMSDriverConfigurationValues(
+  Elem& e1, std::string const&)
+{
+  // FIXME: Introduce a way for project code to control these.
+  e1.Element("DriverType", "KMDF");
+  e1.Element("DriverTargetPlatform", "Universal");
 }
 
 void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValuesCommon(
@@ -3153,8 +3167,9 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
     }
 
     if (ttype <= cmStateEnums::UTILITY) {
-      if (cmValue workingDir = this->GeneratorTarget->GetProperty(
-            "VS_DEBUGGER_WORKING_DIRECTORY")) {
+      if (cmValue workingDir =
+            this->GlobalGenerator->GetDebuggerWorkingDirectory(
+              this->GeneratorTarget)) {
         std::string genWorkingDir = cmGeneratorExpression::Evaluate(
           *workingDir, this->LocalGenerator, config);
         e1.WritePlatformConfigTag("LocalDebuggerWorkingDirectory", cond,
@@ -3217,9 +3232,13 @@ void cmVisualStudio10TargetGenerator::OutputLinkIncremental(
   if (!this->MSTools) {
     return;
   }
+  if (this->WindowsKernelMode) {
+    return;
+  }
   if (this->ProjectType == VsProjectType::csproj) {
     return;
   }
+
   // static libraries and things greater than modules do not need
   // to set this option
   if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY ||
@@ -3357,6 +3376,14 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
     this->LocalGenerator->AddCompileOptions(flags, this->GeneratorTarget,
                                             langForClCompile, configName);
   }
+  bool const isCXXwithC = [this, &configName]() -> bool {
+    if (this->LangForClCompile != "CXX"_s) {
+      return false;
+    }
+    std::set<std::string> languages;
+    this->GeneratorTarget->GetLanguages(languages, configName);
+    return languages.find("C") != languages.end();
+  }();
 
   // Put the IPO enabled configurations into a set.
   if (this->GeneratorTarget->IsIPOEnabled(linkLanguage, configName)) {
@@ -3475,6 +3502,20 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
     }
   }
 
+  if (isCXXwithC) {
+    // Modules/Compiler/Clang.cmake has a special case for clang-cl versions
+    // that do not have a -std:c++23 flag to pass the standard through to the
+    // underlying clang directly.  Unfortunately that flag applies to all
+    // sources in a single .vcxproj file, so if we have C sources too then we
+    // cannot use it.  Map it back to -std::c++latest, even though that might
+    // end up enabling C++26 or later, so it does not apply to C sources.
+    static const std::string kClangStdCxx23 = "-clang:-std=c++23";
+    std::string::size_type p = flags.find(kClangStdCxx23);
+    if (p != std::string::npos) {
+      flags.replace(p, kClangStdCxx23.size(), "-std:c++latest");
+    }
+  }
+
   clOptions.Parse(flags);
   clOptions.Parse(defineFlags);
   std::vector<std::string> targetDefines;
@@ -3507,21 +3548,17 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
   }
 
   // Add C-specific flags expressible in a ClCompile meant for C++.
-  if (langForClCompile == "CXX"_s) {
-    std::set<std::string> languages;
-    this->GeneratorTarget->GetLanguages(languages, configName);
-    if (languages.count("C")) {
-      std::string flagsC;
-      this->LocalGenerator->AddLanguageFlags(
-        flagsC, this->GeneratorTarget, cmBuildStep::Compile, "C", configName);
-      this->LocalGenerator->AddCompileOptions(flagsC, this->GeneratorTarget,
-                                              "C", configName);
-      Options optC(this->LocalGenerator, Options::Compiler,
-                   gg->GetClFlagTable());
-      optC.Parse(flagsC);
-      if (const char* stdC = optC.GetFlag("LanguageStandard_C")) {
-        clOptions.AddFlag("LanguageStandard_C", stdC);
-      }
+  if (isCXXwithC) {
+    std::string flagsC;
+    this->LocalGenerator->AddLanguageFlags(
+      flagsC, this->GeneratorTarget, cmBuildStep::Compile, "C", configName);
+    this->LocalGenerator->AddCompileOptions(flagsC, this->GeneratorTarget, "C",
+                                            configName);
+    Options optC(this->LocalGenerator, Options::Compiler,
+                 gg->GetClFlagTable());
+    optC.Parse(flagsC);
+    if (const char* stdC = optC.GetFlag("LanguageStandard_C")) {
+      clOptions.AddFlag("LanguageStandard_C", stdC);
     }
   }
 
@@ -3687,6 +3724,10 @@ void cmVisualStudio10TargetGenerator::WriteClOptions(
   e2.Element("ScanSourceForModuleDependencies",
              this->ScanSourceForModuleDependencies[configName] ? "true"
                                                                : "false");
+  if (this->WindowsKernelMode) {
+    e2.Element("WppEnabled", "true");
+    e2.Element("WppRecorderEnabled", "true");
+  }
 }
 
 bool cmVisualStudio10TargetGenerator::ComputeRcOptions()
@@ -4821,6 +4862,10 @@ void cmVisualStudio10TargetGenerator::WriteItemDefinitionGroups(Elem& e0)
       this->WriteMarmasmOptions(e1, c);
       this->WriteMasmOptions(e1, c);
       this->WriteNasmOptions(e1, c);
+    }
+
+    if (this->WindowsKernelMode) {
+      Elem(e1, "DriverSign").Element("FileDigestAlgorithm", "sha256");
     }
     //    output midl flags       <Midl></Midl>
     this->WriteMidlOptions(e1, c);

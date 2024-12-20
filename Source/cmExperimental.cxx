@@ -30,7 +30,7 @@ cmExperimental::FeatureData LookupTable[] = {
     false },
   // WindowsKernelModeDriver
   { "WindowsKernelModeDriver",
-    "fac18f65-504e-4dbb-b068-f356bb1f2ddb",
+    "9157bf90-2313-44d6-aefa-67cd83c8be7c",
     "CMAKE_EXPERIMENTAL_WINDOWS_KERNEL_MODE_DRIVER",
     "CMake's Windows kernel-mode driver support is experimental. It is meant "
     "only for experimentation and feedback to CMake developers.",
@@ -43,6 +43,16 @@ cmExperimental::FeatureData LookupTable[] = {
     "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD",
     "CMake's support for `import std;` in C++23 and newer is experimental. It "
     "is meant only for experimentation and feedback to CMake developers.",
+    {},
+    cmExperimental::TryCompileCondition::Always,
+    false },
+  // ImportPackageInfo
+  { "ImportPackageInfo",
+    "e82e467b-f997-4464-8ace-b00808fff261",
+    "CMAKE_EXPERIMENTAL_FIND_CPS_PACKAGES",
+    "CMake's support for importing package information in the Common Package "
+    "Specification format (via find_package) is experimental. It is meant "
+    "only for experimentation and feedback to CMake developers.",
     {},
     cmExperimental::TryCompileCondition::Always,
     false },

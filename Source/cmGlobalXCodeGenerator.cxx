@@ -810,7 +810,6 @@ void cmGlobalXCodeGenerator::ClearXCodeObjects()
   this->TargetGroup.clear();
   this->FileRefs.clear();
   this->ExternalLibRefs.clear();
-  this->EmbeddedLibRefs.clear();
   this->FileRefToBuildFileMap.clear();
   this->FileRefToEmbedBuildFileMap.clear();
   this->CommandsVisited.clear();
@@ -1068,9 +1067,8 @@ cmXCodeObject* cmGlobalXCodeGenerator::CreateXCodeSourceFile(
 void cmGlobalXCodeGenerator::AddXCodeProjBuildRule(
   cmGeneratorTarget* target, std::vector<cmSourceFile*>& sources) const
 {
-  std::string listfile =
-    cmStrCat(target->GetLocalGenerator()->GetCurrentSourceDirectory(),
-             "/CMakeLists.txt");
+  std::string listfile = this->GetCMakeInstance()->GetCMakeListFile(
+    target->GetLocalGenerator()->GetCurrentSourceDirectory());
   cmSourceFile* srcCMakeLists = target->Makefile->GetOrCreateSource(
     listfile, false, cmSourceFileLocationKind::Known);
   if (!cm::contains(sources, srcCMakeLists)) {
@@ -4245,24 +4243,18 @@ void cmGlobalXCodeGenerator::AddEmbeddedObjects(
                cmSystemTools::IsPathToMacOSSharedLibrary(relFile) ||
                cmSystemTools::FileIsDirectory(filePath)) {
       // This is a regular string path - create file reference
-      auto it = this->EmbeddedLibRefs.find(relFile);
-      if (it == this->EmbeddedLibRefs.end()) {
-        cmXCodeObject* fileRef =
-          this->CreateXCodeFileReferenceFromPath(relFile, gt, "", nullptr);
-        if (fileRef) {
-          buildFile = this->CreateObject(cmXCodeObject::PBXBuildFile);
-          buildFile->SetComment(fileRef->GetComment());
-          buildFile->AddAttribute("fileRef",
-                                  this->CreateObjectReference(fileRef));
-        }
-        if (!buildFile) {
-          cmSystemTools::Error(
-            cmStrCat("Can't create build file for ", relFile));
-          continue;
-        }
-        this->EmbeddedLibRefs.emplace(filePath, buildFile);
-      } else {
-        buildFile = it->second;
+      cmXCodeObject* fileRef =
+        this->CreateXCodeFileReferenceFromPath(relFile, gt, "", nullptr);
+      if (fileRef) {
+        buildFile = this->CreateObject(cmXCodeObject::PBXBuildFile);
+        buildFile->SetComment(fileRef->GetComment());
+        buildFile->AddAttribute("fileRef",
+                                this->CreateObjectReference(fileRef));
+      }
+      if (!buildFile) {
+        cmSystemTools::Error(
+          cmStrCat("Can't create build file for ", relFile));
+        continue;
       }
     }
     if (!buildFile) {
@@ -4400,9 +4392,8 @@ bool cmGlobalXCodeGenerator::CreateGroups(
 
       // Add CMakeLists.txt file for user convenience.
       {
-        std::string listfile =
-          cmStrCat(gtgt->GetLocalGenerator()->GetCurrentSourceDirectory(),
-                   "/CMakeLists.txt");
+        std::string listfile = this->GetCMakeInstance()->GetCMakeListFile(
+          gtgt->GetLocalGenerator()->GetCurrentSourceDirectory());
         cmSourceFile* sf = gtgt->Makefile->GetOrCreateSource(
           listfile, false, cmSourceFileLocationKind::Known);
         addSourceToGroup(sf->ResolveFullPath());
