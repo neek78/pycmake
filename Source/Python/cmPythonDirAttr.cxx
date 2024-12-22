@@ -238,7 +238,7 @@ pybind11::dict cmPythonDirAttr::Children() const
     py::dict out;
 
     for(const auto& child : children) {
-        const std::string& path = child.GetDirectory().GetCurrentSource();
+        const auto path = child.GetDirectory().GetCurrentSource();
         cmMakefile* mf = FindMakefile(path);
 
         assert(mf != nullptr);

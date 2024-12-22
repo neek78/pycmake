@@ -1784,7 +1784,6 @@ private:
 
 void cmMakefile::Configure()
 {
-    //FIXME: bring pythonStart into cohernecy with how CurrentStart works now..
   const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
   std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(
     this->StateSnapshot.GetDirectory().GetCurrentSource());
