@@ -4322,6 +4322,15 @@ std::string cmake::GetCMakeListFile(const std::string& dir) const
   return listFile;
 }
 
+std::string cmake::GetPyScriptFile(const std::string& dir) const
+{
+  std::string pyScript = cmStrCat(dir, '/', this->PythonScriptName);
+  if (this->PythonScriptName.empty() ||
+      !cmSystemTools::FileExists(pyScript, true)) {
+    return cmStrCat(dir, "/", PYTHON_SCRIPT_NAME);
+  }
+  return pyScript;
+}
 #if !defined(CMAKE_BOOTSTRAP)
 cmMakefileProfilingData& cmake::GetProfilingOutput()
 {
