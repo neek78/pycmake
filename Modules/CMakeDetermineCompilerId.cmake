@@ -316,8 +316,9 @@ function(CMAKE_DETERMINE_COMPILER_ID lang flagvar src)
   set(CMAKE_${lang}_STANDARD_LIBRARY "")
   if ("x${lang}" STREQUAL "xCXX" AND
       EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${lang}-DetectStdlib.h" AND
-      "x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xClang" AND
-      "x${CMAKE_${lang}_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU")
+      ("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xClang" AND
+       "x${CMAKE_${lang}_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU") OR
+      ("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xGNU"))
     # See #20851 for a proper abstraction for this.
     execute_process(
       COMMAND "${CMAKE_${lang}_COMPILER}"
@@ -858,7 +859,9 @@ ${CMAKE_${lang}_COMPILER_ID_OUTPUT}
       string(APPEND _CMAKE_${lang}_COMPILER_ID_LOG "${MSG}")
     endif()
 
-    string(APPEND _CMAKE_DETERMINE_COMPILER_ID_BUILD_MSG "${MSG}")
+    # Display in reverse order so that attempts with user flags
+    # won't be lost due to console limits / scrollback
+    string(PREPEND _CMAKE_DETERMINE_COMPILER_ID_BUILD_MSG "${MSG}")
 
     # Some languages may know the correct/desired set of flags and want to fail right away if they don't work.
     # This is currently only used by CUDA.
