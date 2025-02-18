@@ -1252,4 +1252,11 @@ private:
   std::set<std::string> WarnedCMP0144;
   bool IsSourceFileTryCompile;
   ImportedTargetScope CurrentImportedTargetScope = ImportedTargetScope::Local;
+
+  // interfaces added for python support
+  bool IsPython = false;  
+
+public:
+  bool GetIsPython() const { return IsPython; }
+    
 };
