@@ -7,7 +7,7 @@ FindJPEG
 
 Find the Joint Photographic Experts Group (JPEG) library (``libjpeg``)
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.12
@@ -103,7 +103,7 @@ if(JPEG_INCLUDE_DIR)
   unset(_JPEG_CONFIG_HEADERS_DEBIAN)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(JPEG
   REQUIRED_VARS JPEG_LIBRARY JPEG_INCLUDE_DIR
   VERSION_VAR JPEG_VERSION)

@@ -9,7 +9,7 @@ See documentation on `CMake Development`_ for more information.
 C++ Code Style
 ==============
 
-We use `clang-format`_ version **15** to define our style for C++ code in
+We use `clang-format`_ version **18** to define our style for C++ code in
 the CMake source tree.  See the `.clang-format`_ configuration file for our
 style settings.  Use the `Utilities/Scripts/clang-format.bash`_ script to
 format source code.  It automatically runs ``clang-format`` on the set of
@@ -220,6 +220,11 @@ Available features are:
 
   * ``<cm/vector>``:
     ``cm::erase``, ``cm::erase_if``, ``cm::ssize``
+
+* From ``C++23``:
+
+  * ``<cm/type_traits>``:
+    ``cm::is_scoped_enum``
 
 Additionally, some useful non-standard extensions to the C++ standard library
 are available in headers under the directory ``cmext/`` in namespace ``cm``.

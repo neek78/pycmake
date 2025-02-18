@@ -129,7 +129,15 @@ queried.  The list of queried values is stored in ``<variable>``.
 ``OS_NAME``
   .. versionadded:: 3.10
 
-  See :variable:`CMAKE_HOST_SYSTEM_NAME`
+  The host operating system name:
+
+  * On UNIX platforms, this is ``uname -s``.
+
+  * On Apple platforms, this is ``sw_vers -productName``.
+
+  * On Windows, this is ``Windows``.
+
+  See also :variable:`CMAKE_HOST_SYSTEM_NAME`.
 
 ``OS_RELEASE``
   .. versionadded:: 3.10
@@ -275,7 +283,7 @@ Query Windows registry
 
 .. versionadded:: 3.24
 
-::
+.. code-block:: cmake
 
   cmake_host_system_information(RESULT <variable>
                                 QUERY WINDOWS_REGISTRY <key> [VALUE_NAMES|SUBKEYS|VALUE <name>]

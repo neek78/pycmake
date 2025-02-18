@@ -82,7 +82,7 @@ private:
     PathLabel();
 
   public:
-    PathLabel(const std::string& label)
+    PathLabel(std::string const& label)
       : cmFindCommon::PathLabel(label)
     {
     }
@@ -92,10 +92,12 @@ private:
     static PathLabel SystemRegistry;
   };
 
+  void InheritOptions(cmFindPackageCommand* other);
+
   // Try to find a package, assuming most state has already been set up. This
   // is used for recursive dependency solving, particularly when importing
   // packages via CPS. Bypasses providers if argsForProvider is empty.
-  bool FindPackage(std::vector<std::string> const& argsForProvider);
+  bool FindPackage(std::vector<std::string> const& argsForProvider = {});
 
   bool FindPackageUsingModuleMode();
   bool FindPackageUsingConfigMode();
@@ -107,14 +109,14 @@ private:
   void AppendSuccessInformation();
   void AppendToFoundProperty(bool found);
   void SetVersionVariables(
-    const std::function<void(const std::string&, cm::string_view)>&
+    std::function<void(std::string const&, cm::string_view)> const&
       addDefinition,
-    const std::string& prefix, const std::string& version, unsigned int count,
+    std::string const& prefix, std::string const& version, unsigned int count,
     unsigned int major, unsigned int minor, unsigned int patch,
     unsigned int tweak);
   void SetModuleVariables();
   bool FindModule(bool& found);
-  void AddFindDefinition(const std::string& var, cm::string_view value);
+  void AddFindDefinition(std::string const& var, cm::string_view value);
   void RestoreFindDefinitions();
 
   class SetRestoreFindDefinitions;
@@ -136,12 +138,27 @@ private:
     NoPolicyScope,
     DoPolicyScope
   };
-  bool ReadListFile(const std::string& f, PolicyScopeRule psr);
-  bool ImportTargetConfigurations(std::string const& base,
-                                  cmPackageInfoReader* parent);
-  bool ImportAppendices(std::string const& base);
+  bool ReadListFile(std::string const& f, PolicyScopeRule psr);
+  bool ReadPackage();
+
+  struct Appendix
+  {
+    std::unique_ptr<cmPackageInfoReader> Reader;
+    std::vector<std::string> Components;
+
+    operator cmPackageInfoReader&() const { return *this->Reader; }
+  };
+  using AppendixMap = std::map<std::string, Appendix>;
+  AppendixMap FindAppendices(std::string const& base,
+                             cmPackageInfoReader const& baseReader) const;
+  bool FindPackageDependencies(std::string const& fileName,
+                               cmPackageInfoReader const& reader,
+                               bool required);
+
+  bool ImportPackageTargets(std::string const& fileName,
+                            cmPackageInfoReader& reader);
   void StoreVersionFound();
-  void SetConfigDirCacheVariable(const std::string& value);
+  void SetConfigDirCacheVariable(std::string const& value);
 
   void PushFindPackageRootPathStack();
   void PopFindPackageRootPathStack();
@@ -163,7 +180,7 @@ private:
   void LoadPackageRegistryWinSystem();
   void LoadPackageRegistryWin(bool user, unsigned int view,
                               cmSearchPath& outPaths);
-  bool CheckPackageRegistryEntry(const std::string& fname,
+  bool CheckPackageRegistryEntry(std::string const& fname,
                                  cmSearchPath& outPaths);
   bool SearchDirectory(std::string const& dir, PackageDescriptionType type);
   bool CheckDirectory(std::string const& dir, PackageDescriptionType type);
@@ -186,8 +203,8 @@ private:
 
   std::map<std::string, cmPolicies::PolicyID> DeprecatedFindModules;
 
-  static const cm::string_view VERSION_ENDPOINT_INCLUDED;
-  static const cm::string_view VERSION_ENDPOINT_EXCLUDED;
+  static cm::string_view const VERSION_ENDPOINT_INCLUDED;
+  static cm::string_view const VERSION_ENDPOINT_EXCLUDED;
 
   std::string Name;
   std::string Variable;
@@ -289,6 +306,7 @@ private:
   std::vector<ConfigFileInfo> ConsideredConfigs;
 
   std::unique_ptr<cmPackageInfoReader> CpsReader;
+  AppendixMap CpsAppendices;
 
   friend struct std::hash<ConfigFileInfo>;
 };

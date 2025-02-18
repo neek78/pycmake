@@ -221,7 +221,7 @@
 
 #elif defined(__clang__) && defined(__ti__)
 # if defined(__ARM_ARCH)
-#  define ARCHITECTURE_ID "Arm"
+#  define ARCHITECTURE_ID "ARM"
 
 # else /* unknown architecture */
 #  define ARCHITECTURE_ID ""
@@ -258,7 +258,7 @@
 # elif defined(__CMCS__)
 #  define ARCHITECTURE_ID "MCS"
 
-# elif defined(__CARM__)
+# elif defined(__CARM__) || defined(__CPARM__)
 #  define ARCHITECTURE_ID "ARM"
 
 # elif defined(__CARC__)

@@ -139,13 +139,18 @@ public:
    * Set name of the file that will hold the actual output. This method allows
    * the output file to be changed during the use of cmGeneratedFileStream.
    */
-  void SetName(const std::string& fname);
+  void SetName(std::string const& fname);
 
   /**
    * Set set a custom temporary file extension used with 'Open'.
    * This does not work if the file was opened by the constructor.
    */
   void SetTempExt(std::string const& ext);
+
+  /**
+   * Get the name of the temporary file.
+   */
+  std::string const& GetTempName() const { return this->TempName; }
 
   /**
    * Write a specific string using an alternate encoding.

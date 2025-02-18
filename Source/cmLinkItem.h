@@ -27,7 +27,7 @@ class cmLinkItem
 
 public:
   // default feature: link library without decoration
-  static const std::string DEFAULT;
+  static std::string const DEFAULT;
 
   cmLinkItem() = default;
   cmLinkItem(std::string s, bool c, cmListFileBacktrace bt,
@@ -51,8 +51,7 @@ class cmLinkImplItem : public cmLinkItem
 {
 public:
   cmLinkImplItem() = default;
-  cmLinkImplItem(cmLinkItem item, bool checkCMP0027);
-  bool CheckCMP0027 = false;
+  cmLinkImplItem(cmLinkItem item);
 };
 
 /** The link implementation specifies the direct library
@@ -64,10 +63,6 @@ struct cmLinkImplementationLibraries
 
   // Object files linked directly in this configuration.
   std::vector<cmLinkItem> Objects;
-
-  // Libraries linked directly in other configurations.
-  // Needed only for OLD behavior of CMP0003.
-  std::vector<cmLinkItem> WrongConfigLibraries;
 
   // Whether the list depends on a genex referencing the configuration.
   bool HadContextSensitiveCondition = false;
@@ -108,12 +103,6 @@ struct cmLinkInterface : public cmLinkInterfaceLibraries
   // or more static libraries.
   unsigned int Multiplicity = 0;
 
-  // Libraries listed for other configurations.
-  // Needed only for OLD behavior of CMP0003.
-  std::vector<cmLinkItem> WrongConfigLibraries;
-
-  bool ImplementationIsInterface = false;
-
   // Whether the list depends on a link language genex.
   bool HadLinkLanguageSensitiveCondition = false;
 };
@@ -123,7 +112,6 @@ struct cmOptionalLinkInterface : public cmLinkInterface
   bool LibrariesDone = false;
   bool AllDone = false;
   bool Exists = false;
-  bool Explicit = false;
   bool CheckLinkLibraries = false;
 };
 
@@ -154,7 +142,7 @@ struct cmOptionalLinkImplementation : public cmLinkImplementation
 
 /** Compute the link type to use for the given configuration.  */
 inline cmTargetLinkLibraryType ComputeLinkType(
-  const std::string& config, std::vector<std::string> const& debugConfigs)
+  std::string const& config, std::vector<std::string> const& debugConfigs)
 {
   // No configuration is always optimized.
   if (config.empty()) {

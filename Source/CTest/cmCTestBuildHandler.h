@@ -49,7 +49,7 @@ private:
 
   //! Run command specialized for make and configure. Returns process status
   // and retVal is return value or exception.
-  bool RunMakeCommand(const std::string& command, int* retVal, const char* dir,
+  bool RunMakeCommand(std::string const& command, int* retVal, char const* dir,
                       int timeout, std::ostream& ofs,
                       Encoding encoding = cmProcessOutput::Auto);
 
@@ -85,9 +85,10 @@ private:
   void GenerateXMLHeader(cmXMLWriter& xml);
   void GenerateXMLLaunched(cmXMLWriter& xml);
   void GenerateXMLLogScraped(cmXMLWriter& xml);
+  void GenerateInstrumentationXML(cmXMLWriter& xml);
   void GenerateXMLFooter(cmXMLWriter& xml, cmDuration elapsed_build_time);
-  bool IsLaunchedErrorFile(const char* fname);
-  bool IsLaunchedWarningFile(const char* fname);
+  bool IsLaunchedErrorFile(char const* fname);
+  bool IsLaunchedWarningFile(char const* fname);
 
   std::string StartBuild;
   std::string EndBuild;
@@ -109,10 +110,10 @@ private:
 
   using t_BuildProcessingQueueType = std::deque<char>;
 
-  void ProcessBuffer(const char* data, size_t length, size_t& tick,
+  void ProcessBuffer(char const* data, size_t length, size_t& tick,
                      size_t tick_len, std::ostream& ofs,
                      t_BuildProcessingQueueType* queue);
-  int ProcessSingleLine(const char* data);
+  int ProcessSingleLine(char const* data);
 
   t_BuildProcessingQueueType BuildProcessingQueue;
   t_BuildProcessingQueueType BuildProcessingErrorQueue;
@@ -145,6 +146,7 @@ private:
 
   bool UseCTestLaunch = false;
   std::string CTestLaunchDir;
+  std::string LogFileName;
   class LaunchHelper;
 
   friend class LaunchHelper;

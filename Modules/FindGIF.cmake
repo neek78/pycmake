@@ -7,7 +7,7 @@ FindGIF
 
 This finds the Graphics Interchange Format (GIF) library (``giflib``)
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 This module defines the following :prop_tgt:`IMPORTED` target:
@@ -79,7 +79,7 @@ find_library(GIF_LIBRARY
 if(GIF_INCLUDE_DIR)
   include(${CMAKE_CURRENT_LIST_DIR}/CMakePushCheckState.cmake)
   include(${CMAKE_CURRENT_LIST_DIR}/CheckStructHasMember.cmake)
-  CMAKE_PUSH_CHECK_STATE()
+  cmake_push_check_state()
   set(CMAKE_REQUIRED_QUIET ${GIF_FIND_QUIETLY})
   set(CMAKE_REQUIRED_INCLUDES "${GIF_INCLUDE_DIR}")
 
@@ -93,7 +93,7 @@ if(GIF_INCLUDE_DIR)
     set(GIF_VERSION "${_GIF_MAJ}.${_GIF_MIN}.${_GIF_REL}")
   else()
     # use UserData field to sniff version instead
-    CHECK_STRUCT_HAS_MEMBER(GifFileType UserData gif_lib.h GIF_GifFileType_UserData )
+    check_struct_has_member(GifFileType UserData gif_lib.h GIF_GifFileType_UserData )
     if(GIF_GifFileType_UserData)
       set(GIF_VERSION 4)
     else()
@@ -105,11 +105,11 @@ if(GIF_INCLUDE_DIR)
   unset(_GIF_MIN)
   unset(_GIF_REL)
   unset(_GIF_DEFS)
-  CMAKE_POP_CHECK_STATE()
+  cmake_pop_check_state()
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(GIF  REQUIRED_VARS  GIF_LIBRARY  GIF_INCLUDE_DIR
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(GIF  REQUIRED_VARS  GIF_LIBRARY  GIF_INCLUDE_DIR
                                        VERSION_VAR GIF_VERSION )
 
 if(GIF_FOUND)

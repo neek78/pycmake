@@ -11,6 +11,7 @@
 #include <cm/string_view>
 #include <cmext/algorithm>
 
+#include <cm3p/json/value.h>
 #include <cm3p/uv.h>
 
 #include "cmsys/Directory.hxx"
@@ -21,6 +22,9 @@
 #include "cmDuration.h"
 #include "cmFileTimeCache.h"
 #include "cmGeneratedFileStream.h"
+#include "cmInstrumentation.h"
+#include "cmInstrumentationQuery.h"
+#include "cmJSONState.h"
 #include "cmList.h"
 #include "cmMakefile.h"
 #include "cmProcessOutput.h"
@@ -33,8 +37,8 @@
 #include "cmValue.h"
 #include "cmXMLWriter.h"
 
-static const char* cmCTestErrorMatches[] = {
-  "^[Bb]us [Ee]rror",
+static char const* cmCTestErrorMatches[] = {
+  "^[Bb]us [Ee]rror", // noqa: spellcheck disable-line
   "^[Ss]egmentation [Vv]iolation",
   "^[Ss]egmentation [Ff]ault",
   ":.*[Pp]ermission [Dd]enied",
@@ -93,7 +97,7 @@ static const char* cmCTestErrorMatches[] = {
   nullptr
 };
 
-static const char* cmCTestErrorExceptions[] = {
+static char const* cmCTestErrorExceptions[] = {
   "instantiated from ",
   "candidates are:",
   ": warning",
@@ -109,7 +113,7 @@ static const char* cmCTestErrorExceptions[] = {
   nullptr
 };
 
-static const char* cmCTestWarningMatches[] = {
+static char const* cmCTestWarningMatches[] = {
   "([^ :]+):([0-9]+): warning:",
   "([^ :]+):([0-9]+): note:",
   "^cc[^C]*CC: WARNING File = ([^,]+), Line = ([0-9]+)",
@@ -135,7 +139,7 @@ static const char* cmCTestWarningMatches[] = {
   nullptr
 };
 
-static const char* cmCTestWarningExceptions[] = {
+static char const* cmCTestWarningExceptions[] = {
   R"(/usr/.*/X11/Xlib\.h:[0-9]+: war.*: ANSI C\+\+ forbids declaration)",
   R"(/usr/.*/X11/Xutil\.h:[0-9]+: war.*: ANSI C\+\+ forbids declaration)",
   R"(/usr/.*/X11/XResource\.h:[0-9]+: war.*: ANSI C\+\+ forbids declaration)",
@@ -157,7 +161,7 @@ static const char* cmCTestWarningExceptions[] = {
 
 struct cmCTestBuildCompileErrorWarningRex
 {
-  const char* RegularExpressionString;
+  char const* RegularExpressionString;
   int FileIndex;
   int LineIndex;
 };
@@ -281,7 +285,7 @@ int cmCTestBuildHandler::ProcessHandler()
     return -1;
   }
 
-  const std::string& buildDirectory =
+  std::string const& buildDirectory =
     this->CTest->GetCTestConfiguration("BuildDirectory");
   if (buildDirectory.empty()) {
     cmCTestLog(this->CTest, ERROR_MESSAGE,
@@ -301,6 +305,8 @@ int cmCTestBuildHandler::ProcessHandler()
     cmCTestLog(this->CTest, ERROR_MESSAGE,
                "Cannot create build log file" << std::endl);
   }
+
+  this->LogFileName = ofs.GetTempName();
 
   // Create lists of regular expression strings for errors, error exceptions,
   // warnings and warning exceptions.
@@ -427,6 +433,11 @@ int cmCTestBuildHandler::ProcessHandler()
   } else {
     this->GenerateXMLLogScraped(xml);
   }
+
+  this->CTest->GetInstrumentation().CollectTimingData(
+    cmInstrumentationQuery::Hook::PrepareForCDash);
+  this->GenerateInstrumentationXML(xml);
+
   this->GenerateXMLFooter(xml, elapsed_build_time);
 
   if (!res || retVal || this->TotalErrors > 0) {
@@ -501,7 +512,7 @@ void cmCTestBuildHandler::GenerateXMLLaunched(cmXMLWriter& xml)
   launchDir.Load(this->CTestLaunchDir);
   unsigned long n = launchDir.GetNumberOfFiles();
   for (unsigned long i = 0; i < n; ++i) {
-    const char* fname = launchDir.GetFile(i);
+    char const* fname = launchDir.GetFile(i);
     if (this->IsLaunchedErrorFile(fname) && numErrorsAllowed) {
       numErrorsAllowed--;
       fragments.insert(this->CTestLaunchDir + '/' + fname);
@@ -593,6 +604,88 @@ void cmCTestBuildHandler::GenerateXMLLogScraped(cmXMLWriter& xml)
   }
 }
 
+void cmCTestBuildHandler::GenerateInstrumentationXML(cmXMLWriter& xml)
+{
+  // Record instrumentation data on a per-target basis.
+  cmsys::Directory targets_dir;
+  std::string targets_snippet_dir = cmStrCat(
+    this->CTest->GetInstrumentation().GetCDashDir(), "/build/targets");
+  if (targets_dir.Load(targets_snippet_dir) &&
+      targets_dir.GetNumberOfFiles() > 0) {
+    xml.StartElement("Targets");
+    for (unsigned int i = 0; i < targets_dir.GetNumberOfFiles(); i++) {
+      if (!targets_dir.FileIsDirectory(i)) {
+        continue;
+      }
+      std::string target_name = targets_dir.GetFile(i);
+      if (target_name == "." || target_name == "..") {
+        continue;
+      }
+      std::string target_type = "UNKNOWN";
+
+      xml.StartElement("Target");
+      xml.Attribute("name", target_name);
+
+      // Check if we have a link snippet for this target.
+      cmsys::Directory target_dir;
+      if (!target_dir.Load(targets_dir.GetFilePath(i))) {
+        cmSystemTools::Error(
+          cmStrCat("Error loading directory ", targets_dir.GetFilePath(i)));
+      }
+      Json::Value link_item;
+      for (unsigned int j = 0; j < target_dir.GetNumberOfFiles(); j++) {
+        std::string fname = target_dir.GetFile(j);
+        if (fname.rfind("link-", 0) == 0) {
+          std::string fpath = target_dir.GetFilePath(j);
+          cmJSONState parseState = cmJSONState(fpath, &link_item);
+          if (!parseState.errors.empty()) {
+            cmSystemTools::Error(parseState.GetErrorMessage(true));
+            break;
+          }
+
+          if (!link_item.isObject()) {
+            std::string error_msg =
+              cmStrCat("Expected snippet ", fpath, " to contain an object");
+            cmSystemTools::Error(error_msg);
+            break;
+          }
+          break;
+        }
+      }
+
+      // If so, parse targetType and targetLabels (optional) from it.
+      if (link_item.isMember("targetType")) {
+        target_type = link_item["targetType"].asString();
+      }
+
+      xml.Attribute("type", target_type);
+
+      if (link_item.isMember("targetLabels") &&
+          !link_item["targetLabels"].empty()) {
+        xml.StartElement("Labels");
+        for (auto const& json_label_item : link_item["targetLabels"]) {
+          xml.Element("Label", json_label_item.asString());
+        }
+        xml.EndElement(); // Labels
+      }
+
+      // Write instrumendation data for this target.
+      std::string target_subdir = cmStrCat("build/targets/", target_name);
+      this->CTest->ConvertInstrumentationSnippetsToXML(xml, target_subdir);
+      std::string target_dir_fullpath = cmStrCat(
+        this->CTest->GetInstrumentation().GetCDashDir(), '/', target_subdir);
+      if (cmSystemTools::FileIsDirectory(target_dir_fullpath)) {
+        cmSystemTools::RemoveADirectory(target_dir_fullpath);
+      }
+      xml.EndElement(); // Target
+    }
+    xml.EndElement(); // Targets
+  }
+
+  // Also record instrumentation data for custom commands (no target).
+  this->CTest->ConvertInstrumentationSnippetsToXML(xml, "build/commands");
+}
+
 void cmCTestBuildHandler::GenerateXMLFooter(cmXMLWriter& xml,
                                             cmDuration elapsed_build_time)
 {
@@ -611,14 +704,14 @@ void cmCTestBuildHandler::GenerateXMLFooter(cmXMLWriter& xml,
   this->CTest->EndXML(xml);
 }
 
-bool cmCTestBuildHandler::IsLaunchedErrorFile(const char* fname)
+bool cmCTestBuildHandler::IsLaunchedErrorFile(char const* fname)
 {
   // error-{hash}.xml
   return (cmHasLiteralPrefix(fname, "error-") &&
           cmHasLiteralSuffix(fname, ".xml"));
 }
 
-bool cmCTestBuildHandler::IsLaunchedWarningFile(const char* fname)
+bool cmCTestBuildHandler::IsLaunchedWarningFile(char const* fname)
 {
   // warning-{hash}.xml
   return (cmHasLiteralPrefix(fname, "warning-") &&
@@ -635,15 +728,15 @@ class cmCTestBuildHandler::LaunchHelper
 public:
   LaunchHelper(cmCTestBuildHandler* handler);
   ~LaunchHelper();
-  LaunchHelper(const LaunchHelper&) = delete;
-  LaunchHelper& operator=(const LaunchHelper&) = delete;
+  LaunchHelper(LaunchHelper const&) = delete;
+  LaunchHelper& operator=(LaunchHelper const&) = delete;
 
 private:
   cmCTestBuildHandler* Handler;
   cmCTest* CTest;
 
   void WriteLauncherConfig();
-  void WriteScrapeMatchers(const char* purpose,
+  void WriteScrapeMatchers(char const* purpose,
                            std::vector<std::string> const& matchers);
 };
 
@@ -703,7 +796,7 @@ void cmCTestBuildHandler::LaunchHelper::WriteLauncherConfig()
 }
 
 void cmCTestBuildHandler::LaunchHelper::WriteScrapeMatchers(
-  const char* purpose, std::vector<std::string> const& matchers)
+  char const* purpose, std::vector<std::string> const& matchers)
 {
   if (matchers.empty()) {
     return;
@@ -716,8 +809,8 @@ void cmCTestBuildHandler::LaunchHelper::WriteScrapeMatchers(
   }
 }
 
-bool cmCTestBuildHandler::RunMakeCommand(const std::string& command,
-                                         int* retVal, const char* dir,
+bool cmCTestBuildHandler::RunMakeCommand(std::string const& command,
+                                         int* retVal, char const* dir,
                                          int timeout, std::ostream& ofs,
                                          Encoding encoding)
 {
@@ -869,7 +962,7 @@ bool cmCTestBuildHandler::RunMakeCommand(const std::string& command,
               launchDir.Load(this->CTestLaunchDir);
               unsigned long n = launchDir.GetNumberOfFiles();
               for (unsigned long i = 0; i < n; ++i) {
-                const char* fname = launchDir.GetFile(i);
+                char const* fname = launchDir.GetFile(i);
                 if (cmHasLiteralSuffix(fname, ".xml")) {
                   launcherXMLFound = true;
                   break;
@@ -884,8 +977,7 @@ bool cmCTestBuildHandler::RunMakeCommand(const std::string& command,
                 // Use temporary BuildLog file to populate this error for
                 // CDash.
                 ofs.flush();
-                reporter.LogOut = this->LogFileNames["Build"];
-                reporter.LogOut += ".tmp";
+                reporter.LogOut = this->LogFileName;
                 reporter.WriteXML();
               }
             } else {
@@ -940,13 +1032,13 @@ bool cmCTestBuildHandler::RunMakeCommand(const std::string& command,
 // ######################################################################
 // ######################################################################
 
-void cmCTestBuildHandler::ProcessBuffer(const char* data, size_t length,
+void cmCTestBuildHandler::ProcessBuffer(char const* data, size_t length,
                                         size_t& tick, size_t tick_len,
                                         std::ostream& ofs,
                                         t_BuildProcessingQueueType* queue)
 {
-  const std::string::size_type tick_line_len = 50;
-  const char* ptr;
+  std::string::size_type const tick_line_len = 50;
+  char const* ptr;
   for (ptr = data; ptr < data + length; ptr++) {
     queue->push_back(*ptr);
   }
@@ -977,7 +1069,7 @@ void cmCTestBuildHandler::ProcessBuffer(const char* data, size_t length,
       this->CurrentProcessingLine.clear();
       cm::append(this->CurrentProcessingLine, queue->begin(), it);
       this->CurrentProcessingLine.push_back(0);
-      const char* line = this->CurrentProcessingLine.data();
+      char const* line = this->CurrentProcessingLine.data();
 
       // Process the line
       int lineType = this->ProcessSingleLine(line);
@@ -1074,7 +1166,7 @@ void cmCTestBuildHandler::ProcessBuffer(const char* data, size_t length,
   ofs << cm::string_view(data, length);
 }
 
-int cmCTestBuildHandler::ProcessSingleLine(const char* data)
+int cmCTestBuildHandler::ProcessSingleLine(char const* data)
 {
   if (this->UseCTestLaunch) {
     // No log scraping when using launchers.

@@ -22,7 +22,9 @@ Module Functions
 
   The ``xctest_add_bundle`` function creates a XCTest bundle named
   <target> which will test the target <testee>. Supported target types
-  for testee are Frameworks and App Bundles::
+  for testee are Frameworks and App Bundles:
+
+  .. code-block:: cmake
 
     xctest_add_bundle(
       <target>  # Name of the XCTest bundle
@@ -33,7 +35,9 @@ Module Functions
 
   The ``xctest_add_test`` function adds an XCTest bundle to the
   project to be run by :manual:`ctest(1)`. The test will be named
-  <name> and tests <bundle>::
+  <name> and tests <bundle>:
+
+  .. code-block:: cmake
 
     xctest_add_test(
       <name>    # Test name
@@ -101,20 +105,20 @@ if(_xcrun_out)
   mark_as_advanced(XCTest_EXECUTABLE)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(XCTest
   REQUIRED_VARS XCTest_LIBRARY XCTest_INCLUDE_DIR XCTest_EXECUTABLE)
 
 if(XCTest_FOUND)
   set(XCTest_INCLUDE_DIRS "${XCTest_INCLUDE_DIR}")
   set(XCTest_LIBRARIES "${XCTest_LIBRARY}")
-endif(XCTest_FOUND)
+endif()
 
 
 function(xctest_add_bundle target testee)
   if(NOT XCTest_FOUND)
     message(FATAL_ERROR "XCTest is required to create a XCTest Bundle.")
-  endif(NOT XCTest_FOUND)
+  endif()
 
   if(NOT CMAKE_OSX_SYSROOT)
     message(FATAL_ERROR "Adding XCTest bundles requires CMAKE_OSX_SYSROOT to be set.")
@@ -166,15 +170,15 @@ function(xctest_add_bundle target testee)
         set_target_properties(${target} PROPERTIES
           LIBRARY_OUTPUT_DIRECTORY "${_output_directory}")
       endif()
-    else(XCODE)
+    else()
       target_link_libraries(${target}
         PRIVATE -bundle_loader $<TARGET_FILE:${testee}>)
-    endif(XCODE)
+    endif()
 
   else()
     message(FATAL_ERROR "Testee ${testee} is of unsupported type.")
   endif()
-endfunction(xctest_add_bundle)
+endfunction()
 
 
 function(xctest_add_test name bundle)
@@ -186,7 +190,7 @@ function(xctest_add_test name bundle)
 
   if(NOT TARGET ${bundle})
     message(FATAL_ERROR "${bundle} is not a target.")
-  endif(NOT TARGET ${bundle})
+  endif()
 
   get_property(_test_type TARGET ${bundle} PROPERTY TYPE)
   get_property(_test_bundle TARGET ${bundle} PROPERTY BUNDLE)
@@ -221,4 +225,4 @@ function(xctest_add_test name bundle)
     set_property(TEST ${name} APPEND PROPERTY
       ENVIRONMENT DYLD_FRAMEWORK_PATH=$<TARGET_LINKER_FILE_DIR:${_testee}>/..)
   endif()
-endfunction(xctest_add_test)
+endfunction()

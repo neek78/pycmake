@@ -68,7 +68,9 @@ Module Commands
 
 .. command:: cxxtest_add_test
 
-  Create a CxxTest runner and adds it to the CTest testing suite::
+  Create a CxxTest runner and adds it to the CTest testing suite:
+
+  .. code-block:: cmake
 
     CXXTEST_ADD_TEST(<test_name> <gen_source_file>
                      <input_files_to_testgen>...)
@@ -193,7 +195,7 @@ find_program(CXXTEST_PERL_TESTGEN_EXECUTABLE cxxtestgen.pl
          PATHS ${CXXTEST_INCLUDE_DIR})
 
 if(PYTHON_FOUND OR PERL_FOUND)
-  include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+  include(FindPackageHandleStandardArgs)
 
   if(PYTHON_FOUND AND (CXXTEST_USE_PYTHON OR NOT PERL_FOUND OR NOT DEFINED CXXTEST_USE_PYTHON))
     set(CXXTEST_TESTGEN_EXECUTABLE ${CXXTEST_PYTHON_TESTGEN_EXECUTABLE})
@@ -204,13 +206,13 @@ if(PYTHON_FOUND OR PERL_FOUND)
     else()
       set(CXXTEST_TESTGEN_INTERPRETER ${Python_EXECUTABLE})
     endif()
-    FIND_PACKAGE_HANDLE_STANDARD_ARGS(CxxTest DEFAULT_MSG
+    find_package_handle_standard_args(CxxTest DEFAULT_MSG
         CXXTEST_INCLUDE_DIR CXXTEST_PYTHON_TESTGEN_EXECUTABLE)
 
   elseif(PERL_FOUND)
     set(CXXTEST_TESTGEN_EXECUTABLE ${CXXTEST_PERL_TESTGEN_EXECUTABLE})
     set(CXXTEST_TESTGEN_INTERPRETER ${PERL_EXECUTABLE})
-    FIND_PACKAGE_HANDLE_STANDARD_ARGS(CxxTest DEFAULT_MSG
+    find_package_handle_standard_args(CxxTest DEFAULT_MSG
         CXXTEST_INCLUDE_DIR CXXTEST_PERL_TESTGEN_EXECUTABLE)
   endif()
 

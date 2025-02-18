@@ -78,7 +78,9 @@ Variables that Provide Information
    /variable/CMAKE_LANG_COMPILER_LINKER_ID
    /variable/CMAKE_LANG_COMPILER_LINKER_VERSION
    /variable/CMAKE_LANG_COMPILER_RANLIB
+   /variable/CMAKE_LANG_DEVICE_LINK_MODE
    /variable/CMAKE_LANG_LINK_LIBRARY_SUFFIX
+   /variable/CMAKE_LANG_LINK_MODE
    /variable/CMAKE_LINK_LIBRARY_SUFFIX
    /variable/CMAKE_LINK_SEARCH_END_STATIC
    /variable/CMAKE_LINK_SEARCH_START_STATIC
@@ -91,6 +93,7 @@ Variables that Provide Information
    /variable/CMAKE_MINOR_VERSION
    /variable/CMAKE_NETRC
    /variable/CMAKE_NETRC_FILE
+   /variable/CMAKE_OBJDUMP
    /variable/CMAKE_PARENT_LIST_FILE
    /variable/CMAKE_PATCH_VERSION
    /variable/CMAKE_PROJECT_DESCRIPTION
@@ -198,8 +201,10 @@ Variables that Change Behavior
    /variable/CMAKE_ERROR_DEPRECATED
    /variable/CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION
    /variable/CMAKE_EXECUTE_PROCESS_COMMAND_ECHO
+   /variable/CMAKE_EXECUTE_PROCESS_COMMAND_ERROR_IS_FATAL
    /variable/CMAKE_EXPORT_BUILD_DATABASE
    /variable/CMAKE_EXPORT_COMPILE_COMMANDS
+   /variable/CMAKE_EXPORT_SARIF
    /variable/CMAKE_EXPORT_PACKAGE_REGISTRY
    /variable/CMAKE_EXPORT_NO_PACKAGE_REGISTRY
    /variable/CMAKE_FIND_APPBUNDLE
@@ -249,6 +254,7 @@ Variables that Change Behavior
    /variable/CMAKE_MFC_FLAG
    /variable/CMAKE_MODULE_PATH
    /variable/CMAKE_POLICY_DEFAULT_CMPNNNN
+   /variable/CMAKE_POLICY_VERSION_MINIMUM
    /variable/CMAKE_POLICY_WARNING_CMPNNNN
    /variable/CMAKE_PREFIX_PATH
    /variable/CMAKE_PROGRAM_PATH
@@ -296,6 +302,7 @@ Variables that Change Behavior
    /variable/CMAKE_XCODE_SCHEME_ENVIRONMENT
    /variable/CMAKE_XCODE_SCHEME_GUARD_MALLOC
    /variable/CMAKE_XCODE_SCHEME_LAUNCH_CONFIGURATION
+   /variable/CMAKE_XCODE_SCHEME_TEST_CONFIGURATION
    /variable/CMAKE_XCODE_SCHEME_LAUNCH_MODE
    /variable/CMAKE_XCODE_SCHEME_LLDB_INIT_FILE
    /variable/CMAKE_XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
@@ -317,6 +324,7 @@ Variables that Describe the System
 .. toctree::
    :maxdepth: 1
 
+   /variable/AIX
    /variable/ANDROID
    /variable/APPLE
    /variable/BORLAND
@@ -325,6 +333,7 @@ Variables that Describe the System
    /variable/CMAKE_CL_64
    /variable/CMAKE_COMPILER_2005
    /variable/CMAKE_HOST_APPLE
+   /variable/CMAKE_HOST_AIX
    /variable/CMAKE_HOST_BSD
    /variable/CMAKE_HOST_EXECUTABLE_SUFFIX
    /variable/CMAKE_HOST_LINUX
@@ -484,7 +493,6 @@ Variables that Control the Build
    /variable/CMAKE_LANG_LINK_LIBRARY_USING_FEATURE_SUPPORTED
    /variable/CMAKE_LANG_LINK_WHAT_YOU_USE_FLAG
    /variable/CMAKE_LANG_LINKER_LAUNCHER
-   /variable/CMAKE_LANG_USING_LINKER_MODE
    /variable/CMAKE_LANG_USING_LINKER_TYPE
    /variable/CMAKE_LANG_VISIBILITY_PRESET
    /variable/CMAKE_LIBRARY_OUTPUT_DIRECTORY
@@ -514,6 +522,7 @@ Variables that Control the Build
    /variable/CMAKE_MODULE_LINKER_FLAGS_CONFIG_INIT
    /variable/CMAKE_MODULE_LINKER_FLAGS_INIT
    /variable/CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+   /variable/CMAKE_MSVC_RUNTIME_CHECKS
    /variable/CMAKE_MSVC_RUNTIME_LIBRARY
    /variable/CMAKE_MSVCIDE_RUN_PATH
    /variable/CMAKE_NINJA_OUTPUT_PATH_PREFIX
@@ -722,6 +731,7 @@ Variables for CTest
    /variable/CTEST_DROP_SITE_PASSWORD
    /variable/CTEST_DROP_SITE_USER
    /variable/CTEST_EXTRA_COVERAGE_GLOB
+   /variable/CTEST_EXTRA_SUBMIT_FILES
    /variable/CTEST_GIT_COMMAND
    /variable/CTEST_GIT_INIT_SUBMODULES
    /variable/CTEST_GIT_UPDATE_CUSTOM
@@ -735,6 +745,7 @@ Variables for CTest
    /variable/CTEST_MEMORYCHECK_SUPPRESSIONS_FILE
    /variable/CTEST_MEMORYCHECK_TYPE
    /variable/CTEST_NIGHTLY_START_TIME
+   /variable/CTEST_NOTES_FILES
    /variable/CTEST_P4_CLIENT
    /variable/CTEST_P4_COMMAND
    /variable/CTEST_P4_OPTIONS
@@ -848,6 +859,7 @@ Deprecated Variables that Control the Build
    :maxdepth: 1
 
    /variable/CMAKE_IOS_INSTALL_COMBINED
+   /variable/CMAKE_LANG_USING_LINKER_MODE
    /variable/CMAKE_USE_RELATIVE_PATHS
 
 Deprecated Variables for Languages

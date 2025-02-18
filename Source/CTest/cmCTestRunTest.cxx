@@ -21,6 +21,7 @@
 #include "cmCTestMemCheckHandler.h"
 #include "cmCTestMultiProcessHandler.h"
 #include "cmDuration.h"
+#include "cmInstrumentation.h"
 #include "cmProcess.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -251,7 +252,7 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
       // If the test did not pass, reprint test name and error
       std::string output = this->GetTestPrefix(completed, total);
       std::string testName = this->TestProperties->Name;
-      const int maxTestNameWidth = this->CTest->GetMaxTestNameWidth();
+      int const maxTestNameWidth = this->CTest->GetMaxTestNameWidth();
       testName.resize(maxTestNameWidth + 4, '.');
 
       output += testName;
@@ -305,7 +306,7 @@ cmCTestRunTest::EndTestResult cmCTestRunTest::EndTest(size_t completed,
   this->TestResult.Reason = reason;
   if (this->TestHandler->LogFile) {
     bool pass = true;
-    const char* reasonType = "Test Pass Reason";
+    char const* reasonType = "Test Pass Reason";
     if (this->TestResult.Status != cmCTestTestHandler::COMPLETED &&
         this->TestResult.Status != cmCTestTestHandler::NOT_RUN) {
       reasonType = "Test Fail Reason";
@@ -663,6 +664,9 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
     return false;
   }
   this->StartTime = this->CTest->CurrentTime();
+  if (this->CTest->GetInstrumentation().HasQuery()) {
+    this->CTest->GetInstrumentation().GetPreTestStats();
+  }
 
   return this->ForkProcess();
 }
@@ -890,18 +894,17 @@ bool cmCTestRunTest::ForkProcess()
 
 void cmCTestRunTest::SetupResourcesEnvironment(std::vector<std::string>* log)
 {
-  std::string processCount = "CTEST_RESOURCE_GROUP_COUNT=";
-  processCount += std::to_string(this->AllocatedResources.size());
+  std::string processCount =
+    cmStrCat("CTEST_RESOURCE_GROUP_COUNT=", this->AllocatedResources.size());
   cmSystemTools::PutEnv(processCount);
   if (log) {
-    log->push_back(processCount);
+    log->emplace_back(std::move(processCount));
   }
 
   std::size_t i = 0;
   for (auto const& process : this->AllocatedResources) {
-    std::string prefix = "CTEST_RESOURCE_GROUP_";
-    prefix += std::to_string(i);
-    std::string resourceList = prefix + '=';
+    std::string prefix = cmStrCat("CTEST_RESOURCE_GROUP_", i);
+    std::string resourceList = cmStrCat(prefix, '=');
     prefix += '_';
     bool firstType = true;
     for (auto const& it : process) {
@@ -911,14 +914,15 @@ void cmCTestRunTest::SetupResourcesEnvironment(std::vector<std::string>* log)
       firstType = false;
       auto resourceType = it.first;
       resourceList += resourceType;
-      std::string var = prefix + cmSystemTools::UpperCase(resourceType) + '=';
+      std::string var =
+        cmStrCat(prefix, cmSystemTools::UpperCase(resourceType), '=');
       bool firstName = true;
       for (auto const& it2 : it.second) {
         if (!firstName) {
           var += ';';
         }
         firstName = false;
-        var += "id:" + it2.Id + ",slots:" + std::to_string(it2.Slots);
+        var += cmStrCat("id:", it2.Id, ",slots:", it2.Slots);
       }
       cmSystemTools::PutEnv(var);
       if (log) {
@@ -971,7 +975,7 @@ void cmCTestRunTest::WriteLogOutputTop(size_t completed, size_t total)
                << indexStr.str();
   outputStream << " ";
 
-  const int maxTestNameWidth = this->CTest->GetMaxTestNameWidth();
+  int const maxTestNameWidth = this->CTest->GetMaxTestNameWidth();
   std::string outname = this->TestProperties->Name + " ";
   outname.resize(maxTestNameWidth + 4, '.');
   outputStream << outname;
@@ -1012,6 +1016,14 @@ void cmCTestRunTest::WriteLogOutputTop(size_t completed, size_t total)
 
 void cmCTestRunTest::FinalizeTest(bool started)
 {
+  if (this->CTest->GetInstrumentation().HasQuery()) {
+    std::string data_file = this->CTest->GetInstrumentation().InstrumentTest(
+      this->TestProperties->Name, this->ActualCommand, this->Arguments,
+      this->TestProcess->GetExitValue(), this->TestProcess->GetStartTime(),
+      this->TestProcess->GetSystemStartTime(),
+      this->GetCTest()->GetConfigType());
+    this->TestResult.InstrumentationFile = data_file;
+  }
   this->MultiTestHandler.FinishTestProcess(this->TestProcess->GetRunner(),
                                            started);
 }

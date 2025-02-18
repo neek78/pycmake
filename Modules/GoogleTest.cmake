@@ -38,7 +38,9 @@ same as the Google Test name (i.e. ``suite.testcase``); see also
 .. command:: gtest_add_tests
 
   Automatically add tests with CTest by scanning source code for Google Test
-  macros::
+  macros:
+
+  .. code-block:: cmake
 
     gtest_add_tests(TARGET target
                     [SOURCES src1...]
@@ -127,7 +129,9 @@ same as the Google Test name (i.e. ``suite.testcase``); see also
     set_tests_properties(${noArgsTests}   PROPERTIES TIMEOUT 10)
     set_tests_properties(${withArgsTests} PROPERTIES TIMEOUT 20)
 
-  For backward compatibility, the following form is also supported::
+  For backward compatibility, the following form is also supported:
+
+  .. code-block:: cmake
 
     gtest_add_tests(exe args files...)
 
@@ -152,7 +156,9 @@ same as the Google Test name (i.e. ``suite.testcase``); see also
 .. command:: gtest_discover_tests
 
   Automatically add tests with CTest by querying the compiled test executable
-  for available tests::
+  for available tests:
+
+  .. code-block:: cmake
 
     gtest_discover_tests(target
                          [EXTRA_ARGS args...]
@@ -400,9 +406,9 @@ function(gtest_add_tests)
     message(FATAL_ERROR "${arg_TARGET} does not define an existing CMake target")
   endif()
   if(NOT arg_WORKING_DIRECTORY)
-    unset(workDir)
+    unset(maybe_WORKING_DIRECTORY)
   else()
-    set(workDir WORKING_DIRECTORY "${arg_WORKING_DIRECTORY}")
+    set(maybe_WORKING_DIRECTORY "WORKING_DIRECTORY \${arg_WORKING_DIRECTORY}")
   endif()
 
   if(NOT arg_SOURCES)
@@ -433,10 +439,10 @@ function(gtest_add_tests)
     set(accumulated "")
     # Iterate over each line in the file so that we know the line number of a test definition
     foreach(line_str IN LISTS content_lines)
-      MATH(EXPR line "${line}+1")
+      math(EXPR line "${line}+1")
       # Check if the current line is the start of a test definition
-      string(REGEX MATCH "[ \t]*${gtest_test_type_regex}[ \t]*[\\(]*" accumlate_start_hit "${line_str}")
-      if(accumlate_start_hit)
+      string(REGEX MATCH "[ \t]*${gtest_test_type_regex}[ \t]*[\\(]*" accumulate_start_hit "${line_str}")
+      if(accumulate_start_hit)
         set(accumulate_line "${line}")
       endif()
       # Append the current line to the accumulated string
@@ -492,11 +498,11 @@ function(gtest_add_tests)
               ${arg_TEST_PREFIX}${orig_test_name}${arg_TEST_SUFFIX}
           )
           cmake_language(EVAL CODE "
-            add_test(NAME ${ctest_test_name}
-                     ${workDir}
-                     COMMAND ${arg_TARGET}
+            add_test(NAME \${ctest_test_name}
+                     ${maybe_WORKING_DIRECTORY}
+                     COMMAND \${arg_TARGET}
                        --gtest_also_run_disabled_tests
-                       --gtest_filter=${gtest_test_name}
+                       --gtest_filter=\${gtest_test_name}
                        ${extra_args}
                      __CMP0178 [==[${cmp0178}]==]
             )"
@@ -508,10 +514,10 @@ function(gtest_add_tests)
       else()
         set(ctest_test_name ${arg_TEST_PREFIX}${gtest_test_name}${arg_TEST_SUFFIX})
         cmake_language(EVAL CODE "
-          add_test(NAME ${ctest_test_name}
-                   ${workDir}
-                   COMMAND ${arg_TARGET}
-                     --gtest_filter=${gtest_test_name}
+          add_test(NAME \${ctest_test_name}
+                   ${maybe_WORKING_DIRECTORY}
+                   COMMAND \${arg_TARGET}
+                     --gtest_filter=\${gtest_test_name}
                      ${extra_args}
                    __CMP0178 [==[${cmp0178}]==]
           )"

@@ -36,7 +36,7 @@ if(NOT DEFINED HAVE_FLAG_SEARCH_PATHS_FIRST)
 endif()
 # More desirable, but does not work:
   #include(CheckCXXCompilerFlag)
-  #CHECK_CXX_COMPILER_FLAG("-Wl,-search_paths_first" HAVE_FLAG_SEARCH_PATHS_FIRST)
+  #check_cxx_compiler_flag("-Wl,-search_paths_first" HAVE_FLAG_SEARCH_PATHS_FIRST)
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "lib")
 set(CMAKE_SHARED_LIBRARY_SUFFIX ".dylib")
@@ -182,9 +182,9 @@ if(_CMAKE_OSX_SYSROOT_PATH)
     # Xcode 5 OSX
     ${_CMAKE_OSX_SYSROOT_PATH}/../../../../../Library/Frameworks
     )
-    get_filename_component(_abolute_path "${_path}" ABSOLUTE)
-    if(EXISTS "${_abolute_path}")
-      list(APPEND CMAKE_SYSTEM_FRAMEWORK_PATH "${_abolute_path}")
+    get_filename_component(_absolute_path "${_path}" ABSOLUTE)
+    if(EXISTS "${_absolute_path}")
+      list(APPEND CMAKE_SYSTEM_FRAMEWORK_PATH "${_absolute_path}")
       break()
     endif()
   endforeach()
@@ -205,7 +205,7 @@ list(APPEND CMAKE_SYSTEM_FRAMEWORK_PATH
   /Network/Library/Frameworks
   /System/Library/Frameworks)
 
-# Warn about known system mis-configuration case.
+# Warn about known system misconfiguration case.
 if(CMAKE_OSX_SYSROOT)
   get_property(_IN_TC GLOBAL PROPERTY IN_TRY_COMPILE)
   if(NOT _IN_TC AND
@@ -248,10 +248,26 @@ unset(_apps_paths)
 
 include(Platform/UnixPaths)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  list(PREPEND CMAKE_SYSTEM_PREFIX_PATH
-    /opt/homebrew # Brew on Apple Silicon
-    )
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  execute_process(
+    COMMAND brew --prefix
+    OUTPUT_VARIABLE _cmake_homebrew_prefix
+    RESULT_VARIABLE _brew_result
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if (_brew_result EQUAL 0 AND IS_DIRECTORY "${_cmake_homebrew_prefix}")
+    list(PREPEND CMAKE_SYSTEM_PREFIX_PATH "${_cmake_homebrew_prefix}")
+  elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    list(PREPEND CMAKE_SYSTEM_PREFIX_PATH
+      /opt/homebrew # Brew on Apple Silicon
+      )
+  else()
+    list(PREPEND CMAKE_SYSTEM_PREFIX_PATH
+      /usr/local # Brew on Intel
+      )
+  endif()
+  unset(_cmake_homebrew_prefix)
+  unset(_brew_result)
 endif()
 
 if(_CMAKE_OSX_SYSROOT_PATH)

@@ -22,7 +22,7 @@ bool cmCreateTestSourceList(std::vector<std::string> const& args,
   std::string extraInclude;
   std::string function;
   std::vector<std::string> tests;
-  // extract extra include and function ot
+  // extract extra include and function
   for (; i != args.end(); i++) {
     if (*i == "EXTRA_INCLUDE") {
       ++i;
@@ -46,7 +46,7 @@ bool cmCreateTestSourceList(std::vector<std::string> const& args,
 
   // Name of the source list
 
-  const char* sourceList = i->c_str();
+  char const* sourceList = i->c_str();
   ++i;
 
   // Name of the test driver
@@ -93,7 +93,8 @@ bool cmCreateTestSourceList(std::vector<std::string> const& args,
       tests_func_name.end();
     tests_func_name.push_back(func_name);
     if (!already_declared) {
-      forwardDeclareCode += cmStrCat("int ", func_name, "(int, char*[]);\n");
+      forwardDeclareCode +=
+        cmStrCat("extern int ", func_name, "(int, char*[]);\n");
     }
   }
 

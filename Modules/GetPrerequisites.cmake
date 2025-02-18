@@ -26,7 +26,8 @@ files:
    otool (Mac OSX)
 
 .. versionchanged:: 3.16
-  The tool specified by ``CMAKE_OBJDUMP`` will be used, if set.
+  The tool specified by the :variable:`CMAKE_OBJDUMP` variable
+  will be used, if set.
 
 The following functions are provided by this module:
 
@@ -45,7 +46,7 @@ The following functions are provided by this module:
      (projects can override with gp_resolved_file_type_override)
    gp_file_type
 
-::
+.. code-block:: cmake
 
   GET_PREREQUISITES(<target> <prerequisites_var> <exclude_system> <recurse>
                     <exepath> <dirs> [<rpaths>])
@@ -71,7 +72,7 @@ locations, /usr/lib...
   The variable GET_PREREQUISITES_VERBOSE can be set to true to enable verbose
   output.
 
-::
+.. code-block:: cmake
 
   LIST_PREREQUISITES(<target> [<recurse> [<exclude_system> [<verbose>]]])
 
@@ -85,7 +86,7 @@ indicating whether to include or exclude "system" prerequisites.  With
 <verbose> set to 0 only the full path names of the prerequisites are
 printed, set to 1 extra information will be displayed.
 
-::
+.. code-block:: cmake
 
   LIST_PREREQUISITES_BY_GLOB(<glob_arg> <glob_exp>)
 
@@ -98,21 +99,21 @@ matching file is executable, its prerequisites are listed.
 Any additional (optional) arguments provided are passed along as the
 optional arguments to the list_prerequisites calls.
 
-::
+.. code-block:: cmake
 
   GP_APPEND_UNIQUE(<list_var> <value>)
 
 Append <value> to the list variable <list_var> only if the value is
 not already in the list.
 
-::
+.. code-block:: cmake
 
   IS_FILE_EXECUTABLE(<file> <result_var>)
 
 Return 1 in <result_var> if <file> is a binary executable, 0
 otherwise.
 
-::
+.. code-block:: cmake
 
   GP_ITEM_DEFAULT_EMBEDDED_PATH(<item> <default_embedded_path_var>)
 
@@ -122,7 +123,7 @@ is embedded inside a bundle.
 Override on a per-project basis by providing a project-specific
 gp_item_default_embedded_path_override function.
 
-::
+.. code-block:: cmake
 
   GP_RESOLVE_ITEM(<context> <item> <exepath> <dirs> <resolved_item_var>
                   [<rpaths>])
@@ -132,7 +133,7 @@ Resolve an item into an existing full path file.
 Override on a per-project basis by providing a project-specific
 gp_resolve_item_override function.
 
-::
+.. code-block:: cmake
 
   GP_RESOLVED_FILE_TYPE(<original_file> <file> <exepath> <dirs> <type_var>
                         [<rpaths>])
@@ -156,7 +157,7 @@ Possible types are:
 Override on a per-project basis by providing a project-specific
 gp_resolved_file_type_override function.
 
-::
+.. code-block:: cmake
 
   GP_FILE_TYPE(<original_file> <file> <type_var>)
 
@@ -173,9 +174,6 @@ Possible types are:
    embedded
    other
 #]=======================================================================]
-
-cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 
 function(gp_append_unique list_var value)
   if(NOT value IN_LIST ${list_var})
@@ -662,7 +660,7 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
   # Check for a script by extension (.bat,.sh,...) or if the file starts with "#!" (shebang)
   file(READ ${target} file_contents LIMIT 5)
   if(target MATCHES "\\.(bat|c?sh|bash|ksh|cmd)$" OR file_contents MATCHES "^#!")
-    message(STATUS "GetPrequisites(${target}) : ignoring script file")
+    message(STATUS "GetPrerequisites(${target}) : ignoring script file")
     # Clear var
     set(${prerequisites_var} "" PARENT_SCOPE)
     return()
@@ -832,7 +830,7 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
       string(SUBSTRING "${gp_cmd_ov}" 0 ${gp_delayload_pos} gp_cmd_ov_no_delayload_deps)
       string(SUBSTRING "${gp_cmd_ov}" ${gp_delayload_pos} -1 gp_cmd_ov_delayload_deps)
       if (verbose)
-        message(STATUS "GetPrequisites(${target}) : ignoring the following delay load dependencies :\n ${gp_cmd_ov_delayload_deps}")
+        message(STATUS "GetPrerequisites(${target}) : ignoring the following delay load dependencies :\n ${gp_cmd_ov_delayload_deps}")
       endif()
       set(gp_cmd_ov ${gp_cmd_ov_no_delayload_deps})
     endif()
@@ -1046,5 +1044,3 @@ function(list_prerequisites_by_glob glob_arg glob_exp)
     endif()
   endforeach()
 endfunction()
-
-cmake_policy(POP)

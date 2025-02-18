@@ -54,7 +54,7 @@ The following variables may be set to influence this module's behavior:
     Search for any BLAS/LAPACK.
     Most likely, a BLAS/LAPACK with 32-bit integer interfaces will be found.
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 This module defines the following :prop_tgt:`IMPORTED` targets:
@@ -286,7 +286,7 @@ if(CMAKE_Fortran_COMPILER_LOADED)
 else()
   include(${CMAKE_CURRENT_LIST_DIR}/CheckFunctionExists.cmake)
 endif()
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 if(BLA_PREFER_PKGCONFIG)
   if(NOT BLA_PKGCONFIG_BLAS)

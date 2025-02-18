@@ -107,9 +107,6 @@ function(run_cmake test)
     if(NOT DEFINED RunCMake_TEST_OPTIONS)
       set(RunCMake_TEST_OPTIONS "")
     endif()
-    if(APPLE)
-      list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0025=NEW)
-    endif()
     if(RunCMake_TEST_LCC AND NOT RunCMake_TEST_NO_CMP0129)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0129=NEW)
     endif()
@@ -146,18 +143,22 @@ function(run_cmake test)
   if(NOT RunCMake_TEST_COMMAND_WORKING_DIRECTORY)
     set(RunCMake_TEST_COMMAND_WORKING_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
   endif()
-  string(CONCAT _code [[execute_process(
-    COMMAND ${RunCMake_TEST_COMMAND}
-            ${RunCMake_TEST_OPTIONS}
-            ]] "${RunCMake_TEST_RAW_ARGS}\n" [[
-    WORKING_DIRECTORY "${RunCMake_TEST_COMMAND_WORKING_DIRECTORY}"
-    OUTPUT_VARIABLE actual_stdout
-    ERROR_VARIABLE ${actual_stderr_var}
-    RESULT_VARIABLE actual_result
-    ENCODING UTF8
-    ${maybe_timeout}
-    ${maybe_input_file}
-    )]])
+  if(NOT RunCMake_CHECK_ONLY)
+    string(CONCAT _code [[execute_process(
+      COMMAND ${RunCMake_TEST_COMMAND}
+              ${RunCMake_TEST_OPTIONS}
+              ]] "${RunCMake_TEST_RAW_ARGS}\n" [[
+      WORKING_DIRECTORY "${RunCMake_TEST_COMMAND_WORKING_DIRECTORY}"
+      OUTPUT_VARIABLE actual_stdout
+      ERROR_VARIABLE ${actual_stderr_var}
+      RESULT_VARIABLE actual_result
+      ENCODING UTF8
+      ${maybe_timeout}
+      ${maybe_input_file}
+      )]])
+  else()
+    set(expect_result "")
+  endif()
   if(DEFINED ENV{PWD})
     set(old_pwd "$ENV{PWD}")
   else()
@@ -261,7 +262,7 @@ function(run_cmake test)
   if(RunCMake_TEST_FAILED)
     set(msg "${RunCMake_TEST_FAILED}\n${msg}")
   endif()
-  if(msg)
+  if(msg AND NOT RunCMake_CHECK_ONLY)
     string(REPLACE ";" "\" \"" command "\"${RunCMake_TEST_COMMAND}\"")
     if(RunCMake_TEST_OPTIONS)
       string(REPLACE ";" "\" \"" options "\"${RunCMake_TEST_OPTIONS}\"")
@@ -271,8 +272,7 @@ function(run_cmake test)
       string(APPEND command " ${RunCMake_TEST_RAW_ARGS}")
     endif()
     string(APPEND msg "Command was:\n command> ${command}\n")
-  endif()
-  if(msg)
+
     foreach(o IN ITEMS stdout stderr config)
       if(DEFINED expect_${o})
         string(REGEX REPLACE "\n" "\n expect-${o}> " expect_${o} " expect-${o}> ${expect_${o}}")
@@ -286,6 +286,8 @@ function(run_cmake test)
     if(RunCMake_TEST_FAILURE_MESSAGE)
       string(APPEND msg "${RunCMake_TEST_FAILURE_MESSAGE}")
     endif()
+  endif()
+  if(msg)
     message(SEND_ERROR "${test}${RunCMake_TEST_VARIANT_DESCRIPTION} - FAILED:\n${msg}")
   else()
     message(STATUS "${test}${RunCMake_TEST_VARIANT_DESCRIPTION} - PASSED")

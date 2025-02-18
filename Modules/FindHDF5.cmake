@@ -155,7 +155,7 @@ The following variables can be set to guide the search for HDF5 libraries and in
 #]=======================================================================]
 
 include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
@@ -481,15 +481,12 @@ function(_HDF5_select_imported_config target imported_conf)
             message(STATUS "Start search through imported configurations in the following order: ${_preferred_confs}")
         endif()
         # Now find the first of these that is present in imported_conf
-        cmake_policy(PUSH)
-        cmake_policy(SET CMP0057 NEW) # support IN_LISTS
         foreach (_conf IN LISTS _preferred_confs)
             if (${_conf} IN_LIST _imported_conf)
                set(_imported_conf ${_conf})
                break()
             endif()
         endforeach()
-        cmake_policy(POP)
     endif()
     if(HDF5_FIND_DEBUG)
         message(STATUS "Selected imported configuration: ${_imported_conf}")

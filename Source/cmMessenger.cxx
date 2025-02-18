@@ -10,6 +10,8 @@
 
 #if !defined(CMAKE_BOOTSTRAP)
 #  include "cmsys/SystemInformation.hxx"
+
+#  include "cmSarifLog.h"
 #endif
 
 #include <sstream>
@@ -22,7 +24,7 @@
 #endif
 
 namespace {
-const char* getMessageTypeStr(MessageType t)
+char const* getMessageTypeStr(MessageType t)
 {
   switch (t) {
     case MessageType::FATAL_ERROR:
@@ -184,8 +186,8 @@ bool cmMessenger::IsMessageTypeVisible(MessageType t) const
   return true;
 }
 
-void cmMessenger::IssueMessage(MessageType t, const std::string& text,
-                               const cmListFileBacktrace& backtrace) const
+void cmMessenger::IssueMessage(MessageType t, std::string const& text,
+                               cmListFileBacktrace const& backtrace) const
 {
   bool force = false;
   // override the message type, if needed, for warnings and errors
@@ -200,8 +202,8 @@ void cmMessenger::IssueMessage(MessageType t, const std::string& text,
   }
 }
 
-void cmMessenger::DisplayMessage(MessageType t, const std::string& text,
-                                 const cmListFileBacktrace& backtrace) const
+void cmMessenger::DisplayMessage(MessageType t, std::string const& text,
+                                 cmListFileBacktrace const& backtrace) const
 {
   std::ostringstream msg;
 
@@ -217,6 +219,11 @@ void cmMessenger::DisplayMessage(MessageType t, const std::string& text,
   PrintCallStack(msg, backtrace, this->TopSource);
 
   displayMessage(t, msg);
+
+#ifndef CMAKE_BOOTSTRAP
+  // Add message to SARIF logs
+  this->SarifLog.LogMessage(t, text, backtrace);
+#endif
 
 #ifdef CMake_ENABLE_DEBUGGER
   if (DebuggerAdapter) {

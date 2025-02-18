@@ -396,11 +396,10 @@ endif()
 
 # The FPHSA helper provides standard way of reporting final search results to
 # the user including the version and component checks.
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 # Save project's policies
 cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 cmake_policy(SET CMP0102 NEW) # if mark_as_advanced(non_cache_var)
 cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 

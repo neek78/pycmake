@@ -176,7 +176,9 @@ installers.  The most commonly-used variables are:
 
   The name of the package file to generate, not including the
   extension.  For example, ``cmake-2.6.1-Linux-i686``.  The default value
-  is::
+  is:
+
+  .. code-block:: cmake
 
     ${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_SYSTEM_NAME}
 
@@ -197,7 +199,9 @@ installers.  The most commonly-used variables are:
   .. versionadded:: 3.7
 
   An algorithm that will be used to generate an additional file with the
-  checksum of the package.  The output file name will be::
+  checksum of the package.  The output file name will be:
+
+  .. code-block:: cmake
 
     ${CPACK_PACKAGE_FILE_NAME}.${CPACK_PACKAGE_CHECKSUM}
 
@@ -479,7 +483,7 @@ The following variables are for advanced uses of CPack:
 
   Specify the ``readelf`` executable path used by CPack.
   The default value will be taken from the ``CMAKE_READELF`` variable, if set,
-  which may be populated by an internal CMake module.  If ``CMAKE_READELF``
+  which may be populated CMake when enabling languages.  If ``CMAKE_READELF``
   is not set, CPack will use :command:`find_program` to determine the
   ``readelf`` path when needed.
 
@@ -489,7 +493,7 @@ The following variables are for advanced uses of CPack:
 
   Specify the ``objcopy`` executable path used by CPack.
   The default value will be taken from the ``CMAKE_OBJCOPY`` variable, if set,
-  which may be populated by an internal CMake module.  If ``CMAKE_OBJCOPY``
+  which may be populated by CMake when enabling languages.  If ``CMAKE_OBJCOPY``
   is not set, CPack will use :command:`find_program` to determine the
   ``objcopy`` path when needed.
 
@@ -498,8 +502,8 @@ The following variables are for advanced uses of CPack:
   .. versionadded:: 3.25
 
   Specify the ``objdump`` executable path used by CPack.
-  The default value will be taken from the ``CMAKE_OBJDUMP`` variable, if set,
-  which may be populated by an internal CMake module.  If ``CMAKE_OBJDUMP``
+  The default value will be taken from the :variable:`CMAKE_OBJDUMP` variable,
+  which may be populated by CMake when enabling languages.  If ``CMAKE_OBJDUMP``
   is not set, CPack will use :command:`find_program` to determine the
   ``objdump`` path when needed.
 

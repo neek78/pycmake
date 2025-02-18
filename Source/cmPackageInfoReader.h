@@ -20,6 +20,14 @@ class cmExecutionStatus;
 class cmMakefile;
 class cmTarget;
 
+struct cmPackageRequirement
+{
+  std::string Name;
+  std::string Version;
+  std::vector<std::string> Components;
+  std::vector<std::string> Hints;
+};
+
 /** \class cmPackageInfoReader
  * \brief Read and parse CPS files.
  *
@@ -35,11 +43,37 @@ public:
 
   std::string GetName() const;
   cm::optional<std::string> GetVersion() const;
+  cm::optional<std::string> GetCompatVersion() const;
 
-  /// If the package uses the 'simple' version scheme, obtain the version as
-  /// a numeric tuple.  Returns an empty vector for other schemes or if no
-  /// version is specified.
-  std::vector<unsigned> ParseVersion() const;
+  // NOTE: The eventual intent is for CPS to support multiple version schemas,
+  // and in particular, we expect to want to support "simple", "custom", "rpm",
+  // "dpkg" and "pep440". Additionally, we desire to be able to parse each of
+  // these to the maximum extent possible; in particular, we want to be able
+  // to decompose "simple" and "pep440" versions into components represented
+  // as numeric types rather than strings, which is not possible with the "rpm"
+  // and "dpkg" schemas. Therefore, we require different data structures to
+  // represent different version schemas.
+
+  struct Pep440Version
+  {
+    // NOTE: This structure is currently incomplete as we only support the
+    // "simple" schema at this time.
+    bool Simple; // "simple" can be represented as a subset of "pep440"
+    std::vector<unsigned> ReleaseComponents;
+    cm::optional<std::string> LocalLabel;
+  };
+
+  // FIXME: Return a sum type (e.g. {cm,std}::variant) of possible versions
+  // when we support more than just the "simple" (and possibly "pep440")
+  // schema(s).
+  /// If the package uses the 'simple' version scheme, parse the provided
+  /// version string as a numeric tuple and optional trailing string.  Returns
+  /// a disengaged optional for other schemes or if no version is specified.
+  cm::optional<Pep440Version> ParseVersion(
+    cm::optional<std::string> const& version) const;
+
+  std::vector<cmPackageRequirement> GetRequirements() const;
+  std::vector<std::string> GetComponentNames() const;
 
   /// Create targets for components specified in the CPS file.
   bool ImportTargets(cmMakefile* makefile, cmExecutionStatus& status);

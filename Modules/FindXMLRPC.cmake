@@ -27,7 +27,7 @@ Modules may be listed by running "xmlrpc-c-config".  Modules include:
 
 Typical usage:
 
-::
+.. code-block:: cmake
 
   find_package(XMLRPC REQUIRED libwww-client)
 #]=======================================================================]
@@ -122,8 +122,8 @@ if(XMLRPC_C_FOUND)
 endif()
 
 # Report the results.
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(
     XMLRPC
     REQUIRED_VARS XMLRPC_C_FOUND XMLRPC_LIBRARIES
     FAIL_MESSAGE "XMLRPC was not found. Make sure the entries XMLRPC_* are set.")

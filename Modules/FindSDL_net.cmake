@@ -85,9 +85,9 @@ endif()
 set(SDL_NET_LIBRARIES ${SDL_NET_LIBRARY})
 set(SDL_NET_INCLUDE_DIRS ${SDL_NET_INCLUDE_DIR})
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(SDL_net
+find_package_handle_standard_args(SDL_net
                                   REQUIRED_VARS SDL_NET_LIBRARIES SDL_NET_INCLUDE_DIRS
                                   VERSION_VAR SDL_NET_VERSION_STRING)
 

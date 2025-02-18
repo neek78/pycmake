@@ -12,7 +12,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 
-bool cmFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
+bool cmFunctionBlocker::IsFunctionBlocked(cmListFileFunction const& lff,
                                           cmExecutionStatus& status)
 {
   if (lff.LowerCaseName() == this->StartCommandName()) {
@@ -35,7 +35,7 @@ bool cmFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
           << "  " << lfc << "\n"
           << "closes on the line\n"
           << "  " << closingContext << "\n"
-          << "with mis-matching arguments.";
+          << "with mis-matching arguments.";  // noqa: spellcheck disable-line
         /* clang-format on */
         mf.IssueMessage(MessageType::AUTHOR_WARNING, e.str());
       } else if (!this->EndCommandSupportsArguments() &&

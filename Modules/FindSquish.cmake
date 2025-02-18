@@ -41,7 +41,7 @@ This module can be used to find Squish.
 It provides the function squish_add_test() for adding a squish test
 to cmake using Squish >= 4.x:
 
-::
+.. code-block:: cmake
 
    squish_add_test(cmakeTestName
      AUT targetName SUITE suiteName TEST squishTestName
@@ -74,7 +74,7 @@ The arguments have the following meaning:
 
 
 
-::
+.. code-block:: cmake
 
    enable_testing()
    find_package(Squish 6.5)
@@ -93,14 +93,14 @@ The arguments have the following meaning:
 For users of Squish version 3.x the macro squish_v3_add_test() is
 provided:
 
-::
+.. code-block:: cmake
 
    squish_v3_add_test(testName applicationUnderTest testCase envVars testWrapper)
    Use this macro to add a test using Squish 3.x.
 
 
 
-::
+.. code-block:: cmake
 
   enable_testing()
   find_package(Squish 3.0)
@@ -188,14 +188,14 @@ else()
 endif()
 
 # record if Squish was found
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Squish  REQUIRED_VARS  SQUISH_INSTALL_DIR SQUISH_CLIENT_EXECUTABLE SQUISH_SERVER_EXECUTABLE
                                           VERSION_VAR  SQUISH_VERSION )
 
 
 set(_SQUISH_MODULE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-macro(squish_v3_add_test testName testAUT testCase envVars testWraper)
+macro(squish_v3_add_test testName testAUT testCase envVars testWrapper)
   if("${SQUISH_VERSION_MAJOR}" STRGREATER "3")
     message(STATUS "Using squish_v3_add_test(), but SQUISH_VERSION_MAJOR is ${SQUISH_VERSION_MAJOR}.\nThis may not work.")
   endif()
@@ -211,7 +211,7 @@ macro(squish_v3_add_test testName testAUT testCase envVars testWraper)
     "-Dsquish_libqtdir:STRING=${QT_LIBRARY_DIR}"
     "-Dsquish_test_case:STRING=${testCase}"
     "-Dsquish_env_vars:STRING=${envVars}"
-    "-Dsquish_wrapper:STRING=${testWraper}"
+    "-Dsquish_wrapper:STRING=${testWrapper}"
     "-Dsquish_module_dir:STRING=${_SQUISH_MODULE_DIR}"
     -P "${_SQUISH_MODULE_DIR}/SquishTestScript.cmake"
     )
@@ -273,7 +273,7 @@ function(squish_v4_add_test testName)
     "-Dsquish_test_suite:STRING=${absTestSuite}"
     "-Dsquish_test_case:STRING=${_SQUISH_TEST}"
     "-Dsquish_env_vars:STRING=${envVars}"
-    "-Dsquish_wrapper:STRING=${testWraper}"
+    "-Dsquish_wrapper:STRING=${testWrapper}"
     "-Dsquish_module_dir:STRING=${_SQUISH_MODULE_DIR}"
     "-Dsquish_pre_command:STRING=${_SQUISH_PRE_COMMAND}"
     "-Dsquish_post_command:STRING=${_SQUISH_POST_COMMAND}"

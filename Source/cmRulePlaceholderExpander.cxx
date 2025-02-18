@@ -261,6 +261,13 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
       return this->ReplaceValues->CMTargetType;
     }
   }
+  if (variable == "TARGET_LABELS") {
+    if (this->ReplaceValues->CMTargetLabels) {
+      return this->ReplaceValues->CMTargetLabels;
+    }
+    return "";
+  }
+
   if (this->ReplaceValues->Output) {
     if (variable == "OUTPUT") {
       return this->ReplaceValues->Output;
@@ -269,6 +276,18 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
   if (variable == "CMAKE_COMMAND") {
     return this->OutputConverter->ConvertToOutputFormat(
       cmSystemTools::GetCMakeCommand(), cmOutputConverter::SHELL);
+  }
+  if (variable == "ROLE") {
+    if (this->ReplaceValues->Role) {
+      return this->ReplaceValues->Role;
+    }
+    return "";
+  }
+  if (variable == "CONFIG") {
+    if (this->ReplaceValues->Config) {
+      return this->ReplaceValues->Config;
+    }
+    return "";
   }
 
   auto compIt = this->Compilers.find(variable);
@@ -347,7 +366,7 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
 
 void cmRulePlaceholderExpander::ExpandRuleVariables(
   cmOutputConverter* outputConverter, std::string& s,
-  const RuleVariables& replaceValues)
+  RuleVariables const& replaceValues)
 {
   this->OutputConverter = outputConverter;
   this->ReplaceValues = &replaceValues;

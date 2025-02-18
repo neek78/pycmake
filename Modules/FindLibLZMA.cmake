@@ -97,14 +97,14 @@ if (LIBLZMA_LIBRARY)
   elseif(LIBLZMA_LIBRARY_DEBUG)
     set(LIBLZMA_LIBRARY_check ${LIBLZMA_LIBRARY_DEBUG})
   endif()
-  CHECK_LIBRARY_EXISTS(${LIBLZMA_LIBRARY_check} lzma_auto_decoder "" LIBLZMA_HAS_AUTO_DECODER)
-  CHECK_LIBRARY_EXISTS(${LIBLZMA_LIBRARY_check} lzma_easy_encoder "" LIBLZMA_HAS_EASY_ENCODER)
-  CHECK_LIBRARY_EXISTS(${LIBLZMA_LIBRARY_check} lzma_lzma_preset "" LIBLZMA_HAS_LZMA_PRESET)
+  check_library_exists(${LIBLZMA_LIBRARY_check} lzma_auto_decoder "" LIBLZMA_HAS_AUTO_DECODER)
+  check_library_exists(${LIBLZMA_LIBRARY_check} lzma_easy_encoder "" LIBLZMA_HAS_EASY_ENCODER)
+  check_library_exists(${LIBLZMA_LIBRARY_check} lzma_lzma_preset "" LIBLZMA_HAS_LZMA_PRESET)
   unset(LIBLZMA_LIBRARY_check)
   set(CMAKE_REQUIRED_QUIET ${CMAKE_REQUIRED_QUIET_SAVE})
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LibLZMA  REQUIRED_VARS  LIBLZMA_LIBRARY
                                                           LIBLZMA_INCLUDE_DIR
                                                           LIBLZMA_HAS_AUTO_DECODER

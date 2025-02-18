@@ -28,7 +28,7 @@
 
 namespace {
 
-bool GetIndexArg(const std::string& arg, int* idx, cmMakefile& mf)
+bool GetIndexArg(std::string const& arg, int* idx, cmMakefile& mf)
 {
   long value;
   if (!cmStrToLong(arg, &value)) {
@@ -57,8 +57,8 @@ bool GetIndexArg(const std::string& arg, int* idx, cmMakefile& mf)
   return true;
 }
 
-bool GetListString(std::string& listString, const std::string& var,
-                   const cmMakefile& makefile)
+bool GetListString(std::string& listString, std::string const& var,
+                   cmMakefile const& makefile)
 {
   // get the old value
   cmValue cacheValue = makefile.GetDefinition(var);
@@ -69,8 +69,8 @@ bool GetListString(std::string& listString, const std::string& var,
   return true;
 }
 
-cm::optional<cmList> GetList(const std::string& var,
-                             const cmMakefile& makefile)
+cm::optional<cmList> GetList(std::string const& var,
+                             cmMakefile const& makefile)
 {
   cm::optional<cmList> list;
 
@@ -89,29 +89,6 @@ cm::optional<cmList> GetList(const std::string& var,
   if (!cm::contains(*list, std::string())) {
     return list;
   }
-  // if we have empty elements we need to check policy CMP0007
-  switch (makefile.GetPolicyStatus(cmPolicies::CMP0007)) {
-    case cmPolicies::WARN: {
-      // Default is to warn and use old behavior
-      // OLD behavior is to allow compatibility, so recall
-      // ExpandListArgument without the true which will remove
-      // empty values
-      list->assign(listString);
-      std::string warn =
-        cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0007),
-                 " List has value = [", listString, "].");
-      makefile.IssueMessage(MessageType::AUTHOR_WARNING, warn);
-      return list;
-    }
-    case cmPolicies::OLD:
-      // OLD behavior is to allow compatibility, so recall
-      // ExpandListArgument without the true which will remove
-      // empty values
-      list->assign(listString);
-      return list;
-    case cmPolicies::NEW:
-      return list;
-  }
   return list;
 }
 
@@ -123,8 +100,8 @@ bool HandleLengthCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
-  const std::string& variableName = args.back();
+  std::string const& listName = args[1];
+  std::string const& variableName = args.back();
 
   auto list = GetList(listName, status.GetMakefile());
   status.GetMakefile().AddDefinition(variableName,
@@ -141,8 +118,8 @@ bool HandleGetCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
-  const std::string& variableName = args.back();
+  std::string const& listName = args[1];
+  std::string const& variableName = args.back();
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
   if (!list) {
@@ -324,8 +301,8 @@ bool HandleFindCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
-  const std::string& variableName = args.back();
+  std::string const& listName = args[1];
+  std::string const& variableName = args.back();
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -348,7 +325,7 @@ bool HandleInsertCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
 
   // expand the variable
   int index;
@@ -381,9 +358,9 @@ bool HandleJoinCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
-  const std::string& glue = args[2];
-  const std::string& variableName = args[3];
+  std::string const& listName = args[1];
+  std::string const& glue = args[2];
+  std::string const& variableName = args[3];
 
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
@@ -406,7 +383,7 @@ bool HandleRemoveItemCommand(std::vector<std::string> const& args,
     return true;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -428,7 +405,7 @@ bool HandleReverseCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -449,7 +426,7 @@ bool HandleRemoveDuplicatesCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -488,7 +465,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
     {
     }
 
-    operator const std::string&() const { return this->Name; }
+    operator std::string const&() const { return this->Name; }
 
     std::string Name;
     cmList::TransformAction Action;
@@ -497,7 +474,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
 
   // Build a set of supported actions.
   std::set<ActionDescriptor,
-           std::function<bool(const std::string&, const std::string&)>>
+           std::function<bool(std::string const&, std::string const&)>>
     descriptors{ { { "APPEND", cmList::TransformAction::APPEND, 1 },
                    { "PREPEND", cmList::TransformAction::PREPEND, 1 },
                    { "TOUPPER", cmList::TransformAction::TOUPPER, 0 },
@@ -505,11 +482,11 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
                    { "STRIP", cmList::TransformAction::STRIP, 0 },
                    { "GENEX_STRIP", cmList::TransformAction::GENEX_STRIP, 0 },
                    { "REPLACE", cmList::TransformAction::REPLACE, 2 } },
-                 [](const std::string& x, const std::string& y) {
+                 [](std::string const& x, std::string const& y) {
                    return x < y;
                  } };
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
 
   // Parse all possible function parameters
   using size_type = std::vector<std::string>::size_type;
@@ -539,10 +516,10 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
       std::vector<std::string>(args.begin() + 3, args.begin() + index);
   }
 
-  const std::string REGEX{ "REGEX" };
-  const std::string AT{ "AT" };
-  const std::string FOR{ "FOR" };
-  const std::string OUTPUT_VARIABLE{ "OUTPUT_VARIABLE" };
+  std::string const REGEX{ "REGEX" };
+  std::string const AT{ "AT" };
+  std::string const FOR{ "FOR" };
+  std::string const OUTPUT_VARIABLE{ "OUTPUT_VARIABLE" };
   std::unique_ptr<cmList::TransformSelector> selector;
   std::string outputName = listName;
 
@@ -589,7 +566,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
               break;
             }
             indexes.push_back(value);
-          } catch (const std::invalid_argument&) {
+          } catch (std::invalid_argument const&) {
             // this is not a number, stop processing
             break;
           }
@@ -636,7 +613,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
               valid = false;
             }
           }
-        } catch (const std::invalid_argument&) {
+        } catch (std::invalid_argument const&) {
           // this is not numbers
           valid = false;
         }
@@ -657,7 +634,7 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
             } else {
               index += 1;
             }
-          } catch (const std::invalid_argument&) {
+          } catch (std::invalid_argument const&) {
             // this is not number, ignore exception
           }
         }
@@ -701,6 +678,11 @@ bool HandleTransformCommand(std::vector<std::string> const& args,
       return true;
     }
 
+    if (!selector) {
+      selector = cmList::TransformSelector::New();
+    }
+    selector->Makefile = &status.GetMakefile();
+
     list->transform(descriptor->Action, arguments, std::move(selector));
     status.GetMakefile().AddDefinition(outputName, list->to_string());
     return true;
@@ -723,7 +705,7 @@ bool HandleSortCommand(std::vector<std::string> const& args,
   SortConfig sortConfig;
 
   size_t argumentIndex = 2;
-  const std::string messageHint = "sub-command SORT ";
+  std::string const messageHint = "sub-command SORT ";
 
   while (argumentIndex < args.size()) {
     std::string const& option = args[argumentIndex++];
@@ -808,7 +790,7 @@ bool HandleSortCommand(std::vector<std::string> const& args,
     }
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -830,8 +812,8 @@ bool HandleSublistCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
-  const std::string& variableName = args.back();
+  std::string const& listName = args[1];
+  std::string const& variableName = args.back();
 
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
@@ -884,7 +866,7 @@ bool HandleRemoveAtCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -943,7 +925,7 @@ bool HandleFilterCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& op = args[2];
+  std::string const& op = args[2];
   cmList::FilterMode filterMode;
   if (op == "INCLUDE") {
     filterMode = cmList::FilterMode::INCLUDE;
@@ -954,7 +936,7 @@ bool HandleFilterCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  const std::string& listName = args[1];
+  std::string const& listName = args[1];
   // expand the variable
   auto list = GetList(listName, status.GetMakefile());
 
@@ -962,7 +944,7 @@ bool HandleFilterCommand(std::vector<std::string> const& args,
     return true;
   }
 
-  const std::string& mode = args[3];
+  std::string const& mode = args[3];
   if (mode != "REGEX") {
     status.SetError("sub-command FILTER does not recognize mode " + mode);
     return false;
@@ -972,7 +954,7 @@ bool HandleFilterCommand(std::vector<std::string> const& args,
                     "requires five arguments.");
     return false;
   }
-  const std::string& pattern = args[4];
+  std::string const& pattern = args[4];
 
   try {
     status.GetMakefile().AddDefinition(

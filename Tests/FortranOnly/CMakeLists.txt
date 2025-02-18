@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10...3.25) # Enable CMP0091 and CMP0141.
+cmake_policy(SET CMP0184 NEW)
 project(FortranOnly Fortran)
 message("CTEST_FULL_OUTPUT ")
 
@@ -8,7 +9,7 @@ if("${CMAKE_Fortran_COMPILER_ID};${CMAKE_Fortran_SIMULATE_ID}" MATCHES "^Intel(L
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran")
-  add_compile_options(--implicit-interface)
+  add_compile_options(--implicit-interface --generate-object-code)
 endif()
 
 # create a library with hello and world functions

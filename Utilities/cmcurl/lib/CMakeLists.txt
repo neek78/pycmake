@@ -28,7 +28,7 @@ add_definitions("-DBUILDING_LIBCURL")
 configure_file("curl_config.h.cmake" "${CMAKE_CURRENT_BINARY_DIR}/curl_config.h")
 
 # Get 'CSOURCES', 'HHEADERS' variables
-transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
+curl_transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
 include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
 
 # DllMain is added later for DLL builds only.
@@ -47,7 +47,7 @@ if(USE_ARES)
 endif()
 
 #-----------------------------------------------------------------------------
-# CMake-specific curl code.
+# XXX(cmake): begin cmake-specific curl code
 unset(LIBCURL_OUTPUT_NAME CACHE)
 
 add_library(cmcurl ${HHEADERS} ${CSOURCES})
@@ -82,6 +82,7 @@ if(CURL_USE_OPENSSL AND OPENSSL_FOUND AND WIN32)
 endif()
 
 return() # The rest of this file is not needed for building within CMake.
+# XXX(cmake): end cmake-specific curl code
 #-----------------------------------------------------------------------------
 
 if(CURL_BUILD_TESTING)
@@ -93,6 +94,9 @@ if(CURL_BUILD_TESTING)
   )
   target_compile_definitions(curlu PUBLIC "UNITTESTS" "CURL_STATICLIB")
   target_link_libraries(curlu PRIVATE ${CURL_LIBS})
+  # There is plenty of parallelism when building the testdeps target.
+  # Override the curlu batch size with the maximum to optimize performance.
+  set_target_properties(curlu PROPERTIES UNITY_BUILD_BATCH_SIZE 0)
 endif()
 
 if(ENABLE_CURLDEBUG)
@@ -102,6 +106,13 @@ if(ENABLE_CURLDEBUG)
 endif()
 
 ## Library definition
+
+if(NOT DEFINED IMPORT_LIB_SUFFIX)
+  set(IMPORT_LIB_SUFFIX "")
+endif()
+if(NOT DEFINED STATIC_LIB_SUFFIX)
+  set(STATIC_LIB_SUFFIX "")
+endif()
 
 # Add "_imp" as a suffix before the extension to avoid conflicting with
 # the statically linked "libcurl.lib" (typically with MSVC)
@@ -143,9 +154,7 @@ if(SHARE_LIB_OBJECT)
     set_property(TARGET ${LIB_OBJECT} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_HIDDEN_SYMBOLS")
   endif()
   if(CURL_HAS_LTO)
-    set_target_properties(${LIB_OBJECT} PROPERTIES
-      INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
-      INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    set_target_properties(${LIB_OBJECT} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
 
   target_include_directories(${LIB_OBJECT} INTERFACE
@@ -176,9 +185,7 @@ if(BUILD_STATIC_LIBS)
     set_property(TARGET ${LIB_STATIC} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_HIDDEN_SYMBOLS")
   endif()
   if(CURL_HAS_LTO)
-    set_target_properties(${LIB_STATIC} PROPERTIES
-      INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
-      INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    set_target_properties(${LIB_STATIC} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
 
   target_include_directories(${LIB_STATIC} INTERFACE
@@ -215,9 +222,7 @@ if(BUILD_SHARED_LIBS)
     set_property(TARGET ${LIB_SHARED} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_HIDDEN_SYMBOLS")
   endif()
   if(CURL_HAS_LTO)
-    set_target_properties(${LIB_SHARED} PROPERTIES
-      INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
-      INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    set_target_properties(${LIB_SHARED} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
 
   target_include_directories(${LIB_SHARED} INTERFACE
@@ -246,7 +251,7 @@ if(BUILD_SHARED_LIBS)
 
   if(CURL_LIBCURL_SOVERSION OR CURL_LIBCURL_VERSIONED_SYMBOLS)
     # Get 'VERSIONCHANGE', 'VERSIONADD', 'VERSIONDEL', 'VERSIONINFO' variables
-    transform_makefile_inc("Makefile.soname" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.soname.cmake")
+    curl_transform_makefile_inc("Makefile.soname" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.soname.cmake")
     include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.soname.cmake")
 
     math(EXPR _cmakesoname "${VERSIONCHANGE} - ${VERSIONDEL}")

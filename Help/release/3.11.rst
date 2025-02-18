@@ -127,7 +127,7 @@ Properties
 Modules
 -------
 
-* The :module:`CheckIncludeFiles` module :command:`CHECK_INCLUDE_FILES`
+* The :module:`CheckIncludeFiles` module :command:`check_include_files`
   command gained a ``LANGUAGE`` option to specify whether to check using the
   ``C`` or ``CXX`` compiler.
 
@@ -161,7 +161,7 @@ Modules
 
 * A :module:`FindIconv` module was added to locate iconv support.
 
-* The :module:`GenerateExportHeader` module ``GENERATE_EXPORT_HEADER`` command
+* The :module:`GenerateExportHeader` module ``generate_export_header`` command
   gained an ``INCLUDE_GUARD_NAME`` option to change the name of the include
   guard symbol written to the generated export header.
   Additionally, it now adds a comment after the closing ``#endif`` on the

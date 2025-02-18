@@ -62,12 +62,6 @@ add_library(ManifestLib INTERFACE)
 add_library(
   CMakeLib
   # Lexers/Parsers
-  LexerParser/cmCommandArgumentLexer.cxx
-  LexerParser/cmCommandArgumentLexer.h
-  LexerParser/cmCommandArgumentLexer.in.l
-  LexerParser/cmCommandArgumentParser.cxx
-  LexerParser/cmCommandArgumentParserTokens.h
-  LexerParser/cmCommandArgumentParser.y
   LexerParser/cmDependsJavaLexer.cxx
   LexerParser/cmDependsJavaLexer.h
   LexerParser/cmDependsJavaLexer.in.l
@@ -141,7 +135,6 @@ add_library(
   cmCMakePresetsGraphReadJSONPackagePresets.cxx
   cmCMakePresetsGraphReadJSONTestPresets.cxx
   cmCMakePresetsGraphReadJSONWorkflowPresets.cxx
-  cmCommandArgumentParserHelper.cxx
   cmCommandLineArgument.h
   cmCommonTargetGenerator.cxx
   cmCommonTargetGenerator.h
@@ -359,6 +352,12 @@ add_library(
   cmInstallDirectoryGenerator.cxx
   cmInstallScriptHandler.h
   cmInstallScriptHandler.cxx
+  cmInstrumentation.h
+  cmInstrumentation.cxx
+  cmInstrumentationCommand.h
+  cmInstrumentationCommand.cxx
+  cmInstrumentationQuery.h
+  cmInstrumentationQuery.cxx
   cmJSONHelpers.cxx
   cmJSONHelpers.h
   cmJSONState.cxx
@@ -447,6 +446,8 @@ add_library(
   cmRST.h
   cmRuntimeDependencyArchive.cxx
   cmRuntimeDependencyArchive.h
+  cmSarifLog.cxx
+  cmSarifLog.h
   cmScriptGenerator.h
   cmScriptGenerator.cxx
   cmSourceFile.cxx
@@ -542,8 +543,6 @@ add_library(
   cmBreakCommand.h
   cmBuildCommand.cxx
   cmBuildCommand.h
-  cmBuildNameCommand.cxx
-  cmBuildNameCommand.h
   cmCMakeHostSystemInformationCommand.cxx
   cmCMakeHostSystemInformationCommand.h
   cmCMakeLanguageCommand.cxx
@@ -582,8 +581,6 @@ add_library(
   cmExperimental.h
   cmExportCommand.cxx
   cmExportCommand.h
-  cmExportLibraryDependenciesCommand.cxx
-  cmExportLibraryDependenciesCommand.h
   cmFLTKWrapUICommand.cxx
   cmFLTKWrapUICommand.h
   cmFileCommand.cxx
@@ -662,8 +659,6 @@ add_library(
   cmListCommand.h
   cmLoadCacheCommand.cxx
   cmLoadCacheCommand.h
-  cmLoadCommandCommand.cxx
-  cmLoadCommandCommand.h
   cmMacroCommand.cxx
   cmMacroCommand.h
   cmMakeDirectoryCommand.cxx
@@ -677,8 +672,6 @@ add_library(
   cmMessageMetadata.h
   cmOptionCommand.cxx
   cmOptionCommand.h
-  cmOutputRequiredFilesCommand.cxx
-  cmOutputRequiredFilesCommand.h
   cmParseArgumentsCommand.cxx
   cmParseArgumentsCommand.h
   cmPathLabel.cxx
@@ -724,8 +717,6 @@ add_library(
   cmSubcommandTable.h
   cmSubdirCommand.cxx
   cmSubdirCommand.h
-  cmSubdirDependsCommand.cxx
-  cmSubdirDependsCommand.h
   cmTargetCompileDefinitionsCommand.cxx
   cmTargetCompileDefinitionsCommand.h
   cmTargetCompileFeaturesCommand.cxx
@@ -754,12 +745,6 @@ add_library(
   cmTryRunCommand.h
   cmUnsetCommand.cxx
   cmUnsetCommand.h
-  cmUseMangledMesaCommand.cxx
-  cmUseMangledMesaCommand.h
-  cmUtilitySourceCommand.cxx
-  cmUtilitySourceCommand.h
-  cmVariableRequiresCommand.cxx
-  cmVariableRequiresCommand.h
   cmVariableWatchCommand.cxx
   cmVariableWatchCommand.h
   cmWhileCommand.cxx
@@ -1034,7 +1019,6 @@ if(CMake_BUILD_PCH)
     set_source_files_properties("LexerParser/cmFortranParser.cxx" PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
   else()
     set_source_files_properties(
-      "LexerParser/cmCommandArgumentLexer.cxx"
       "LexerParser/cmGccDepfileLexer.cxx"
       "LexerParser/cmExprLexer.cxx"
       "LexerParser/cmDependsJavaLexer.cxx"
@@ -1050,6 +1034,10 @@ if(WIN32 AND NOT CYGWIN)
   add_executable(cmcldeps cmcldeps.cxx)
   target_link_libraries(cmcldeps PRIVATE CMakeLib ManifestLib)
   list(APPEND _tools cmcldeps)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_SYSTEM_VERSION STREQUAL "5.10" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
+  set_property(SOURCE cmSystemTools.cxx APPEND PROPERTY COMPILE_DEFINITIONS CMAKE_NO_MKDTEMP)
 endif()
 
 # Some atomic instructions are implemented using libatomic on some platforms.
@@ -1083,7 +1071,6 @@ add_library(
   CTest/cmCTestBuildHandler.cxx
   CTest/cmCTestCommand.cxx
   CTest/cmCTestConfigureCommand.cxx
-  CTest/cmCTestConfigureHandler.cxx
   CTest/cmCTestCoverageCommand.cxx
   CTest/cmCTestCoverageHandler.cxx
   CTest/cmCTestCurl.cxx
@@ -1384,8 +1371,6 @@ foreach(_tool IN LISTS _tools)
   CMake_OPTIONAL_COMPONENT(${_tool})
   install(TARGETS ${_tool} DESTINATION ${CMAKE_BIN_DIR} ${COMPONENT})
 endforeach()
-
-install(FILES cmCPluginAPI.h DESTINATION ${CMAKE_DATA_DIR}/include)
 
 # Unset temporary variables
 unset(_tools)

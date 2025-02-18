@@ -1,8 +1,5 @@
 include(RunCMake)
 
-# For `if (IN_LIST)`
-cmake_policy(SET CMP0057 NEW)
-
 run_cmake(Inspect)
 include("${RunCMake_BINARY_DIR}/Inspect-build/info.cmake")
 
@@ -321,6 +318,7 @@ endif ()
 
 # Tests which require collation work.
 if ("collation" IN_LIST CMake_TEST_MODULE_COMPILATION)
+  run_cxx_module_test(duplicate-sources)
   run_cxx_module_test(public-req-private)
   set(RunCMake_CXXModules_NO_TEST 1)
   run_cxx_module_test(req-private-other-target)

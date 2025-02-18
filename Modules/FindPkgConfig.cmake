@@ -33,10 +33,6 @@ for how these variables are initialized.
 
 #]========================================]
 
-cmake_policy(PUSH)
-cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
-
 ### Common stuff ####
 set(PKG_CONFIG_VERSION 1)
 
@@ -110,7 +106,7 @@ if (PKG_CONFIG_EXECUTABLE)
   unset(_PKG_CONFIG_VERSION_RESULT)
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PkgConfig
                                   REQUIRED_VARS PKG_CONFIG_EXECUTABLE
                                   REASON_FAILURE_MESSAGE "${_PKG_CONFIG_FAILURE_MESSAGE}"
@@ -978,7 +974,7 @@ endmacro()
 function (pkg_get_variable result pkg variable)
   set(_multiValueArgs DEFINE_VARIABLES)
 
-  CMAKE_PARSE_ARGUMENTS(_parsedArguments "" "" "${_multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(_parsedArguments "" "" "${_multiValueArgs}" ${ARGN})
   set(defined_variables )
   foreach(_def_var ${_parsedArguments_DEFINE_VARIABLES})
     if(NOT _def_var MATCHES "^.+=.*$")
@@ -1047,5 +1043,3 @@ Variables Affecting Behavior
 ### Local Variables:
 ### mode: cmake
 ### End:
-
-cmake_policy(POP)

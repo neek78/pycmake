@@ -93,10 +93,6 @@ function(run_CMP0058 case)
   run_cmake_command(CMP0058-${case}-build ${CMAKE_COMMAND} --build .)
 endfunction()
 
-run_CMP0058(OLD-no)
-run_CMP0058(OLD-by)
-run_CMP0058(WARN-no)
-run_CMP0058(WARN-by)
 run_CMP0058(NEW-no)
 run_CMP0058(NEW-by)
 
@@ -179,7 +175,7 @@ ${ninja_stderr}
       "top ninja build failed exited with status ${ninja_result}")
   endif()
   set(ninja_stdout "${ninja_stdout}" PARENT_SCOPE)
-endfunction(run_ninja)
+endfunction()
 
 function (run_LooseObjectDepends)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/LooseObjectDepends-build)
@@ -260,11 +256,11 @@ macro(ninja_escape_path path out)
   string(REPLACE "\$ " "\$\$" "${out}" "${path}")
   string(REPLACE " " "\$ " "${out}" "${${out}}")
   string(REPLACE ":" "\$:" "${out}" "${${out}}")
-endmacro(ninja_escape_path)
+endmacro()
 
 macro(shell_escape string out)
   string(REPLACE "\"" "\\\"" "${out}" "${string}")
-endmacro(shell_escape)
+endmacro()
 
 function(run_sub_cmake test ninja_output_path_prefix)
   set(top_build_dir "${RunCMake_BINARY_DIR}/${test}-build/")
@@ -347,7 +343,7 @@ build build.ninja: RERUN ${escaped_build_ninja_dep} || ${escaped_ninja_output_pa
   build.ninja     = ${mtime_top_build_ninja}")
   endif()
 
-endfunction(run_sub_cmake)
+endfunction()
 
 if("${ninja_version}" VERSION_LESS 1.6)
   message(WARNING "Ninja is too old; skipping rest of test.")

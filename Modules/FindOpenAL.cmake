@@ -29,7 +29,7 @@ OpenAL is searched in the following order:
 5. Manually compiled framework: ``/Library/Frameworks``.
 6. Add-on package: ``/opt``.
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.25
@@ -96,7 +96,7 @@ find_library(OPENAL_LIBRARY
 
 unset(_OpenAL_ARCH_DIR)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   OpenAL
   REQUIRED_VARS OPENAL_LIBRARY OPENAL_INCLUDE_DIR

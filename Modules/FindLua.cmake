@@ -29,13 +29,13 @@ This module defines:
 
 Note that the expected include convention is
 
-::
+.. code-block:: c
 
   #include "lua.h"
 
 and not
 
-::
+.. code-block:: c
 
   #include <lua/lua.h>
 
@@ -44,7 +44,6 @@ locations other than lua/
 #]=======================================================================]
 
 cmake_policy(PUSH)  # Policies apply to functions at definition-time
-cmake_policy(SET CMP0012 NEW)  # For while(TRUE)
 cmake_policy(SET CMP0159 NEW)  # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 unset(_lua_include_subdirs)
@@ -107,7 +106,7 @@ function(_lua_set_version_vars)
   endforeach ()
 
   set(_lua_include_subdirs "${_lua_include_subdirs}" PARENT_SCOPE)
-endfunction(_lua_set_version_vars)
+endfunction()
 
 function(_lua_get_header_version)
   unset(LUA_VERSION_STRING PARENT_SCOPE)
@@ -146,7 +145,7 @@ function(_lua_get_header_version)
       return()
     endif ()
   endforeach ()
-endfunction(_lua_get_header_version)
+endfunction()
 
 function(_lua_find_header)
   _lua_set_version_vars()
@@ -231,10 +230,10 @@ if (LUA_LIBRARY)
   endif ()
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set LUA_FOUND to TRUE if
 # all listed variables are TRUE
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Lua
+find_package_handle_standard_args(Lua
                                   REQUIRED_VARS LUA_LIBRARIES LUA_INCLUDE_DIR
                                   VERSION_VAR LUA_VERSION_STRING)
 

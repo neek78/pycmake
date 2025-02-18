@@ -7,7 +7,7 @@ FindZLIB
 
 Find the native ZLIB includes and library.
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.1
@@ -198,8 +198,8 @@ if(ZLIB_INCLUDE_DIR AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
   set(ZLIB_VERSION "${ZLIB_VERSION_STRING}")
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(ZLIB REQUIRED_VARS ZLIB_LIBRARY ZLIB_INCLUDE_DIR
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(ZLIB REQUIRED_VARS ZLIB_LIBRARY ZLIB_INCLUDE_DIR
                                        VERSION_VAR ZLIB_VERSION
                                        HANDLE_COMPONENTS)
 

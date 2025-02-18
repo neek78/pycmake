@@ -25,7 +25,6 @@
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
-#include "cmPolicies.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
@@ -42,9 +41,9 @@ enum class IncludeDirectoryFallBack
 };
 
 std::string AddLangSpecificInterfaceIncludeDirectories(
-  const cmGeneratorTarget* root, const cmGeneratorTarget* target,
-  const std::string& lang, const std::string& config,
-  const std::string& propertyName, IncludeDirectoryFallBack mode,
+  cmGeneratorTarget const* root, cmGeneratorTarget const* target,
+  std::string const& lang, std::string const& config,
+  std::string const& propertyName, IncludeDirectoryFallBack mode,
   cmGeneratorExpressionDAGChecker* context)
 {
   cmGeneratorExpressionDAGChecker dag{
@@ -66,10 +65,10 @@ std::string AddLangSpecificInterfaceIncludeDirectories(
   }
 
   std::string directories;
-  if (const auto* link_interface =
+  if (auto const* link_interface =
         target->GetLinkInterfaceLibraries(config, root, UseTo::Compile)) {
-    for (const cmLinkItem& library : link_interface->Libraries) {
-      if (const cmGeneratorTarget* dependency = library.Target) {
+    for (cmLinkItem const& library : link_interface->Libraries) {
+      if (cmGeneratorTarget const* dependency = library.Target) {
         if (cm::contains(dependency->GetAllConfigCompileLanguages(), lang)) {
           auto* lg = dependency->GetLocalGenerator();
           std::string value = dependency->GetSafeProperty(propertyName);
@@ -94,19 +93,19 @@ std::string AddLangSpecificInterfaceIncludeDirectories(
 }
 
 void AddLangSpecificImplicitIncludeDirectories(
-  const cmGeneratorTarget* target, const std::string& lang,
-  const std::string& config, const std::string& propertyName,
+  cmGeneratorTarget const* target, std::string const& lang,
+  std::string const& config, std::string const& propertyName,
   IncludeDirectoryFallBack mode, EvaluatedTargetPropertyEntries& entries)
 {
-  if (const auto* libraries =
+  if (auto const* libraries =
         target->GetLinkImplementationLibraries(config, UseTo::Compile)) {
     cmGeneratorExpressionDAGChecker dag{
       target->GetBacktrace(),      target, propertyName, nullptr, nullptr,
       target->GetLocalGenerator(), config
     };
 
-    for (const cmLinkImplItem& library : libraries->Libraries) {
-      if (const cmGeneratorTarget* dependency = library.Target) {
+    for (cmLinkImplItem const& library : libraries->Libraries) {
+      if (cmGeneratorTarget const* dependency = library.Target) {
         if (!dependency->IsInBuildSystem()) {
           continue;
         }
@@ -149,43 +148,27 @@ void processIncludeDirectories(cmGeneratorTarget const* tgt,
     cmLinkImplItem const& item = entry.LinkImplItem;
     std::string const& targetName = item.AsStr();
     bool const fromImported = item.Target && item.Target->IsImported();
-    bool const checkCMP0027 = item.CheckCMP0027;
 
     std::string usedIncludes;
     for (std::string& entryInclude : entry.Values) {
       if (fromImported && !cmSystemTools::FileExists(entryInclude)) {
-        std::ostringstream e;
-        MessageType messageType = MessageType::FATAL_ERROR;
-        if (checkCMP0027) {
-          switch (tgt->GetPolicyStatusCMP0027()) {
-            case cmPolicies::WARN:
-              e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0027) << "\n";
-              CM_FALLTHROUGH;
-            case cmPolicies::OLD:
-              messageType = MessageType::AUTHOR_WARNING;
-              break;
-            case cmPolicies::NEW:
-              break;
-          }
-        }
-        /* clang-format off */
-        e << "Imported target \"" << targetName << "\" includes "
-             "non-existent path\n  \"" << entryInclude << "\"\nin its "
-             "INTERFACE_INCLUDE_DIRECTORIES. Possible reasons include:\n"
-             "* The path was deleted, renamed, or moved to another "
-             "location.\n"
-             "* An install or uninstall procedure did not complete "
-             "successfully.\n"
-             "* The installation package was faulty and references files it "
-             "does not provide.\n";
-        /* clang-format on */
-        tgt->GetLocalGenerator()->IssueMessage(messageType, e.str());
+        tgt->GetLocalGenerator()->IssueMessage(
+          MessageType::FATAL_ERROR,
+          cmStrCat(
+            "Imported target \"", targetName,
+            "\" includes non-existent path\n  \"", entryInclude,
+            "\"\nin its INTERFACE_INCLUDE_DIRECTORIES. Possible reasons "
+            "include:\n"
+            "* The path was deleted, renamed, or moved to another location.\n"
+            "* An install or uninstall procedure did not complete "
+            "successfully.\n"
+            "* The installation package was faulty and references files it "
+            "does not provide.\n"));
         return;
       }
 
       if (!cmSystemTools::FileIsFullPath(entryInclude)) {
         std::ostringstream e;
-        bool noMessage = false;
         MessageType messageType = MessageType::FATAL_ERROR;
         if (!targetName.empty()) {
           /* clang-format off */
@@ -194,27 +177,13 @@ void processIncludeDirectories(cmGeneratorTarget const* tgt,
             "  \"" << entryInclude << "\"";
           /* clang-format on */
         } else {
-          switch (tgt->GetPolicyStatusCMP0021()) {
-            case cmPolicies::WARN: {
-              e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0021) << "\n";
-              messageType = MessageType::AUTHOR_WARNING;
-            } break;
-            case cmPolicies::OLD:
-              noMessage = true;
-              break;
-            case cmPolicies::NEW:
-              // Issue the fatal message.
-              break;
-          }
           e << "Found relative path while evaluating include directories of "
                "\""
             << tgt->GetName() << "\":\n  \"" << entryInclude << "\"\n";
         }
-        if (!noMessage) {
-          tgt->GetLocalGenerator()->IssueMessage(messageType, e.str());
-          if (messageType == MessageType::FATAL_ERROR) {
-            return;
-          }
+        tgt->GetLocalGenerator()->IssueMessage(messageType, e.str());
+        if (messageType == MessageType::FATAL_ERROR) {
+          return;
         }
       }
 
@@ -241,7 +210,7 @@ void processIncludeDirectories(cmGeneratorTarget const* tgt,
 }
 
 std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
-  const std::string& config, const std::string& lang) const
+  std::string const& config, std::string const& lang) const
 {
   ConfigAndLanguage cacheKey(config, lang);
   {
@@ -262,9 +231,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
   bool debugIncludes = !this->DebugIncludesDone &&
     cm::contains(debugProperties, "INCLUDE_DIRECTORIES");
 
-  if (this->GlobalGenerator->GetConfigureDoneCMP0026()) {
-    this->DebugIncludesDone = true;
-  }
+  this->DebugIncludesDone = true;
 
   EvaluatedTargetPropertyEntries entries = EvaluateTargetPropertyEntries(
     this, config, lang, &dagChecker, this->IncludeDirectoriesEntries);
@@ -277,7 +244,7 @@ std::vector<BT<std::string>> cmGeneratorTarget::GetIncludeDirectories(
 
   if (this->CanCompileSources() && (lang != "Swift" && lang != "Fortran")) {
 
-    const std::string propertyName = "ISPC_HEADER_DIRECTORY";
+    std::string const propertyName = "ISPC_HEADER_DIRECTORY";
 
     // If this target has ISPC sources make sure to add the header
     // directory to other compilation units

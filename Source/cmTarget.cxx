@@ -23,7 +23,6 @@
 #include "cmFileSet.h"
 #include "cmFindPackageStack.h"
 #include "cmGeneratorExpression.h"
-#include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmList.h"
 #include "cmListFileCache.h"
@@ -46,47 +45,17 @@
 #include "cmake.h"
 
 template <>
-const std::string& cmTargetPropertyComputer::ComputeLocationForBuild<cmTarget>(
-  cmTarget const* tgt)
+std::string const& cmTargetPropertyComputer::ImportedLocation<cmTarget>(
+  cmTarget const* tgt, std::string const& config)
 {
   static std::string loc;
-  if (tgt->IsImported()) {
-    loc = tgt->ImportedGetFullPath("", cmStateEnums::RuntimeBinaryArtifact);
-    return loc;
-  }
-
-  cmGlobalGenerator* gg = tgt->GetGlobalGenerator();
-  if (!gg->GetConfigureDoneCMP0026()) {
-    gg->CreateGenerationObjects();
-  }
-  cmGeneratorTarget* gt = gg->FindGeneratorTarget(tgt->GetName());
-  loc = gt->GetLocationForBuild();
+  assert(tgt->IsImported());
+  loc = tgt->ImportedGetFullPath(config, cmStateEnums::RuntimeBinaryArtifact);
   return loc;
 }
 
 template <>
-const std::string& cmTargetPropertyComputer::ComputeLocation<cmTarget>(
-  cmTarget const* tgt, const std::string& config)
-{
-  static std::string loc;
-  if (tgt->IsImported()) {
-    loc =
-      tgt->ImportedGetFullPath(config, cmStateEnums::RuntimeBinaryArtifact);
-    return loc;
-  }
-
-  cmGlobalGenerator* gg = tgt->GetGlobalGenerator();
-  if (!gg->GetConfigureDoneCMP0026()) {
-    gg->CreateGenerationObjects();
-  }
-  cmGeneratorTarget* gt = gg->FindGeneratorTarget(tgt->GetName());
-  loc = gt->GetFullPath(config, cmStateEnums::RuntimeBinaryArtifact);
-  return loc;
-}
-
-template <>
-cmValue cmTargetPropertyComputer::GetSources<cmTarget>(cmTarget const* tgt,
-                                                       cmMakefile const& mf)
+cmValue cmTargetPropertyComputer::GetSources<cmTarget>(cmTarget const* tgt)
 {
   cmBTStringRange entries = tgt->GetSourceEntries();
   if (entries.empty()) {
@@ -94,52 +63,13 @@ cmValue cmTargetPropertyComputer::GetSources<cmTarget>(cmTarget const* tgt,
   }
 
   std::ostringstream ss;
-  const char* sep = "";
+  char const* sep = "";
   for (auto const& entry : entries) {
     cmList files{ entry.Value };
     for (std::string const& file : files) {
-      if (cmHasLiteralPrefix(file, "$<TARGET_OBJECTS:") &&
-          file.back() == '>') {
-        std::string objLibName = file.substr(17, file.size() - 18);
-
-        if (cmGeneratorExpression::Find(objLibName) != std::string::npos) {
-          ss << sep;
-          sep = ";";
-          ss << file;
-          continue;
-        }
-
-        bool addContent = false;
-        bool noMessage = true;
-        std::ostringstream e;
-        MessageType messageType = MessageType::AUTHOR_WARNING;
-        switch (mf.GetPolicyStatus(cmPolicies::CMP0051)) {
-          case cmPolicies::WARN:
-            e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0051) << "\n";
-            noMessage = false;
-            CM_FALLTHROUGH;
-          case cmPolicies::OLD:
-            break;
-          case cmPolicies::NEW:
-            addContent = true;
-            break;
-        }
-        if (!noMessage) {
-          e << "Target \"" << tgt->GetName()
-            << "\" contains $<TARGET_OBJECTS> generator expression in its "
-               "sources list.  This content was not previously part of the "
-               "SOURCES property when that property was read at configure "
-               "time.  Code reading that property needs to be adapted to "
-               "ignore the generator expression using the string(GENEX_STRIP) "
-               "command.";
-          mf.IssueMessage(messageType, e.str());
-        }
-        if (addContent) {
-          ss << sep;
-          sep = ";";
-          ss << file;
-        }
-      } else if (cmGeneratorExpression::Find(file) == std::string::npos) {
+      if ((cmHasLiteralPrefix(file, "$<TARGET_OBJECTS:") &&
+           file.back() == '>') ||
+          cmGeneratorExpression::Find(file) == std::string::npos) {
         ss << sep;
         sep = ";";
         ss << file;
@@ -221,13 +151,13 @@ struct FileSetType
 
   template <typename ValueType>
   bool WriteProperties(cmTarget* tgt, cmTargetInternals* impl,
-                       const std::string& prop, ValueType value,
+                       std::string const& prop, ValueType value,
                        Action action);
   std::pair<bool, cmValue> ReadProperties(cmTarget const* tgt,
                                           cmTargetInternals const* impl,
-                                          const std::string& prop) const;
+                                          std::string const& prop) const;
 
-  void AddFileSet(const std::string& name, cmFileSetVisibility vis,
+  void AddFileSet(std::string const& name, cmFileSetVisibility vis,
                   cmListFileBacktrace bt);
 };
 
@@ -261,13 +191,13 @@ struct UsageRequirementProperty
   template <typename ValueType>
   bool Write(cmTargetInternals const* impl,
              cm::optional<cmListFileBacktrace> const& bt,
-             const std::string& prop, ValueType value, Action action);
+             std::string const& prop, ValueType value, Action action);
   template <typename ValueType>
   void WriteDirect(cmTargetInternals const* impl,
                    cm::optional<cmListFileBacktrace> const& bt,
                    ValueType value, Action action);
   void WriteDirect(BT<std::string> value, Action action);
-  std::pair<bool, cmValue> Read(const std::string& prop) const;
+  std::pair<bool, cmValue> Read(std::string const& prop) const;
 
   cm::static_string_view const Name;
   AppendEmpty const AppendBehavior;
@@ -400,6 +330,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "OSX_ARCHITECTURES"_s, IC::CanCompileSources },
   // ---- Windows
   { "MSVC_DEBUG_INFORMATION_FORMAT"_s, IC::CanCompileSources },
+  { "MSVC_RUNTIME_CHECKS"_s, IC::CanCompileSources },
   { "MSVC_RUNTIME_LIBRARY"_s, IC::CanCompileSources },
   { "VS_JUST_MY_CODE_DEBUGGING"_s, IC::CanCompileSources },
   { "VS_DEBUGGER_COMMAND"_s, IC::ExecutableTarget },
@@ -621,6 +552,7 @@ TargetProperty const StaticTargetProperties[] = {
   { "XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER_STOP"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_LAUNCH_CONFIGURATION"_s, IC::NeedsXcodeAndCanCompileSources },
+  { "XCODE_SCHEME_TEST_CONFIGURATION"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_ENABLE_GPU_API_VALIDATION"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION"_s, IC::NeedsXcodeAndCanCompileSources },
   { "XCODE_SCHEME_WORKING_DIRECTORY"_s, IC::NeedsXcodeAndCanCompileSources },
@@ -711,8 +643,6 @@ public:
   bool CheckImportedLibName(std::string const& prop,
                             std::string const& value) const;
 
-  std::string ProcessSourceItemCMP0049(const std::string& s) const;
-
   template <typename ValueType>
   void AddDirectoryToFileSet(cmTarget* self, std::string const& fileSetName,
                              ValueType value, cm::string_view fileSetType,
@@ -774,7 +704,7 @@ cmTargetInternals::cmTargetInternals()
 
 template <typename ValueType>
 bool FileSetType::WriteProperties(cmTarget* tgt, cmTargetInternals* impl,
-                                  const std::string& prop, ValueType value,
+                                  std::string const& prop, ValueType value,
                                   Action action)
 {
   if (prop == this->DefaultDirectoryProperty) {
@@ -821,7 +751,7 @@ bool FileSetType::WriteProperties(cmTarget* tgt, cmTargetInternals* impl,
 
 std::pair<bool, cmValue> FileSetType::ReadProperties(
   cmTarget const* tgt, cmTargetInternals const* impl,
-  const std::string& prop) const
+  std::string const& prop) const
 {
   bool did_read = false;
   cmValue value = nullptr;
@@ -859,7 +789,7 @@ std::pair<bool, cmValue> FileSetType::ReadProperties(
   return { did_read, value };
 }
 
-void FileSetType::AddFileSet(const std::string& name, cmFileSetVisibility vis,
+void FileSetType::AddFileSet(std::string const& name, cmFileSetVisibility vis,
                              cmListFileBacktrace bt)
 {
   if (cmFileSetVisibilityIsForSelf(vis)) {
@@ -873,7 +803,7 @@ void FileSetType::AddFileSet(const std::string& name, cmFileSetVisibility vis,
 template <typename ValueType>
 bool UsageRequirementProperty::Write(
   cmTargetInternals const* impl, cm::optional<cmListFileBacktrace> const& bt,
-  const std::string& prop, ValueType value, Action action)
+  std::string const& prop, ValueType value, Action action)
 {
   if (prop == this->Name) {
     this->WriteDirect(impl, bt, value, action);
@@ -915,7 +845,7 @@ void UsageRequirementProperty::WriteDirect(BT<std::string> value,
 }
 
 std::pair<bool, cmValue> UsageRequirementProperty::Read(
-  const std::string& prop) const
+  std::string const& prop) const
 {
   bool did_read = false;
   cmValue value = nullptr;
@@ -998,14 +928,6 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
   // Record current policies for later use.
   this->impl->Makefile->RecordPolicies(this->impl->PolicyMap);
 
-  if (this->impl->TargetType == cmStateEnums::INTERFACE_LIBRARY) {
-    // This policy is checked in a few conditions. The properties relevant
-    // to the policy are always ignored for cmStateEnums::INTERFACE_LIBRARY
-    // targets,
-    // so ensure that the conditions don't lead to nonsense.
-    this->impl->PolicyMap.Set(cmPolicies::CMP0022, cmPolicies::NEW);
-  }
-
   std::set<TargetProperty::InitCondition> metConditions;
   metConditions.insert(TargetProperty::InitCondition::Always);
   if (this->CanCompileSources()) {
@@ -1065,8 +987,8 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
   std::string defKey;
   defKey.reserve(128);
   defKey += "CMAKE_";
-  auto initProperty = [this, mf, &defKey](const std::string& property,
-                                          const char* default_value) {
+  auto initProperty = [this, mf, &defKey](std::string const& property,
+                                          char const* default_value) {
     // special init for ENABLE_EXPORTS
     // For SHARED_LIBRARY, only CMAKE_SHARED_LIBRARY_ENABLE_EXPORTS variable
     // is used
@@ -1113,7 +1035,7 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
       continue;
     }
 
-    const char* dflt = nullptr;
+    char const* dflt = nullptr;
     if (tp.Default) {
       dflt_storage = std::string(*tp.Default);
       dflt = dflt_storage.c_str();
@@ -1144,16 +1066,16 @@ cmTarget::cmTarget(std::string const& name, cmStateEnums::TargetType type,
   // if any
   cmValue globals = mf->GetDefinition("CMAKE_VS_GLOBALS");
   if (globals) {
-    const std::string genName = mf->GetGlobalGenerator()->GetName();
+    std::string const genName = mf->GetGlobalGenerator()->GetName();
     if (cmHasLiteralPrefix(genName, "Visual Studio")) {
       cmList props{ *globals };
-      const std::string vsGlobal = "VS_GLOBAL_";
-      for (const std::string& i : props) {
+      std::string const vsGlobal = "VS_GLOBAL_";
+      for (std::string const& i : props) {
         // split NAME=VALUE
-        const std::string::size_type assignment = i.find('=');
+        std::string::size_type const assignment = i.find('=');
         if (assignment != std::string::npos) {
-          const std::string propName = vsGlobal + i.substr(0, assignment);
-          const std::string propValue = i.substr(assignment + 1);
+          std::string const propName = vsGlobal + i.substr(0, assignment);
+          std::string const propValue = i.substr(assignment + 1);
           initProperty(propName, propValue.c_str());
         }
       }
@@ -1195,12 +1117,12 @@ cmPolicies::PolicyMap const& cmTarget::GetPolicyMap() const
   return this->impl->PolicyMap;
 }
 
-const std::string& cmTarget::GetName() const
+std::string const& cmTarget::GetName() const
 {
   return this->impl->Name;
 }
 
-const std::string& cmTarget::GetTemplateName() const
+std::string const& cmTarget::GetTemplateName() const
 {
   if (this->impl->TemplateTarget) {
     return this->impl->TemplateTarget->GetTemplateName();
@@ -1220,7 +1142,7 @@ cmGlobalGenerator* cmTarget::GetGlobalGenerator() const
 }
 
 BTs<std::string> const* cmTarget::GetLanguageStandardProperty(
-  const std::string& propertyName) const
+  std::string const& propertyName) const
 {
   auto entry = this->impl->LanguageStandardProperties.find(propertyName);
   if (entry != this->impl->LanguageStandardProperties.end()) {
@@ -1232,7 +1154,7 @@ BTs<std::string> const* cmTarget::GetLanguageStandardProperty(
 
 void cmTarget::SetLanguageStandardProperty(std::string const& lang,
                                            std::string const& value,
-                                           const std::string& feature)
+                                           std::string const& feature)
 {
   cmListFileBacktrace featureBacktrace;
   for (auto const& entry : this->impl->CompileFeatures.Entries) {
@@ -1405,60 +1327,13 @@ void cmTarget::AddTracedSources(std::vector<std::string> const& srcs)
 void cmTarget::AddSources(std::vector<std::string> const& srcs)
 {
   std::vector<std::string> srcFiles;
-  for (auto filename : srcs) {
+  for (std::string const& filename : srcs) {
     if (!cmGeneratorExpression::StartsWithGeneratorExpression(filename)) {
-      if (!filename.empty()) {
-        filename = this->impl->ProcessSourceItemCMP0049(filename);
-        if (filename.empty()) {
-          return;
-        }
-      }
       this->impl->Makefile->GetOrCreateSource(filename);
     }
     srcFiles.emplace_back(filename);
   }
   this->AddTracedSources(srcFiles);
-}
-
-std::string cmTargetInternals::ProcessSourceItemCMP0049(
-  const std::string& s) const
-{
-  std::string src = s;
-
-  // For backwards compatibility replace variables in source names.
-  // This should eventually be removed.
-  this->Makefile->ExpandVariablesInString(src);
-  if (src != s) {
-    std::ostringstream e;
-    bool noMessage = false;
-    MessageType messageType = MessageType::AUTHOR_WARNING;
-    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0049)) {
-      case cmPolicies::WARN:
-        e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0049) << "\n";
-        break;
-      case cmPolicies::OLD:
-        noMessage = true;
-        break;
-      case cmPolicies::NEW:
-        messageType = MessageType::FATAL_ERROR;
-    }
-    if (!noMessage) {
-      e << "Legacy variable expansion in source file \"" << s
-        << "\" expanded to \"" << src << "\" in target \"" << this->Name
-        << "\".  This behavior will be removed in a "
-           "future version of CMake.";
-      this->Makefile->IssueMessage(messageType, e.str());
-      if (messageType == MessageType::FATAL_ERROR) {
-        return "";
-      }
-    }
-  }
-  return src;
-}
-
-std::string cmTarget::GetSourceCMP0049(const std::string& s)
-{
-  return this->impl->ProcessSourceItemCMP0049(s);
 }
 
 struct CreateLocation
@@ -1470,7 +1345,7 @@ struct CreateLocation
   {
   }
 
-  cmSourceFileLocation operator()(const std::string& filename) const
+  cmSourceFileLocation operator()(std::string const& filename) const
   {
     return cmSourceFileLocation(this->Makefile, filename);
   }
@@ -1478,9 +1353,9 @@ struct CreateLocation
 
 struct LocationMatcher
 {
-  const cmSourceFileLocation& Needle;
+  cmSourceFileLocation const& Needle;
 
-  LocationMatcher(const cmSourceFileLocation& needle)
+  LocationMatcher(cmSourceFileLocation const& needle)
     : Needle(needle)
   {
   }
@@ -1494,10 +1369,10 @@ struct LocationMatcher
 struct TargetPropertyEntryFinder
 {
 private:
-  const cmSourceFileLocation& Needle;
+  cmSourceFileLocation const& Needle;
 
 public:
-  TargetPropertyEntryFinder(const cmSourceFileLocation& needle)
+  TargetPropertyEntryFinder(cmSourceFileLocation const& needle)
     : Needle(needle)
   {
   }
@@ -1515,7 +1390,7 @@ public:
   }
 };
 
-cmSourceFile* cmTarget::AddSource(const std::string& src, bool before)
+cmSourceFile* cmTarget::AddSource(std::string const& src, bool before)
 {
   cmSourceFileLocation sfl(this->impl->Makefile, src,
                            cmSourceFileLocationKind::Known);
@@ -1541,7 +1416,7 @@ void cmTarget::ClearDependencyInformation(cmMakefile& mf) const
 }
 
 std::string cmTarget::GetDebugGeneratorExpressions(
-  const std::string& value, cmTargetLinkLibraryType llt) const
+  std::string const& value, cmTargetLinkLibraryType llt) const
 {
   if (llt == GENERAL_LibraryType) {
     return value;
@@ -1566,7 +1441,7 @@ std::string cmTarget::GetDebugGeneratorExpressions(
   return "$<" + configString + ":" + value + ">";
 }
 
-static std::string targetNameGenex(const std::string& lib)
+static std::string targetNameGenex(std::string const& lib)
 {
   return "$<TARGET_NAME:" + lib + ">";
 }
@@ -1589,7 +1464,7 @@ bool cmTarget::PushTLLCommandTrace(TLLSignature signature,
 
 void cmTarget::GetTllSignatureTraces(std::ostream& s, TLLSignature sig) const
 {
-  const char* sigString =
+  char const* sigString =
     (sig == cmTarget::KeywordTLLSignature ? "keyword" : "plain");
   s << "The uses of the " << sigString << " signature are here:\n";
   for (auto const& cmd : this->impl->TLLCommands) {
@@ -1664,9 +1539,9 @@ void cmTarget::AddLinkLibrary(cmMakefile& mf, std::string const& lib,
 {
   cmTarget* tgt = mf.FindTargetToUse(lib);
   {
-    const bool isNonImportedTarget = tgt && !tgt->IsImported();
+    bool const isNonImportedTarget = tgt && !tgt->IsImported();
 
-    const std::string libName =
+    std::string const libName =
       (isNonImportedTarget && llt != GENERAL_LibraryType)
       ? targetNameGenex(lib)
       : lib;
@@ -1722,7 +1597,7 @@ void cmTarget::AddLinkLibrary(cmMakefile& mf, std::string const& lib,
   }
 }
 
-void cmTarget::AddSystemIncludeDirectories(const std::set<std::string>& incs)
+void cmTarget::AddSystemIncludeDirectories(std::set<std::string> const& incs)
 {
   this->impl->SystemIncludeDirectories.insert(incs.begin(), incs.end());
 }
@@ -1872,7 +1747,7 @@ void cmTarget::CopyImportedCxxModulesProperties(cmTarget const* tgt)
   // - IDE metadata properties
   // - static analysis properties
 
-  static const std::string propertiesToCopy[] = {
+  static std::string const propertiesToCopy[] = {
     // Compilation properties
     "DEFINE_SYMBOL",
     "DEPRECATION",
@@ -1889,6 +1764,7 @@ void cmTarget::CopyImportedCxxModulesProperties(cmTarget const* tgt)
     "OSX_ARCHITECTURES",
     // ---- Windows
     "MSVC_DEBUG_INFORMATION_FORMAT",
+    "MSVC_RUNTIME_CHECKS",
     "MSVC_RUNTIME_LIBRARY",
     "VS_PLATFORM_TOOLSET",
     // ---- OpenWatcom
@@ -1943,7 +1819,7 @@ void cmTarget::CopyImportedCxxModulesProperties(cmTarget const* tgt)
     copyProperty(prop);
   }
 
-  static const cm::static_string_view perConfigPropertiesToCopy[] = {
+  static cm::static_string_view const perConfigPropertiesToCopy[] = {
     "EXCLUDE_FROM_DEFAULT_BUILD_"_s,
     "IMPORTED_CXX_MODULES_"_s,
     "MAP_IMPORTED_CONFIG_"_s,
@@ -1967,7 +1843,7 @@ void cmTarget::CopyImportedCxxModulesProperties(cmTarget const* tgt)
 
     if (xcodeGenerateScheme.IsOn()) {
 #ifdef __APPLE__
-      static const std::string xcodeSchemePropertiesToCopy[] = {
+      static std::string const xcodeSchemePropertiesToCopy[] = {
         // FIXME: Do all of these apply? Do they matter?
         "XCODE_SCHEME_ADDRESS_SANITIZER",
         "XCODE_SCHEME_ADDRESS_SANITIZER_USE_AFTER_RETURN",
@@ -2083,7 +1959,7 @@ struct ReadOnlyProperty
   ReadOnlyCondition Condition;
   cm::optional<cmPolicies::PolicyID> Policy;
 
-  std::string message(const std::string& prop, cmTarget* target) const
+  std::string message(std::string const& prop, cmTarget* target) const
   {
     std::string msg;
     if (this->Condition == ReadOnlyCondition::All) {
@@ -2096,7 +1972,7 @@ struct ReadOnlyProperty
     return cmStrCat(prop, msg, target->GetName(), "\")\n");
   }
 
-  bool isReadOnly(const std::string& prop, cmMakefile* context,
+  bool isReadOnly(std::string const& prop, cmMakefile* context,
                   cmTarget* target) const
   {
     auto importedTarget = target->IsImported();
@@ -2137,8 +2013,8 @@ struct ReadOnlyProperty
   }
 };
 
-bool IsSetableProperty(cmMakefile* context, cmTarget* target,
-                       const std::string& prop)
+bool IsSettableProperty(cmMakefile* context, cmTarget* target,
+                        std::string const& prop)
 {
   using ROC = ReadOnlyCondition;
   static std::unordered_map<std::string, ReadOnlyProperty> const readOnlyProps{
@@ -2169,9 +2045,9 @@ bool IsSetableProperty(cmMakefile* context, cmTarget* target,
 }
 }
 
-void cmTarget::SetProperty(const std::string& prop, cmValue value)
+void cmTarget::SetProperty(std::string const& prop, cmValue value)
 {
-  if (!IsSetableProperty(this->impl->Makefile, this, prop)) {
+  if (!IsSettableProperty(this->impl->Makefile, this, prop)) {
     return;
   }
 
@@ -2248,7 +2124,7 @@ void cmTarget::SetProperty(const std::string& prop, cmValue value)
       this->impl->Makefile->IssueMessage(MessageType::FATAL_ERROR, e);
       return;
     }
-    const bool flag_found =
+    bool const flag_found =
       (prop == propCUDA_PTX_COMPILATION &&
        this->impl->Makefile->GetDefinition("_CMAKE_CUDA_PTX_FLAG")) ||
       (prop == propCUDA_CUBIN_COMPILATION &&
@@ -2277,7 +2153,7 @@ void cmTarget::SetProperty(const std::string& prop, cmValue value)
                            ->GetGlobalGenerator()
                            ->FindTarget(value);
     if (!reusedTarget) {
-      const std::string e(
+      std::string const e(
         "PRECOMPILE_HEADERS_REUSE_FROM set with non existing target");
       this->impl->Makefile->IssueMessage(MessageType::FATAL_ERROR, e);
       return;
@@ -2311,12 +2187,12 @@ void cmTarget::SetProperty(const std::string& prop, cmValue value)
   }
 }
 
-void cmTarget::AppendProperty(const std::string& prop,
-                              const std::string& value,
+void cmTarget::AppendProperty(std::string const& prop,
+                              std::string const& value,
                               cm::optional<cmListFileBacktrace> const& bt,
                               bool asString)
 {
-  if (!IsSetableProperty(this->impl->Makefile, this, prop)) {
+  if (!IsSettableProperty(this->impl->Makefile, this, prop)) {
     return;
   }
   if (prop == "IMPORTED_GLOBAL") {
@@ -2527,7 +2403,7 @@ bool CheckLinkLibraryPattern(UsageRequirementProperty const& usage,
 
   bool isValid = true;
 
-  for (const auto& item : usage.Entries) {
+  for (auto const& item : usage.Entries) {
     if (!linkPattern.find(item.Value)) {
       continue;
     }
@@ -2551,8 +2427,7 @@ bool CheckLinkLibraryPattern(UsageRequirementProperty const& usage,
 }
 
 void cmTarget::FinalizeTargetConfiguration(
-  const cmBTStringRange& noConfigCompileDefinitions,
-  cm::optional<std::map<std::string, cmValue>>& perConfigCompileDefinitions)
+  cmBTStringRange const& compileDefinitions)
 {
   if (this->GetType() == cmStateEnums::GLOBAL_TARGET) {
     return;
@@ -2573,34 +2448,8 @@ void cmTarget::FinalizeTargetConfiguration(
     return;
   }
 
-  for (auto const& def : noConfigCompileDefinitions) {
+  for (auto const& def : compileDefinitions) {
     this->InsertCompileDefinition(def);
-  }
-
-  auto* mf = this->GetMakefile();
-  cmPolicies::PolicyStatus polSt = mf->GetPolicyStatus(cmPolicies::CMP0043);
-  if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD) {
-    if (perConfigCompileDefinitions) {
-      for (auto const& it : *perConfigCompileDefinitions) {
-        if (cmValue val = it.second) {
-          this->AppendProperty(it.first, *val);
-        }
-      }
-    } else {
-      perConfigCompileDefinitions.emplace();
-      std::vector<std::string> configs =
-        mf->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
-
-      for (std::string const& c : configs) {
-        std::string defPropName =
-          cmStrCat("COMPILE_DEFINITIONS_", cmSystemTools::UpperCase(c));
-        cmValue val = mf->GetProperty(defPropName);
-        (*perConfigCompileDefinitions)[defPropName] = val;
-        if (val) {
-          this->AppendProperty(defPropName, *val);
-        }
-      }
-    }
   }
 }
 
@@ -2649,12 +2498,12 @@ void cmTarget::InsertPrecompileHeader(BT<std::string> const& entry)
 }
 
 namespace {
-void CheckLINK_INTERFACE_LIBRARIES(const std::string& prop,
-                                   const std::string& value,
+void CheckLINK_INTERFACE_LIBRARIES(std::string const& prop,
+                                   std::string const& value,
                                    cmMakefile* context, bool imported)
 {
   // Support imported and non-imported versions of the property.
-  const char* base = (imported ? "IMPORTED_LINK_INTERFACE_LIBRARIES"
+  char const* base = (imported ? "IMPORTED_LINK_INTERFACE_LIBRARIES"
                                : "LINK_INTERFACE_LIBRARIES");
 
   // Look for link-type keywords in the value.
@@ -2685,7 +2534,7 @@ void CheckLINK_INTERFACE_LIBRARIES(const std::string& prop,
   }
 }
 
-void CheckINTERFACE_LINK_LIBRARIES(const std::string& value,
+void CheckINTERFACE_LINK_LIBRARIES(std::string const& value,
                                    cmMakefile* context)
 {
   // Look for link-type keywords in the value.
@@ -2705,12 +2554,12 @@ void CheckINTERFACE_LINK_LIBRARIES(const std::string& value,
   }
 }
 
-void CheckIMPORTED_GLOBAL(const cmTarget* target, cmMakefile* context)
+void CheckIMPORTED_GLOBAL(cmTarget const* target, cmMakefile* context)
 {
-  const auto& targets = context->GetOwnedImportedTargets();
+  auto const& targets = context->GetOwnedImportedTargets();
   auto it =
     std::find_if(targets.begin(), targets.end(),
-                 [&](const std::unique_ptr<cmTarget>& importTarget) -> bool {
+                 [&](std::unique_ptr<cmTarget> const& importTarget) -> bool {
                    return target == importTarget.get();
                  });
   if (it == targets.end()) {
@@ -2723,7 +2572,7 @@ void CheckIMPORTED_GLOBAL(const cmTarget* target, cmMakefile* context)
 }
 }
 
-void cmTarget::CheckProperty(const std::string& prop,
+void cmTarget::CheckProperty(std::string const& prop,
                              cmMakefile* context) const
 {
   // Certain properties need checking.
@@ -2746,13 +2595,13 @@ void cmTarget::CheckProperty(const std::string& prop,
   }
 }
 
-cmValue cmTarget::GetComputedProperty(const std::string& prop,
+cmValue cmTarget::GetComputedProperty(std::string const& prop,
                                       cmMakefile& mf) const
 {
   return cmTargetPropertyComputer::GetProperty(this, prop, mf);
 }
 
-cmValue cmTarget::GetProperty(const std::string& prop) const
+cmValue cmTarget::GetProperty(std::string const& prop) const
 {
   static std::unordered_set<std::string> const specialProps{
     propC_STANDARD,
@@ -2884,7 +2733,7 @@ cmValue cmTarget::GetProperty(const std::string& prop) const
 
   cmValue retVal = this->impl->Properties.GetPropertyValue(prop);
   if (!retVal) {
-    const bool chain = this->impl->Makefile->GetState()->IsPropertyChained(
+    bool const chain = this->impl->Makefile->GetState()->IsPropertyChained(
       prop, cmProperty::TARGET);
     if (chain) {
       return this->impl->Makefile->GetStateSnapshot()
@@ -2907,7 +2756,7 @@ std::string const& cmTarget::GetSafeProperty(std::string const& prop) const
   return s_empty;
 }
 
-bool cmTarget::GetPropertyAsBool(const std::string& prop) const
+bool cmTarget::GetPropertyAsBool(std::string const& prop) const
 {
   return this->GetProperty(prop).IsOn();
 }
@@ -2939,6 +2788,7 @@ bool cmTarget::IsNormal() const
     case Visibility::Generated:
     case Visibility::Imported:
     case Visibility::ImportedGlobally:
+    case Visibility::Foreign:
       return false;
   }
   assert(false && "unknown visibility (IsNormal)");
@@ -2953,6 +2803,7 @@ bool cmTarget::IsSynthetic() const
     case Visibility::Normal:
     case Visibility::Imported:
     case Visibility::ImportedGlobally:
+    case Visibility::Foreign:
       return false;
   }
   assert(false && "unknown visibility (IsSynthetic)");
@@ -2964,6 +2815,7 @@ bool cmTargetInternals::IsImported() const
   switch (this->TargetVisibility) {
     case cmTarget::Visibility::Imported:
     case cmTarget::Visibility::ImportedGlobally:
+    case cmTarget::Visibility::Foreign:
       return true;
     case cmTarget::Visibility::Normal:
     case cmTarget::Visibility::Generated:
@@ -2986,9 +2838,25 @@ bool cmTarget::IsImportedGloballyVisible() const
     case Visibility::Normal:
     case Visibility::Generated:
     case Visibility::Imported:
+    case Visibility::Foreign:
       return false;
   }
   assert(false && "unknown visibility (IsImportedGloballyVisible)");
+  return false;
+}
+
+bool cmTarget::IsForeign() const
+{
+  switch (this->impl->TargetVisibility) {
+    case Visibility::Foreign:
+      return true;
+    case Visibility::Normal:
+    case Visibility::Generated:
+    case Visibility::Imported:
+    case Visibility::ImportedGlobally:
+      return false;
+  }
+  assert(false && "unknown visibility (isForeign)");
   return false;
 }
 
@@ -3039,7 +2907,7 @@ bool cmTarget::CanCompileSources() const
   return false;
 }
 
-const char* cmTarget::GetSuffixVariableInternal(
+char const* cmTarget::GetSuffixVariableInternal(
   cmStateEnums::ArtifactType artifact) const
 {
   switch (this->GetType()) {
@@ -3083,7 +2951,7 @@ const char* cmTarget::GetSuffixVariableInternal(
   return "";
 }
 
-const char* cmTarget::GetPrefixVariableInternal(
+char const* cmTarget::GetPrefixVariableInternal(
   cmStateEnums::ArtifactType artifact) const
 {
   switch (this->GetType()) {
@@ -3126,7 +2994,7 @@ const char* cmTarget::GetPrefixVariableInternal(
 }
 
 std::string cmTarget::ImportedGetFullPath(
-  const std::string& config, cmStateEnums::ArtifactType artifact) const
+  std::string const& config, cmStateEnums::ArtifactType artifact) const
 {
   assert(this->IsImported());
 
@@ -3250,20 +3118,20 @@ std::string cmTarget::ImportedGetFullPath(
   return result;
 }
 
-const cmFileSet* cmTarget::GetFileSet(const std::string& name) const
+cmFileSet const* cmTarget::GetFileSet(std::string const& name) const
 {
   auto it = this->impl->FileSets.find(name);
   return it == this->impl->FileSets.end() ? nullptr : &it->second;
 }
 
-cmFileSet* cmTarget::GetFileSet(const std::string& name)
+cmFileSet* cmTarget::GetFileSet(std::string const& name)
 {
   auto it = this->impl->FileSets.find(name);
   return it == this->impl->FileSets.end() ? nullptr : &it->second;
 }
 
 std::pair<cmFileSet*, bool> cmTarget::GetOrCreateFileSet(
-  const std::string& name, const std::string& type, cmFileSetVisibility vis)
+  std::string const& name, std::string const& type, cmFileSetVisibility vis)
 {
   auto result = this->impl->FileSets.emplace(
     name,
@@ -3279,7 +3147,7 @@ std::pair<cmFileSet*, bool> cmTarget::GetOrCreateFileSet(
   return std::make_pair(&result.first->second, result.second);
 }
 
-std::string cmTarget::GetFileSetsPropertyName(const std::string& type)
+std::string cmTarget::GetFileSetsPropertyName(std::string const& type)
 {
   if (type == "HEADERS") {
     return "HEADER_SETS";
@@ -3290,7 +3158,7 @@ std::string cmTarget::GetFileSetsPropertyName(const std::string& type)
   return "";
 }
 
-std::string cmTarget::GetInterfaceFileSetsPropertyName(const std::string& type)
+std::string cmTarget::GetInterfaceFileSetsPropertyName(std::string const& type)
 {
   if (type == "HEADERS") {
     return "INTERFACE_HEADER_SETS";
@@ -3317,7 +3185,7 @@ std::vector<std::string> cmTarget::GetAllInterfaceFileSets() const
   std::vector<std::string> result;
   auto inserter = std::back_inserter(result);
 
-  auto appendEntries = [=](const std::vector<BT<std::string>>& entries) {
+  auto appendEntries = [=](std::vector<BT<std::string>> const& entries) {
     for (auto const& entry : entries) {
       cmList expanded{ entry.Value };
       std::copy(expanded.begin(), expanded.end(), inserter);
@@ -3474,9 +3342,9 @@ bool cmTarget::GetMappedConfig(std::string const& desired_config, cmValue& loc,
     if (cmValue iconfigs = this->GetProperty("IMPORTED_CONFIGURATIONS")) {
       availableConfigs.assign(*iconfigs);
     }
-    for (auto aci = availableConfigs.begin();
-         !loc && !imp && aci != availableConfigs.end(); ++aci) {
-      suffix = cmStrCat('_', cmSystemTools::UpperCase(*aci));
+    for (auto it = availableConfigs.begin();
+         !loc && !imp && it != availableConfigs.end(); ++it) {
+      suffix = cmStrCat('_', cmSystemTools::UpperCase(*it));
       std::string locProp = cmStrCat(locPropBase, suffix);
       loc = this->GetProperty(locProp);
       if (allowImp) {

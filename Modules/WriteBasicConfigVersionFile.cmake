@@ -10,9 +10,9 @@ WriteBasicConfigVersionFile
   Use the identical command :command:`write_basic_package_version_file()`
   from module :module:`CMakePackageConfigHelpers`.
 
-::
+.. code-block:: cmake
 
-  WRITE_BASIC_CONFIG_VERSION_FILE( filename
+  WRITE_BASIC_CONFIG_VERSION_FILE(filename
     [VERSION major.minor.patch]
     COMPATIBILITY (AnyNewerVersion|SameMajorVersion|SameMinorVersion|ExactVersion)
     [ARCH_INDEPENDENT]

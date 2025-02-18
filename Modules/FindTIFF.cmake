@@ -14,7 +14,7 @@ This module supports the optional component `CXX`, for use with the COMPONENTS
 argument of the :command:`find_package` command. This component has an associated
 imported target, as described below.
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.5
@@ -66,7 +66,6 @@ The following cache variables may also be set:
 #]=======================================================================]
 
 cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 set(_TIFF_args)
@@ -208,7 +207,7 @@ if (Tiff_FOUND)
   endforeach ()
   unset(_TIFF_component)
 
-  include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+  include(FindPackageHandleStandardArgs)
   find_package_handle_standard_args(TIFF
                                     HANDLE_COMPONENTS
                                     REQUIRED_VARS Tiff_DIR
@@ -270,8 +269,8 @@ unset(_comp)
 unset(TIFF_NAMES)
 unset(TIFF_NAMES_DEBUG)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(TIFF
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(TIFF
                                   HANDLE_COMPONENTS
                                   REQUIRED_VARS TIFF_LIBRARY TIFF_INCLUDE_DIR
                                   VERSION_VAR TIFF_VERSION_STRING)

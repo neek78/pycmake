@@ -540,8 +540,8 @@ endfunction()
 
 _Ice_FIND()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Ice
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Ice
                                   REQUIRED_VARS Ice_SLICE2CPP_EXECUTABLE
                                                 Ice_INCLUDE_DIR
                                                 Ice_SLICE_DIR

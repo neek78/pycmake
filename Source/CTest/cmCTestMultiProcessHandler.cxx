@@ -19,6 +19,7 @@
 
 #include <cm/memory>
 #include <cm/optional>
+#include <cm/string_view>
 #include <cmext/algorithm>
 
 #include <cm3p/json/value.h>
@@ -51,6 +52,48 @@ constexpr unsigned long kParallelLevelMinimum = 2u;
 // Under a job server, parallelism is effectively limited
 // only by available job server tokens.
 constexpr unsigned long kParallelLevelUnbounded = 0x10000u;
+
+struct CostEntry
+{
+  cm::string_view name;
+  int prevRuns;
+  float cost;
+};
+
+cm::optional<CostEntry> splitCostLine(cm::string_view line)
+{
+  std::string part;
+  cm::string_view::size_type pos1 = line.size();
+  cm::string_view::size_type pos2 = line.find_last_of(' ', pos1);
+  auto findNext = [line, &part, &pos1, &pos2]() -> bool {
+    if (pos2 != cm::string_view::npos) {
+      cm::string_view sub = line.substr(pos2 + 1, pos1 - pos2 - 1);
+      part.assign(sub.begin(), sub.end());
+      pos1 = pos2;
+      if (pos1 > 0) {
+        pos2 = line.find_last_of(' ', pos1 - 1);
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // parse the cost
+  if (!findNext()) {
+    return cm::nullopt;
+  }
+  float cost = static_cast<float>(atof(part.c_str()));
+
+  // parse the previous runs
+  if (!findNext()) {
+    return cm::nullopt;
+  }
+  int prev = atoi(part.c_str());
+
+  // from start to the last found space is the name
+  return CostEntry{ line.substr(0, pos1), prev, cost };
+}
+
 }
 
 namespace cmsys {
@@ -794,24 +837,21 @@ void cmCTestMultiProcessHandler::UpdateCostData()
       if (line == "---") {
         break;
       }
-      std::vector<std::string> parts = cmSystemTools::SplitString(line, ' ');
       // Format: <name> <previous_runs> <avg_cost>
-      if (parts.size() < 3) {
+      cm::optional<CostEntry> entry = splitCostLine(line);
+      if (!entry) {
         break;
       }
 
-      std::string name = parts[0];
-      int prev = atoi(parts[1].c_str());
-      float cost = static_cast<float>(atof(parts[2].c_str()));
-
-      int index = this->SearchByName(name);
+      int index = this->SearchByName(entry->name);
       if (index == -1) {
         // This test is not in memory. We just rewrite the entry
-        fout << name << " " << prev << " " << cost << "\n";
+        fout << entry->name << " " << entry->prevRuns << " " << entry->cost
+             << "\n";
       } else {
         // Update with our new average cost
-        fout << name << " " << this->Properties[index]->PreviousRuns << " "
-             << this->Properties[index]->Cost << "\n";
+        fout << entry->name << " " << this->Properties[index]->PreviousRuns
+             << " " << this->Properties[index]->Cost << "\n";
         temp.erase(index);
       }
     }
@@ -847,28 +887,25 @@ void cmCTestMultiProcessHandler::ReadCostData()
         break;
       }
 
-      std::vector<std::string> parts = cmSystemTools::SplitString(line, ' ');
+      // Format: <name> <previous_runs> <avg_cost>
+      cm::optional<CostEntry> entry = splitCostLine(line);
 
       // Probably an older version of the file, will be fixed next run
-      if (parts.size() < 3) {
+      if (!entry) {
         fin.close();
         return;
       }
 
-      std::string name = parts[0];
-      int prev = atoi(parts[1].c_str());
-      float cost = static_cast<float>(atof(parts[2].c_str()));
-
-      int index = this->SearchByName(name);
+      int index = this->SearchByName(entry->name);
       if (index == -1) {
         continue;
       }
 
-      this->Properties[index]->PreviousRuns = prev;
+      this->Properties[index]->PreviousRuns = entry->prevRuns;
       // When not running in parallel mode, don't use cost data
       if (this->GetParallelLevel() > 1 && this->Properties[index] &&
           this->Properties[index]->Cost == 0) {
-        this->Properties[index]->Cost = cost;
+        this->Properties[index]->Cost = entry->cost;
       }
     }
     // Next part of the file is the failed tests
@@ -881,7 +918,7 @@ void cmCTestMultiProcessHandler::ReadCostData()
   }
 }
 
-int cmCTestMultiProcessHandler::SearchByName(std::string const& name)
+int cmCTestMultiProcessHandler::SearchByName(cm::string_view name)
 {
   int index = -1;
 
@@ -1020,39 +1057,39 @@ void cmCTestMultiProcessHandler::MarkFinished()
   cmSystemTools::RemoveFile(fname);
 }
 
-static Json::Value DumpToJsonArray(const std::set<std::string>& values)
+static Json::Value DumpToJsonArray(std::set<std::string> const& values)
 {
   Json::Value jsonArray = Json::arrayValue;
-  for (const auto& it : values) {
+  for (auto const& it : values) {
     jsonArray.append(it);
   }
   return jsonArray;
 }
 
-static Json::Value DumpToJsonArray(const std::vector<std::string>& values)
+static Json::Value DumpToJsonArray(std::vector<std::string> const& values)
 {
   Json::Value jsonArray = Json::arrayValue;
-  for (const auto& it : values) {
+  for (auto const& it : values) {
     jsonArray.append(it);
   }
   return jsonArray;
 }
 
 static Json::Value DumpRegExToJsonArray(
-  const std::vector<std::pair<cmsys::RegularExpression, std::string>>& values)
+  std::vector<std::pair<cmsys::RegularExpression, std::string>> const& values)
 {
   Json::Value jsonArray = Json::arrayValue;
-  for (const auto& it : values) {
+  for (auto const& it : values) {
     jsonArray.append(it.second);
   }
   return jsonArray;
 }
 
 static Json::Value DumpMeasurementToJsonArray(
-  const std::map<std::string, std::string>& values)
+  std::map<std::string, std::string> const& values)
 {
   Json::Value jsonArray = Json::arrayValue;
-  for (const auto& it : values) {
+  for (auto const& it : values) {
     Json::Value measurement = Json::objectValue;
     measurement["measurement"] = it.first;
     measurement["value"] = it.second;
@@ -1072,8 +1109,8 @@ static Json::Value DumpTimeoutAfterMatch(
 }
 
 static Json::Value DumpResourceGroupsToJsonArray(
-  const std::vector<
-    std::vector<cmCTestTestHandler::cmCTestTestResourceRequirement>>&
+  std::vector<
+    std::vector<cmCTestTestHandler::cmCTestTestResourceRequirement>> const&
     resourceGroups)
 {
   Json::Value jsonResourceGroups = Json::arrayValue;
@@ -1334,7 +1371,7 @@ static Json::Value DumpCTestInfo(
   if (!command.empty()) {
     std::vector<std::string> commandAndArgs;
     commandAndArgs.push_back(command);
-    const std::vector<std::string>& args = testRun.GetArguments();
+    std::vector<std::string> const& args = testRun.GetArguments();
     if (!args.empty()) {
       commandAndArgs.reserve(args.size() + 1);
       cm::append(commandAndArgs, args);

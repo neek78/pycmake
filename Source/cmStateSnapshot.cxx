@@ -46,7 +46,7 @@ cmStateEnums::SnapshotType cmStateSnapshot::GetType() const
   return this->Position->SnapshotType;
 }
 
-void cmStateSnapshot::SetListFile(const std::string& listfile)
+void cmStateSnapshot::SetListFile(std::string const& listfile)
 {
   *this->Position->ExecutionListFile = listfile;
 }
@@ -200,11 +200,6 @@ cmPolicies::PolicyStatus cmStateSnapshot::GetPolicy(cmPolicies::PolicyID id,
   return status;
 }
 
-bool cmStateSnapshot::HasDefinedPolicyCMP0011()
-{
-  return !this->Position->Policies->IsEmpty();
-}
-
 cmValue cmStateSnapshot::GetDefinition(std::string const& name) const
 {
   assert(this->Position->Vars.IsValid());
@@ -234,7 +229,7 @@ std::vector<std::string> cmStateSnapshot::ClosureKeys() const
                                     this->Position->Root);
 }
 
-bool cmStateSnapshot::RaiseScope(std::string const& var, const char* varDef)
+bool cmStateSnapshot::RaiseScope(std::string const& var, char const* varDef)
 {
   if (this->Position->ScopeParent == this->Position->DirectoryParent) {
     cmStateSnapshot parentDir = this->GetBuildsystemDirectoryParent();
@@ -271,7 +266,7 @@ void InitializeContentFromParent(T& parentContent, T& thisContent,
 
   auto parentRbegin = cm::make_reverse_iterator(parentEnd);
   auto parentRend = parentContent.rend();
-  parentRbegin = std::find(parentRbegin, parentRend, cmPropertySentinal);
+  parentRbegin = std::find(parentRbegin, parentRend, cmPropertySentinel);
   auto parentIt = parentRbegin.base();
 
   thisContent = std::vector<BT<std::string>>(parentIt, parentEnd);
@@ -328,6 +323,11 @@ void cmStateSnapshot::SetDefaultDefinitions()
 #if defined(__linux__)
   this->SetDefinition("LINUX", "1");
   this->SetDefinition("CMAKE_HOST_LINUX", "1");
+#endif
+
+#if defined(_AIX)
+  this->SetDefinition("AIX", "1");
+  this->SetDefinition("CMAKE_HOST_AIX", "1");
 #endif
 
   this->SetDefinition("CMAKE_MAJOR_VERSION",
@@ -408,7 +408,7 @@ cmStateDirectory cmStateSnapshot::GetDirectory() const
   return { this->Position->BuildSystemDirectory, *this };
 }
 
-void cmStateSnapshot::SetProjectName(const std::string& name)
+void cmStateSnapshot::SetProjectName(std::string const& name)
 {
   this->Position->BuildSystemDirectory->ProjectName = name;
 }
@@ -431,17 +431,17 @@ void cmStateSnapshot::InitializeFromParent_ForSubdirsCommand()
 }
 
 bool cmStateSnapshot::StrictWeakOrder::operator()(
-  const cmStateSnapshot& lhs, const cmStateSnapshot& rhs) const
+  cmStateSnapshot const& lhs, cmStateSnapshot const& rhs) const
 {
   return lhs.Position.StrictWeakOrdered(rhs.Position);
 }
 
-bool operator==(const cmStateSnapshot& lhs, const cmStateSnapshot& rhs)
+bool operator==(cmStateSnapshot const& lhs, cmStateSnapshot const& rhs)
 {
   return lhs.Position == rhs.Position;
 }
 
-bool operator!=(const cmStateSnapshot& lhs, const cmStateSnapshot& rhs)
+bool operator!=(cmStateSnapshot const& lhs, cmStateSnapshot const& rhs)
 {
   return lhs.Position != rhs.Position;
 }

@@ -88,7 +88,7 @@ void cmMakefileExecutableTargetGenerator::WriteDeviceExecutableRule(
   bool relink)
 {
 #ifndef CMAKE_BOOTSTRAP
-  const bool requiresDeviceLinking = requireDeviceLinking(
+  bool const requiresDeviceLinking = requireDeviceLinking(
     *this->GeneratorTarget, *this->LocalGenerator, this->GetConfigName());
   if (!requiresDeviceLinking) {
     return;
@@ -132,9 +132,9 @@ void cmMakefileExecutableTargetGenerator::WriteDeviceExecutableRule(
 
 void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
   bool relink, std::vector<std::string>& commands,
-  const std::string& targetOutput)
+  std::string const& targetOutput)
 {
-  const std::string linkLanguage = "CUDA";
+  std::string const linkLanguage = "CUDA";
 
   // Build list of dependencies.
   std::vector<std::string> depends;
@@ -155,8 +155,8 @@ void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
   bool useLinkScript = this->GlobalGenerator->GetUseLinkScript();
 
   // Construct the main link rule.
-  const std::string linkRuleVar = "CMAKE_CUDA_DEVICE_LINK_EXECUTABLE";
-  const std::string linkRule = this->GetLinkRule(linkRuleVar);
+  std::string const linkRuleVar = "CMAKE_CUDA_DEVICE_LINK_EXECUTABLE";
+  std::string const linkRule = this->GetLinkRule(linkRuleVar);
   std::vector<std::string> commands1;
   cmList real_link_commands(linkRule);
 
@@ -253,7 +253,7 @@ void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
   // command lines in the make shell.
   if (useLinkScript) {
     // Use a link script.
-    const char* name = (relink ? "drelink.txt" : "dlink.txt");
+    char const* name = (relink ? "drelink.txt" : "dlink.txt");
     this->CreateLinkScript(name, real_link_commands, commands1, depends);
   } else {
     // No link script.  Just use the link rule directly.
@@ -397,7 +397,7 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
   }
 
   this->LocalGenerator->AppendFlags(linkFlags,
-                                    this->LocalGenerator->GetLinkLibsCMP0065(
+                                    this->LocalGenerator->GetExeExportFlags(
                                       linkLanguage, *this->GeneratorTarget));
 
   this->UseLWYU = this->LocalGenerator->AppendLWYUFlags(
@@ -537,6 +537,8 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
     vars.CMTargetName = this->GeneratorTarget->GetName().c_str();
     vars.CMTargetType =
       cmState::GetTargetTypeName(this->GeneratorTarget->GetType()).c_str();
+    vars.CMTargetLabels =
+      this->GeneratorTarget->GetTargetLabelsString().c_str();
     vars.Language = linkLanguage.c_str();
     vars.Linker = linker.c_str();
     vars.AIXExports = aixExports.c_str();
@@ -552,6 +554,7 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
       cmOutputConverter::SHELL, useWatcomQuote);
     vars.Target = target.c_str();
     vars.TargetPDB = targetOutPathPDB.c_str();
+    vars.Config = this->GetConfigName().c_str();
 
     // Setup the target version.
     std::string targetVersionMajor;
@@ -624,7 +627,7 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
   // command lines in the make shell.
   if (useLinkScript) {
     // Use a link script.
-    const char* name = (relink ? "relink.txt" : "link.txt");
+    char const* name = (relink ? "relink.txt" : "link.txt");
     this->CreateLinkScript(name, real_link_commands, commands1, depends);
   } else {
     // No link script.  Just use the link rule directly.

@@ -23,7 +23,7 @@ standard syntax, e.g. ``find_package(Subversion 1.4)``.
 
 If the command line client executable is found two macros are defined:
 
-::
+.. code-block:: cmake
 
   Subversion_WC_INFO(<dir> <var-prefix> [IGNORE_SVN_FAILURE])
   Subversion_WC_LOG(<dir> <var-prefix>)
@@ -57,7 +57,7 @@ subversion working copy at a given location.  This macro defines the variable:
 
 Example usage:
 
-::
+.. code-block:: cmake
 
   find_package(Subversion)
   if(SUBVERSION_FOUND)
@@ -160,8 +160,8 @@ if(Subversion_SVN_EXECUTABLE)
 
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Subversion REQUIRED_VARS Subversion_SVN_EXECUTABLE
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Subversion REQUIRED_VARS Subversion_SVN_EXECUTABLE
                                              VERSION_VAR Subversion_VERSION_SVN )
 
 # for compatibility

@@ -19,6 +19,9 @@ The following :prop_tgt:`IMPORTED` targets are also defined:
 ``Patch::patch``
   The command-line executable.
 
+  .. versionchanged:: 4.0
+    Imported target is defined only when :prop_gbl:`CMAKE_ROLE` is ``PROJECT``.
+
 Example usage:
 
 .. code-block:: cmake
@@ -58,14 +61,23 @@ if(CMAKE_HOST_WIN32)
     )
 endif()
 
-if(Patch_EXECUTABLE AND NOT TARGET Patch::patch)
+mark_as_advanced(Patch_EXECUTABLE)
+
+get_property(_patch_role GLOBAL PROPERTY CMAKE_ROLE)
+
+if(
+  _patch_role STREQUAL "PROJECT"
+  AND Patch_EXECUTABLE
+  AND NOT TARGET Patch::patch
+)
   add_executable(Patch::patch IMPORTED)
   set_property(TARGET Patch::patch PROPERTY IMPORTED_LOCATION ${Patch_EXECUTABLE})
 endif()
 
 unset(_patch_path)
+unset(_patch_role)
 unset(_doc)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Patch
                                   REQUIRED_VARS Patch_EXECUTABLE)

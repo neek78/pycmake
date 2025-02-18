@@ -468,9 +468,6 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(SetLang SetLangX)
   ADD_TEST_MACRO(EmptyProperty EmptyProperty)
   ADD_TEST_MACRO(ExternalOBJ ExternalOBJ)
-  if(NOT CMake_TEST_EXTERNAL_CMAKE)
-    ADD_TEST_MACRO(LoadCommand LoadedCommand)
-  endif()
   ADD_TEST_MACRO(LinkDirectory bin/LinkDirectory)
   ADD_TEST_MACRO(LinkLanguage LinkLanguage)
   ADD_TEST_MACRO(LinkLine LinkLine)
@@ -545,9 +542,6 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(CrossCompile CrossCompile)
   set_tests_properties(CrossCompile PROPERTIES
     PASS_REGULAR_EXPRESSION "try_run.. invoked in cross-compiling mode")
-  if("${CMAKE_GENERATOR}" MATCHES "Make")
-    ADD_TEST_MACRO(Policy0002 Policy0002)
-  endif()
   if(CMake_TEST_XCODE_VERSION)
     set(Architecture_BUILD_OPTIONS -DCMake_TEST_XCODE_VERSION=${CMake_TEST_XCODE_VERSION})
     ADD_TEST_MACRO(Architecture Architecture)
@@ -578,7 +572,7 @@ if(BUILD_TESTING)
     set(CMAKE_REQUIRED_INCLUDES ${QT_INCLUDES})
     set(CMAKE_REQUIRED_LIBRARIES ${QT_QTCORE_LIBRARIES})
 
-    CHECK_CXX_SOURCE_COMPILES("#include <QCoreApplication>\n int main() {return (qApp == 0 ? 0 : 1); }\n"
+    check_cxx_source_compiles("#include <QCoreApplication>\n int main() {return (qApp == 0 ? 0 : 1); }\n"
                               QT4_WORKS)
 
     set(CMAKE_REQUIRED_INCLUDES "${_save_CMAKE_REQUIRED_INCLUDES}")
@@ -1335,18 +1329,6 @@ if(BUILD_TESTING)
     # This test runs a lot of processes.  Do not make them compete
     # for resources with other tests.
     set_property(TEST CMakeTestAllGenerators PROPERTY RUN_SERIAL 1)
-  endif()
-
-  if(NOT CMake_TEST_EXTERNAL_CMAKE)
-    add_test(LoadedCommandOneConfig  ${CMAKE_CTEST_COMMAND}
-      --build-and-test
-      "${CMake_SOURCE_DIR}/Tests/LoadCommandOneConfig"
-      "${CMake_BINARY_DIR}/Tests/LoadCommandOneConfig"
-      ${build_generator_args}
-      --build-project LoadCommand
-      --test-command  LoadedCommand
-      )
-    list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/LoadCommandOneConfig")
   endif()
 
   add_test(complex  ${CMAKE_CTEST_COMMAND}
@@ -2144,6 +2126,14 @@ if(BUILD_TESTING)
     endif()
     ADD_TEST_MACRO(MSVCDebugInformationFormat)
     set_property(TEST MSVCDebugInformationFormat APPEND
+      PROPERTY LABELS "CUDA" "Fortran")
+
+    set(MSVCRuntimeChecks_BUILD_OPTIONS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
+    if(CMAKE_Fortran_COMPILER)
+      list(APPEND MSVCRuntimeChecks_BUILD_OPTIONS -DCMake_TEST_Fortran=1)
+    endif()
+    ADD_TEST_MACRO(MSVCRuntimeChecks)
+    set_property(TEST MSVCRuntimeChecks APPEND
       PROPERTY LABELS "CUDA" "Fortran")
 
     set(MSVCRuntimeLibrary_BUILD_OPTIONS -DCMake_TEST_CUDA=${CMake_TEST_CUDA})

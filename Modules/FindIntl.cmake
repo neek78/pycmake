@@ -160,8 +160,8 @@ if(Intl_INCLUDE_DIR AND EXISTS "${Intl_INCLUDE_DIR}/libintl.h")
   unset(Intl_VERSION_NUMBER)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Intl
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Intl
                                   REQUIRED_VARS ${_Intl_REQUIRED_VARS}
                                   VERSION_VAR Intl_VERSION
                                   FAIL_MESSAGE "Failed to find Gettext libintl")

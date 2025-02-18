@@ -532,6 +532,11 @@ List Transformations
 
         $<LIST:TRANSFORM,list,REPLACE,regular_expression,replace_expression[,SELECTOR]>
 
+      .. versionchanged:: 4.1
+        The ``^`` anchor now matches only at the beginning of the input
+        element instead of the beginning of each repeated search.
+        See policy :policy:`CMP0186`.
+
   ``SELECTOR`` determines which items of the list will be transformed.
   Only one type of selector can be specified at a time. When given,
   ``SELECTOR`` must be one of the following:
@@ -691,7 +696,7 @@ All paths are expected to be in cmake-style format.
   present, ``0`` otherwise. See :ref:`Path Structure And Terminology` for the
   meaning of each path component.
 
-  ::
+  .. code-block:: cmake
 
     $<PATH:HAS_ROOT_NAME,path>
     $<PATH:HAS_ROOT_DIRECTORY,path>
@@ -753,7 +758,7 @@ command.  All paths are expected to be in cmake-style format.
     All operations now accept a list of paths as argument. When a list of paths
     is specified, the operation will be applied to each path.
 
-  ::
+  .. code-block:: cmake
 
     $<PATH:GET_ROOT_NAME,path...>
     $<PATH:GET_ROOT_DIRECTORY,path...>
@@ -797,7 +802,7 @@ in cmake-style format.
 
 .. genex:: $<PATH:NATIVE_PATH[,NORMALIZE],path...>
 
-  .. versionadded:: 3.32
+  .. versionadded:: 4.0
 
   Returns ``path`` converted into a native format with platform-specific
   slashes (``\`` on Windows hosts and ``/`` elsewhere).
@@ -1415,7 +1420,7 @@ Compile Context
   linking requirements (e.g., all-``inline`` or C++ template libraries).
 
   Note that for proper evaluation of this expression requires policy :policy:`CMP0099`
-  to be set to `NEW`.
+  to be set to ``NEW``.
 
 Linker Language And ID
 ^^^^^^^^^^^^^^^^^^^^^^

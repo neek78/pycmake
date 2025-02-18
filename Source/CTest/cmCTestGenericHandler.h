@@ -4,9 +4,6 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <map>
-#include <string>
-
 #include "cmCTest.h"
 #include "cmSystemTools.h"
 
@@ -52,8 +49,6 @@ public:
   cmCTestGenericHandler(cmCTest* ctest);
   virtual ~cmCTestGenericHandler();
 
-  using t_StringToString = std::map<std::string, std::string>;
-
   void SetSubmitIndex(int idx) { this->SubmitIndex = idx; }
   int GetSubmitIndex() { return this->SubmitIndex; }
 
@@ -66,16 +61,15 @@ public:
   void SetCMakeInstance(cmake* cm) { this->CMake = cm; }
 
 protected:
-  bool StartResultingXML(cmCTest::Part part, const char* name,
+  bool StartResultingXML(cmCTest::Part part, char const* name,
                          cmGeneratedFileStream& xofs);
-  bool StartLogFile(const char* name, cmGeneratedFileStream& xofs);
+  bool StartLogFile(char const* name, cmGeneratedFileStream& xofs);
 
   bool AppendXML = false;
   bool Quiet = false;
   unsigned long TestLoad = 0;
   cmSystemTools::OutputOption HandlerVerbose = cmSystemTools::OUTPUT_NONE;
   cmCTest* CTest;
-  t_StringToString LogFileNames;
   cmake* CMake = nullptr;
 
   int SubmitIndex = 0;

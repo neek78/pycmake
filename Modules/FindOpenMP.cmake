@@ -111,9 +111,6 @@ to know what include directories are needed.
 #]=======================================================================]
 
 cmake_policy(PUSH)
-cmake_policy(SET CMP0012 NEW) # if() recognizes numbers and booleans
-cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 function(_OPENMP_FLAG_CANDIDATES LANG)
@@ -155,6 +152,7 @@ function(_OPENMP_FLAG_CANDIDATES LANG)
     set(OMP_FLAG_XL "-qsmp=omp")
     # Cray compiler activate OpenMP with -h omp, which is enabled by default.
     set(OMP_FLAG_Cray " " "-h omp")
+    set(OMP_FLAG_CrayClang "-fopenmp")
     set(OMP_FLAG_Fujitsu "-Kopenmp" "-KOMP")
     set(OMP_FLAG_FujitsuClang "-fopenmp" "-Kopenmp")
 
@@ -626,7 +624,7 @@ endif()
 
 unset(_OpenMP_MIN_VERSION)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 foreach(LANG IN LISTS OpenMP_FINDLIST)
   if(CMAKE_${LANG}_COMPILER_LOADED)
@@ -680,7 +678,8 @@ foreach(LANG IN LISTS OpenMP_FINDLIST)
         set_property(TARGET OpenMP::OpenMP_${LANG} PROPERTY
           INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:${LANG}>:SHELL:${OpenMP_${LANG}_FLAGS}>")
         if(CMAKE_${LANG}_COMPILER_ID STREQUAL "Fujitsu"
-          OR ${CMAKE_${LANG}_COMPILER_ID} STREQUAL "IntelLLVM")
+          OR ${CMAKE_${LANG}_COMPILER_ID} STREQUAL "IntelLLVM"
+          OR CMAKE_${LANG}_COMPILER_ID MATCHES "^(Cray|CrayClang)$")
           set_property(TARGET OpenMP::OpenMP_${LANG} PROPERTY
             INTERFACE_LINK_OPTIONS "SHELL:${OpenMP_${LANG}_FLAGS}")
         endif()

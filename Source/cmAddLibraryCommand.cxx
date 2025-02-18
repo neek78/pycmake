@@ -150,7 +150,8 @@ bool cmAddLibraryCommand(std::vector<std::string> const& args,
   if (nameOk && !importTarget && !isAlias) {
     nameOk = libName.find(':') == std::string::npos;
   }
-  if (!nameOk && !mf.CheckCMP0037(libName, type)) {
+  if (!nameOk) {
+    mf.IssueInvalidTargetNameError(libName);
     return false;
   }
 
@@ -189,7 +190,8 @@ bool cmAddLibraryCommand(std::vector<std::string> const& args,
                                "\" is itself an ALIAS."));
       return false;
     }
-    cmTarget* aliasedTarget = mf.FindTargetToUse(aliasedName, true);
+    cmTarget* aliasedTarget =
+      mf.FindTargetToUse(aliasedName, { cmStateEnums::TargetDomain::NATIVE });
     if (!aliasedTarget) {
       status.SetError(cmStrCat("cannot create ALIAS target \"", libName,
                                "\" because target \"", aliasedName,

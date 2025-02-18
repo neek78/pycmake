@@ -39,7 +39,7 @@ There are also components for the following ImageMagick APIs:
 * ``MagickCore``: ImageMagick MagickCore low-level C API, if found.
 
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.26
@@ -322,8 +322,8 @@ endif()
 #---------------------------------------------------------------------
 # Standard Package Output
 #---------------------------------------------------------------------
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(ImageMagick
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(ImageMagick
                                   REQUIRED_VARS ${ImageMagick_REQUIRED_VARS}
                                   VERSION_VAR ImageMagick_VERSION_STRING
   )

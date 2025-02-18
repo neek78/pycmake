@@ -5,57 +5,84 @@
 FindGettext
 -----------
 
-Find GNU gettext tools
+Find GNU gettext tools.
 
-This module looks for the GNU gettext tools.  This module defines the
-following values:
+This module looks for the GNU gettext tools.
 
-::
+Result Variables
+^^^^^^^^^^^^^^^^
 
-  GETTEXT_MSGMERGE_EXECUTABLE: the full path to the msgmerge tool.
-  GETTEXT_MSGFMT_EXECUTABLE: the full path to the msgfmt tool.
-  GETTEXT_FOUND: True if gettext has been found.
-  GETTEXT_VERSION_STRING: the version of gettext found (since CMake 2.8.8)
+This module defines the following variables:
 
+``GETTEXT_FOUND``
+  True if gettext has been found.
 
+``GETTEXT_VERSION_STRING``
+  The version of gettext found.
 
-Additionally it provides the following macros:
+``GETTEXT_MSGMERGE_EXECUTABLE``
+  The full path to the msgmerge tool.
 
-GETTEXT_CREATE_TRANSLATIONS ( outputFile [ALL] file1 ...  fileN )
+``GETTEXT_MSGFMT_EXECUTABLE``
+  The full path to the msgfmt tool.
 
-::
+Functions
+^^^^^^^^^
 
-    This will create a target "translations" which will convert the
-    given input po files into the binary output mo file. If the
-    ALL option is used, the translations will also be created when
-    building the default target.
+This module provides several function.
 
-GETTEXT_PROCESS_POT_FILE( <potfile> [ALL] [INSTALL_DESTINATION <destdir>]
-LANGUAGES <lang1> <lang2> ...  )
+.. command:: gettext_create_translations
 
-::
+  .. code-block:: cmake
 
-     Process the given pot file to mo files.
-     If INSTALL_DESTINATION is given then automatically install rules will
-     be created, the language subdirectory will be taken into account
-     (by default use share/locale/).
-     If ALL is specified, the pot file is processed when building the all target.
-     It creates a custom target "potfile".
+    gettext_create_translations(<potfile> [ALL] <file>...)
 
-GETTEXT_PROCESS_PO_FILES( <lang> [ALL] [INSTALL_DESTINATION <dir>]
-PO_FILES <po1> <po2> ...  )
+  This function creates a custom target "translations" which processes the
+  given .pot file to .mo files. The generated binary files will be installed
+  into ``share/locale/`` directory. Options:
 
-::
+  ``ALL``
+    The translations will be created when building the default target.
 
-     Process the given po files to mo files for the given language.
-     If INSTALL_DESTINATION is given then automatically install rules will
-     be created, the language subdirectory will be taken into account
-     (by default use share/locale/).
-     If ALL is specified, the po files are processed when building the all target.
-     It creates a custom target "pofiles".
+.. command:: gettext_process_pot_file
+
+  .. code-block:: cmake
+
+      gettext_process_pot_file(<potfile> [ALL]
+                               [INSTALL_DESTINATION <destdir>]
+                               LANGUAGES <lang>...)
+
+  This function creates a custom target "potfiles" which processes the given
+  .pot file to .mo files. Options:
+
+  ``ALL``
+    The .pot file will be processed when building the default target.
+
+  ``INSTALL_DESTINATION``
+    Install the results into the given directory (``share/locale/`` by
+    default). The language subdirectory will be taken into account.
+
+.. command:: gettext_process_po_files
+
+  .. code-block:: cmake
+
+    gettext_process_po_files(<lang> [ALL]
+                             [INSTALL_DESTINATION <dir>]
+                             PO_FILES <pofile>...)
+
+  This function creates a custom target "pofiles", which processes the given
+  .po files to .mo files for the given language. Options:
+
+  ``ALL``
+    The .po files will be processed when building the default target.
+
+  ``INSTALL_DESTINATION``
+    Install the results into the given directory (``share/locale/`` by
+    default). The language subdirectory will be taken into account.
 
 .. versionadded:: 3.2
-  If you wish to use the Gettext library (libintl), use :module:`FindIntl`.
+  If you wish to use the Gettext runtime library (libintl), use
+  :module:`FindIntl`.
 #]=======================================================================]
 
 find_program(GETTEXT_MSGMERGE_EXECUTABLE msgmerge)
@@ -69,7 +96,7 @@ if(GETTEXT_MSGMERGE_EXECUTABLE)
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
   get_filename_component(msgmerge_name ${GETTEXT_MSGMERGE_EXECUTABLE} NAME)
   get_filename_component(msgmerge_namewe ${GETTEXT_MSGMERGE_EXECUTABLE} NAME_WE)
-  if (gettext_version MATCHES "^(${msgmerge_name}|${msgmerge_namewe}) \\([^\\)]*\\) ([0-9\\.]+[^ \n]*)")
+  if(gettext_version MATCHES "^(${msgmerge_name}|${msgmerge_namewe}) \\([^\\)]*\\) ([0-9\\.]+[^ \n]*)")
     set(GETTEXT_VERSION_STRING "${CMAKE_MATCH_2}")
   endif()
   unset(gettext_version)
@@ -77,8 +104,8 @@ if(GETTEXT_MSGMERGE_EXECUTABLE)
   unset(msgmerge_namewe)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Gettext
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Gettext
                                   REQUIRED_VARS GETTEXT_MSGMERGE_EXECUTABLE GETTEXT_MSGFMT_EXECUTABLE
                                   VERSION_VAR GETTEXT_VERSION_STRING)
 
@@ -90,7 +117,7 @@ function(_GETTEXT_GET_UNIQUE_TARGET_NAME _name _unique_name)
   endif()
   set(${_unique_name} "${_name}_${currentCounter}" PARENT_SCOPE)
   math(EXPR currentCounter "${currentCounter} + 1")
-  set_property(GLOBAL PROPERTY ${propertyName} ${currentCounter} )
+  set_property(GLOBAL PROPERTY ${propertyName} ${currentCounter})
 endfunction()
 
 macro(GETTEXT_CREATE_TRANSLATIONS _potFile _firstPoFileArg)
@@ -108,7 +135,7 @@ macro(GETTEXT_CREATE_TRANSLATIONS _potFile _firstPoFileArg)
     set(_firstPoFile)
   endif()
 
-  foreach (_currentPoFile ${_firstPoFile} ${ARGN})
+  foreach(_currentPoFile ${_firstPoFile} ${ARGN})
     get_filename_component(_absFile ${_currentPoFile} ABSOLUTE)
     get_filename_component(_abs_PATH ${_absFile} PATH)
     get_filename_component(_lang ${_absFile} NAME_WE)
@@ -124,7 +151,7 @@ macro(GETTEXT_CREATE_TRANSLATIONS _potFile _firstPoFileArg)
     install(FILES ${_gmoFile} DESTINATION share/locale/${_lang}/LC_MESSAGES RENAME ${_potBasename}.mo)
     set(_gmoFiles ${_gmoFiles} ${_gmoFile})
 
-  endforeach ()
+  endforeach()
 
   if(NOT TARGET translations)
     add_custom_target(translations)
@@ -145,13 +172,13 @@ function(GETTEXT_PROCESS_POT_FILE _potFile)
   set(_oneValueArgs INSTALL_DESTINATION)
   set(_multiValueArgs LANGUAGES)
 
-  CMAKE_PARSE_ARGUMENTS(_parsedArguments "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(_parsedArguments "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
 
   get_filename_component(_potName ${_potFile} NAME)
   string(REGEX REPLACE "^(.+)(\\.[^.]+)$" "\\1" _potBasename ${_potName})
   get_filename_component(_absPotFile ${_potFile} ABSOLUTE)
 
-  foreach (_lang ${_parsedArguments_LANGUAGES})
+  foreach(_lang ${_parsedArguments_LANGUAGES})
     set(_poFile  "${CMAKE_CURRENT_BINARY_DIR}/${_lang}.po")
     set(_gmoFile "${CMAKE_CURRENT_BINARY_DIR}/${_lang}.gmo")
 
@@ -171,7 +198,7 @@ function(GETTEXT_PROCESS_POT_FILE _potFile)
       install(FILES ${_gmoFile} DESTINATION ${_parsedArguments_INSTALL_DESTINATION}/${_lang}/LC_MESSAGES RENAME ${_potBasename}.mo)
     endif()
     list(APPEND _gmoFiles ${_gmoFile})
-  endforeach ()
+  endforeach()
 
   if(NOT TARGET potfiles)
     add_custom_target(potfiles)
@@ -196,7 +223,7 @@ function(GETTEXT_PROCESS_PO_FILES _lang)
   set(_multiValueArgs PO_FILES)
   set(_gmoFiles)
 
-  CMAKE_PARSE_ARGUMENTS(_parsedArguments "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(_parsedArguments "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
 
   foreach(_current_PO_FILE ${_parsedArguments_PO_FILES})
     get_filename_component(_name ${_current_PO_FILE} NAME)
@@ -219,7 +246,7 @@ function(GETTEXT_PROCESS_PO_FILES _lang)
     add_custom_target(pofiles)
   endif()
 
-  _GETTEXT_GET_UNIQUE_TARGET_NAME( pofiles uniqueTargetName)
+  _GETTEXT_GET_UNIQUE_TARGET_NAME(pofiles uniqueTargetName)
 
   if(_parsedArguments_ALL)
     add_custom_target(${uniqueTargetName} ALL DEPENDS ${_gmoFiles})

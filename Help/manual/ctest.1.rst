@@ -367,7 +367,7 @@ Run Tests
  use interactive mode, and follow the Windows documentation
  on `Collecting User-Mode Dumps`_.
 
- .. versionchanged:: 3.32
+ .. versionchanged:: 4.0
    Windows Error Reporting (WER) is enabled in interactive mode, so
    test processes may show debug popup windows and create core dumps.
    This was made possible by updates to ``libuv``.
@@ -551,7 +551,7 @@ that are mapped to subprojects.
 
 When the :prop_test:`PROCESSORS` test property is set, CTest will display a
 weighted test timing result in label and subproject summaries. The time is
-reported with `sec*proc` instead of just `sec`.
+reported with ``sec * proc`` instead of just ``sec``.
 
 The weighted time summary reported for each label or subproject ``j``
 is computed as::
@@ -795,9 +795,8 @@ The available ``<dashboard-options>`` are the following:
 
 .. option:: --extra-submit <file>[;<file>]
 
- Submit extra files to the dashboard.
-
- This option will submit extra files to the dashboard.
+ Submit extra ``.xml`` part files to the dashboard.
+ See the :command:`ctest_submit` command's ``PARTS ExtraFiles`` option.
 
 .. option:: --http-header <header>
 
@@ -811,10 +810,10 @@ The available ``<dashboard-options>`` are the following:
 
 .. option:: --http1.0
 
- Submit using `HTTP 1.0`.
+ Submit using ``HTTP 1.0``.
 
- This option will force CTest to use `HTTP 1.0` to submit files to the
- dashboard, instead of `HTTP 1.1`.
+ This option will force CTest to use ``HTTP 1.0`` to submit files to the
+ dashboard, instead of ``HTTP 1.1``.
 
 .. option:: --no-compress-output
 
@@ -1516,7 +1515,7 @@ Configuration settings include:
 
   * `CTest Script`_ variable: :variable:`CTEST_DROP_SITE_PASSWORD`
   * :module:`CTest` module variable: ``DROP_SITE_PASSWORD`` if set,
-    else ``CTEST_DROP_SITE_PASWORD``
+    else ``CTEST_DROP_SITE_PASSWORD``
 
 ``DropSiteUser``
   Legacy option.  When ``SubmitURL`` is not set, it is constructed from

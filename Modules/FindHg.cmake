@@ -18,7 +18,7 @@ The module defines the following variables:
 .. versionadded:: 3.1
   If the command line client executable is found the following macro is defined:
 
-::
+.. code-block:: cmake
 
   HG_WC_INFO(<dir> <var-prefix>)
 
@@ -32,7 +32,7 @@ at a given location.  This macro defines the following variables:
 
 Example usage:
 
-::
+.. code-block:: cmake
 
    find_package(Hg)
    if(HG_FOUND)
@@ -84,15 +84,15 @@ if(HG_EXECUTABLE)
       OUTPUT_VARIABLE ${prefix}_WC_DATA
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT ${hg_id_result} EQUAL 0)
-      message(SEND_ERROR "Command \"${HG_EXECUTBALE} id -n\" in directory ${dir} failed with output:\n${hg_id_error}")
+      message(SEND_ERROR "Command \"${HG_EXECUTABLE} id -n\" in directory ${dir} failed with output:\n${hg_id_error}")
     endif()
 
     string(REGEX REPLACE "([0-9a-f]+)\\+? [0-9]+\\+?" "\\1" ${prefix}_WC_CHANGESET ${${prefix}_WC_DATA})
     string(REGEX REPLACE "[0-9a-f]+\\+? ([0-9]+)\\+?" "\\1" ${prefix}_WC_REVISION ${${prefix}_WC_DATA})
-  endmacro(HG_WC_INFO)
+  endmacro()
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Hg
                                   REQUIRED_VARS HG_EXECUTABLE
                                   VERSION_VAR HG_VERSION_STRING)

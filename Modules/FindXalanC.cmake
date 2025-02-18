@@ -9,7 +9,7 @@ FindXalanC
 
 Find the Apache Xalan-C++ XSL transform processor headers and libraries.
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 This module defines the following :prop_tgt:`IMPORTED` targets:
@@ -113,8 +113,8 @@ endif()
 find_package(XercesC ${XalanC_XERCESC_REQUIRED})
 unset(XalanC_XERCESC_REQUIRED)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(XalanC
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(XalanC
                                   REQUIRED_VARS XalanC_LIBRARY
                                                 XalanC_INCLUDE_DIR
                                                 XalanC_VERSION

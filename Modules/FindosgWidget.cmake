@@ -49,6 +49,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/Findosg_functions.cmake)
 OSG_FIND_PATH   (OSGWIDGET osgWidget/Widget)
 OSG_FIND_LIBRARY(OSGWIDGET osgWidget)
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(osgWidget DEFAULT_MSG
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(osgWidget DEFAULT_MSG
     OSGWIDGET_LIBRARY OSGWIDGET_INCLUDE_DIR)

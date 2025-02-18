@@ -87,9 +87,9 @@ Basic Expressions
   A quoted string always evaluates to false unless:
 
   * The string's value is one of the true constants, or
-  * Policy :policy:`CMP0054` is not set to ``NEW`` and the string's value
-    happens to be a variable name that is affected by :policy:`CMP0054`'s
-    behavior.
+  * in CMake versions prior to 4.0, policy :policy:`CMP0054` is not set
+    to ``NEW`` and the string's value happens to be a variable name that
+    is affected by :policy:`CMP0054`'s behavior.
 
 Logic Operators
 """""""""""""""
@@ -149,7 +149,7 @@ Existence Checks
   does not matter. Note the following caveats:
 
   * Macro arguments are not variables.
-  * It is not possible to test directly whether a `<name>` is a non-cache
+  * It is not possible to test directly whether a ``<name>`` is a non-cache
     variable.  The expression ``if(DEFINED someName)`` will evaluate to true
     if either a cache or non-cache variable ``someName`` exists.  In
     comparison, the expression ``if(DEFINED CACHE{someName})`` will only

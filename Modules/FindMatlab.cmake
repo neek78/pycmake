@@ -110,7 +110,7 @@ behavior:
   additional versions of Matlab for the automatic retrieval of the installed
   versions.
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.22
@@ -278,7 +278,9 @@ Reference
 
   If set, specifies additional versions of Matlab that may be looked for.
   The variable should be a list of strings, organized by pairs of release
-  name and versions, such as follows::
+  name and versions, such as follows:
+
+  .. code-block:: cmake
 
     set(MATLAB_ADDITIONAL_VERSIONS
         "release_name1=corresponding_version1"
@@ -286,7 +288,9 @@ Reference
         ...
         )
 
-  Example::
+  Example:
+
+  .. code-block:: cmake
 
     set(MATLAB_ADDITIONAL_VERSIONS
         "R2013b=8.2"
@@ -299,12 +303,11 @@ Reference
 #]=======================================================================]
 
 cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 set(_FindMatlab_SELF_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 if(NOT WIN32 AND NOT APPLE AND NOT Threads_FOUND
     AND (CMAKE_C_COMPILER_LOADED OR CMAKE_CXX_COMPILER_LOADED))
@@ -462,27 +465,29 @@ endmacro()
 .. command:: matlab_extract_all_installed_versions_from_registry
 
   This function parses the Windows registry and finds the Matlab versions that
-  are installed. The found versions are stored in ``matlab_versions``.
+  are installed. The found versions are stored in a given ``<versions-var>``.
 
   .. signature::
-    matlab_extract_all_installed_versions_from_registry(matlab_versions
+    matlab_extract_all_installed_versions_from_registry(<versions-var>
       [REGISTRY_VIEW view])
+    :target: matlab_extract_all_installed_versions_from_registry-keyword
 
     .. versionadded:: 3.30
 
-    * Output: ``matlab_versions`` is a list of all the versions of Matlab found
+    * Output: ``<versions-var>`` is a list of all the versions of Matlab found
     * Input: ``REGISTRY_VIEW`` Optional registry view to use for registry
       interaction. The argument is passed (or omitted) to
       :command:`cmake_host_system_information` without further checks or
       modification.
 
   .. signature::
-    matlab_extract_all_installed_versions_from_registry(win64 matlab_versions)
+    matlab_extract_all_installed_versions_from_registry(<win64> <versions-var>)
+    :target: matlab_extract_all_installed_versions_from_registry-positional
 
     * Input: ``win64`` is a boolean to search for the 64 bit version of
       Matlab. Set to ``ON`` to use the 64bit registry view or ``OFF`` to use the
       32bit registry view. If finer control is needed, see signature above.
-    * Output: ``matlab_versions`` is a list of all the versions of Matlab found
+    * Output: ``<versions-var>`` is a list of all the versions of Matlab found
 
   The returned list contains all versions under
   ``HKLM\SOFTWARE\Mathworks\MATLAB``,

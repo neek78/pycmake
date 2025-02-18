@@ -23,6 +23,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmDependencyProvider.h"
+#include "cmExecutionStatus.h"
 #include "cmExperimental.h"
 #include "cmList.h"
 #include "cmListFileCache.h"
@@ -55,16 +56,15 @@
 #  endif
 #endif
 
-class cmExecutionStatus;
-
 namespace {
 
 using pdt = cmFindPackageCommand::PackageDescriptionType;
+using ParsedVersion = cmPackageInfoReader::Pep440Version;
 
 template <template <typename> class Op>
 struct StrverscmpOp
 {
-  bool operator()(const std::string& lhs, const std::string& rhs) const
+  bool operator()(std::string const& lhs, std::string const& rhs) const
   {
     return Op<int>()(cmSystemTools::strverscmp(lhs, rhs), 0);
   }
@@ -74,7 +74,7 @@ std::size_t collectPathsForDebug(std::string& buffer,
                                  cmSearchPath const& searchPath,
                                  std::size_t const startIndex = 0)
 {
-  const auto& paths = searchPath.GetPaths();
+  auto const& paths = searchPath.GetPaths();
   if (paths.empty()) {
     buffer += "  none\n";
     return 0;
@@ -88,10 +88,10 @@ std::size_t collectPathsForDebug(std::string& buffer,
 #if !(defined(_WIN32) && !defined(__CYGWIN__))
 class cmFindPackageCommandHoldFile
 {
-  const char* File;
+  char const* File;
 
 public:
-  cmFindPackageCommandHoldFile(const char* const f)
+  cmFindPackageCommandHoldFile(char const* const f)
     : File(f)
   {
   }
@@ -101,14 +101,14 @@ public:
       cmSystemTools::RemoveFile(this->File);
     }
   }
-  cmFindPackageCommandHoldFile(const cmFindPackageCommandHoldFile&) = delete;
+  cmFindPackageCommandHoldFile(cmFindPackageCommandHoldFile const&) = delete;
   cmFindPackageCommandHoldFile& operator=(
-    const cmFindPackageCommandHoldFile&) = delete;
+    cmFindPackageCommandHoldFile const&) = delete;
   void Release() { this->File = nullptr; }
 };
 #endif
 
-bool isDirentryToIgnore(const char* const fname)
+bool isDirentryToIgnore(char const* const fname)
 {
   assert(fname);
   assert(fname[0] != 0);
@@ -124,7 +124,7 @@ public:
   {
   }
 
-  std::string GetNextCandidate(const std::string& parent)
+  std::string GetNextCandidate(std::string const& parent)
   {
     if (this->NeedReset) {
       return {};
@@ -136,20 +136,20 @@ public:
   void Reset() { this->NeedReset = false; }
 
 private:
-  const cm::string_view DirName;
+  cm::string_view const DirName;
   bool NeedReset = false;
 };
 
 class cmEnumPathSegmentsGenerator
 {
 public:
-  cmEnumPathSegmentsGenerator(const std::vector<cm::string_view>& init)
+  cmEnumPathSegmentsGenerator(std::vector<cm::string_view> const& init)
     : Names{ init }
     , Current{ this->Names.get().cbegin() }
   {
   }
 
-  std::string GetNextCandidate(const std::string& parent)
+  std::string GetNextCandidate(std::string const& parent)
   {
     if (this->Current != this->Names.get().cend()) {
       return cmStrCat(parent, *this->Current++, '/');
@@ -160,7 +160,7 @@ public:
   void Reset() { this->Current = this->Names.get().cbegin(); }
 
 private:
-  std::reference_wrapper<const std::vector<cm::string_view>> Names;
+  std::reference_wrapper<std::vector<cm::string_view> const> Names;
   std::vector<cm::string_view>::const_iterator Current;
 };
 
@@ -172,7 +172,7 @@ public:
   {
   }
 
-  std::string GetNextCandidate(const std::string& parent)
+  std::string GetNextCandidate(std::string const& parent)
   {
     if (!this->Loaded) {
       this->CurrentIdx = 0ul;
@@ -183,7 +183,7 @@ public:
     }
 
     while (this->CurrentIdx < this->DirectoryLister.GetNumberOfFiles()) {
-      const char* const fname =
+      char const* const fname =
         this->DirectoryLister.GetFile(this->CurrentIdx++);
       if (isDirentryToIgnore(fname)) {
         continue;
@@ -202,7 +202,7 @@ public:
 
 private:
   cmsys::Directory DirectoryLister;
-  const cm::string_view DirName;
+  cm::string_view const DirName;
   unsigned long CurrentIdx = 0ul;
   bool Loaded = false;
 };
@@ -221,7 +221,7 @@ public:
   }
   virtual ~cmDirectoryListGenerator() = default;
 
-  std::string GetNextCandidate(const std::string& parent)
+  std::string GetNextCandidate(std::string const& parent)
   {
     // Construct a list of matches if not yet
     if (this->Matches.empty()) {
@@ -238,7 +238,7 @@ public:
       // TODO If so, just start with index 2 and drop the
       // `isDirentryToIgnore(i)` condition to check.
       for (auto i = 0ul; i < directoryLister.GetNumberOfFiles(); ++i) {
-        const char* const fname = directoryLister.GetFile(i);
+        char const* const fname = directoryLister.GetFile(i);
         // Skip entries to ignore or that aren't directories.
         if (isDirentryToIgnore(fname) || !directoryLister.FileIsDirectory(i)) {
           continue;
@@ -247,12 +247,12 @@ public:
         if (!this->Names) {
           this->Matches.emplace_back(fname);
         } else {
-          for (const auto& n : *this->Names) {
+          for (auto const& n : *this->Names) {
             // NOTE Customization point for
             // `cmMacProjectDirectoryListGenerator`
-            const auto name = this->TransformNameBeforeCmp(n);
+            auto const name = this->TransformNameBeforeCmp(n);
             // Skip entries that don't match.
-            const auto equal =
+            auto const equal =
               ((this->ExactMatch
                   ? cmsysString_strcasecmp(fname, name.c_str())
                   : cmsysString_strncasecmp(fname, name.c_str(),
@@ -319,8 +319,8 @@ protected:
 
 private:
   // sort parameters
-  const cmFindPackageCommand::SortOrderType SortOrder;
-  const cmFindPackageCommand::SortDirectionType SortDirection;
+  cmFindPackageCommand::SortOrderType const SortOrder;
+  cmFindPackageCommand::SortDirectionType const SortDirection;
 };
 
 class cmMacProjectDirectoryListGenerator : public cmDirectoryListGenerator
@@ -340,7 +340,7 @@ protected:
   }
 
 private:
-  const cm::string_view Extension;
+  cm::string_view const Extension;
 };
 
 class cmAnyDirectoryListGenerator : public cmProjectDirectoryListGenerator
@@ -384,7 +384,7 @@ void ResetGenerator(Generator&& generator, Generators&&... generators)
 template <typename CallbackFn>
 bool TryGeneratedPaths(CallbackFn&& filesCollector,
                        cmFindPackageCommand::PackageDescriptionType type,
-                       const std::string& fullPath)
+                       std::string const& fullPath)
 {
   assert(!fullPath.empty() && fullPath.back() == '/');
   return std::forward<CallbackFn&&>(filesCollector)(fullPath, type);
@@ -393,7 +393,7 @@ bool TryGeneratedPaths(CallbackFn&& filesCollector,
 template <typename CallbackFn, typename Generator, typename... Rest>
 bool TryGeneratedPaths(CallbackFn&& filesCollector,
                        cmFindPackageCommand::PackageDescriptionType type,
-                       const std::string& startPath, Generator&& gen,
+                       std::string const& startPath, Generator&& gen,
                        Rest&&... tail)
 {
   ResetGenerator(std::forward<Generator&&>(gen));
@@ -492,9 +492,9 @@ cmFindPackageCommand::PathLabel cmFindPackageCommand::PathLabel::Builds(
 cmFindPackageCommand::PathLabel
   cmFindPackageCommand::PathLabel::SystemRegistry("SYSTEM_PACKAGE_REGISTRY");
 
-const cm::string_view cmFindPackageCommand::VERSION_ENDPOINT_INCLUDED(
+cm::string_view const cmFindPackageCommand::VERSION_ENDPOINT_INCLUDED(
   "INCLUDE");
-const cm::string_view cmFindPackageCommand::VERSION_ENDPOINT_EXCLUDED(
+cm::string_view const cmFindPackageCommand::VERSION_ENDPOINT_EXCLUDED(
   "EXCLUDE");
 
 void cmFindPackageCommand::Sort(std::vector<std::string>::iterator begin,
@@ -532,6 +532,7 @@ cmFindPackageCommand::cmFindPackageCommand(cmExecutionStatus& status)
   this->DeprecatedFindModules["Boost"] = cmPolicies::CMP0167;
   this->DeprecatedFindModules["CUDA"] = cmPolicies::CMP0146;
   this->DeprecatedFindModules["Dart"] = cmPolicies::CMP0145;
+  this->DeprecatedFindModules["GCCXML"] = cmPolicies::CMP0188;
   this->DeprecatedFindModules["PythonInterp"] = cmPolicies::CMP0148;
   this->DeprecatedFindModules["PythonLibs"] = cmPolicies::CMP0148;
   this->DeprecatedFindModules["Qt"] = cmPolicies::CMP0084;
@@ -558,6 +559,41 @@ void cmFindPackageCommand::AppendSearchPathGroups()
   this->LabeledPaths.emplace(PathLabel::UserRegistry, cmSearchPath{ this });
   this->LabeledPaths.emplace(PathLabel::Builds, cmSearchPath{ this });
   this->LabeledPaths.emplace(PathLabel::SystemRegistry, cmSearchPath{ this });
+}
+
+void cmFindPackageCommand::InheritOptions(cmFindPackageCommand* other)
+{
+  this->RequiredCMakeVersion = other->RequiredCMakeVersion;
+  this->LibraryArchitecture = other->LibraryArchitecture;
+  this->UseLib32Paths = other->UseLib32Paths;
+  this->UseLib64Paths = other->UseLib64Paths;
+  this->UseLibx32Paths = other->UseLibx32Paths;
+  this->NoUserRegistry = other->NoUserRegistry;
+  this->NoSystemRegistry = other->NoSystemRegistry;
+  this->UseRealPath = other->UseRealPath;
+  this->SortOrder = other->SortOrder;
+  this->SortDirection = other->SortDirection;
+
+  this->GlobalScope = other->GlobalScope;
+  this->RegistryView = other->RegistryView;
+  this->NoDefaultPath = other->NoDefaultPath;
+  this->NoPackageRootPath = other->NoPackageRootPath;
+  this->NoCMakePath = other->NoCMakePath;
+  this->NoCMakeEnvironmentPath = other->NoCMakeEnvironmentPath;
+  this->NoSystemEnvironmentPath = other->NoSystemEnvironmentPath;
+  this->NoCMakeSystemPath = other->NoCMakeSystemPath;
+  this->NoCMakeInstallPath = other->NoCMakeInstallPath;
+  this->FindRootPathMode = other->FindRootPathMode;
+
+  this->SearchFrameworkLast = other->SearchFrameworkLast;
+  this->SearchFrameworkFirst = other->SearchFrameworkFirst;
+  this->SearchFrameworkOnly = other->SearchFrameworkOnly;
+  this->SearchAppBundleLast = other->SearchAppBundleLast;
+  this->SearchAppBundleFirst = other->SearchAppBundleFirst;
+  this->SearchAppBundleOnly = other->SearchAppBundleOnly;
+  this->SearchPathSuffixes = other->SearchPathSuffixes;
+
+  this->Quiet = other->Quiet;
 }
 
 bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
@@ -645,7 +681,7 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
     this->SortDirection = (*sd == "ASC") ? Asc : Dec;
   }
 
-  // Find what search path locations have been enabled/disable
+  // Find what search path locations have been enabled/disable.
   this->SelectDefaultSearchModes();
 
   // Find the current root path mode.
@@ -937,9 +973,9 @@ bool cmFindPackageCommand::InitialPass(std::vector<std::string> const& args)
 bool cmFindPackageCommand::FindPackage(
   std::vector<std::string> const& argsForProvider)
 {
-  const std::string makePackageRequiredVar =
+  std::string const makePackageRequiredVar =
     cmStrCat("CMAKE_REQUIRE_FIND_PACKAGE_", this->Name);
-  const bool makePackageRequiredSet =
+  bool const makePackageRequiredSet =
     this->Makefile->IsOn(makePackageRequiredVar);
   if (makePackageRequiredSet) {
     if (this->Required) {
@@ -1025,7 +1061,7 @@ bool cmFindPackageCommand::FindPackage(
     listFileArgs[0] =
       cmListFileArgument("FIND_PACKAGE", cmListFileArgument::Unquoted, 0);
     std::transform(argsForProvider.begin(), argsForProvider.end(),
-                   listFileArgs.begin() + 1, [](const std::string& arg) {
+                   listFileArgs.begin() + 1, [](std::string const& arg) {
                      return cmListFileArgument(arg,
                                                cmListFileArgument::Bracket, 0);
                    });
@@ -1072,13 +1108,13 @@ bool cmFindPackageCommand::FindPackage(
     overrideNames.push_back(this->Name);
   }
   bool forceConfigMode = false;
-  const auto redirectsDir =
+  auto const redirectsDir =
     this->Makefile->GetSafeDefinition("CMAKE_FIND_PACKAGE_REDIRECTS_DIR");
-  for (const auto& overrideName : overrideNames) {
-    const auto nameLower = cmSystemTools::LowerCase(overrideName);
-    const auto delegatePropName =
+  for (auto const& overrideName : overrideNames) {
+    auto const nameLower = cmSystemTools::LowerCase(overrideName);
+    auto const delegatePropName =
       cmStrCat("_FetchContent_", nameLower, "_override_find_package");
-    const cmValue delegateToFetchContentProp =
+    cmValue const delegateToFetchContentProp =
       this->Makefile->GetState()->GetGlobalProperty(delegatePropName);
     if (delegateToFetchContentProp.IsOn()) {
       // When this property is set, the FetchContent module has already been
@@ -1249,11 +1285,11 @@ bool cmFindPackageCommand::FindPackageUsingConfigMode()
 }
 
 void cmFindPackageCommand::SetVersionVariables(
-  const std::function<void(const std::string&, cm::string_view)>&
+  std::function<void(std::string const&, cm::string_view)> const&
     addDefinition,
-  const std::string& prefix, const std::string& version,
-  const unsigned int count, const unsigned int major, const unsigned int minor,
-  const unsigned int patch, const unsigned int tweak)
+  std::string const& prefix, std::string const& version,
+  unsigned int const count, unsigned int const major, unsigned int const minor,
+  unsigned int const patch, unsigned int const tweak)
 {
   addDefinition(prefix, version);
 
@@ -1307,7 +1343,7 @@ void cmFindPackageCommand::SetModuleVariables()
 
   // Tell the module that is about to be read what version of the
   // package has been requested.
-  auto addDefinition = [this](const std::string& variable,
+  auto addDefinition = [this](std::string const& variable,
                               cm::string_view value) {
     this->AddFindDefinition(variable, value);
   };
@@ -1350,8 +1386,8 @@ void cmFindPackageCommand::SetModuleVariables()
   }
 }
 
-void cmFindPackageCommand::AddFindDefinition(const std::string& var,
-                                             const cm::string_view value)
+void cmFindPackageCommand::AddFindDefinition(std::string const& var,
+                                             cm::string_view const value)
 {
   if (cmValue old = this->Makefile->GetDefinition(var)) {
     this->OriginalDefs[var].exists = true;
@@ -1438,7 +1474,7 @@ bool cmFindPackageCommand::FindModule(bool& found)
 }
 
 bool cmFindPackageCommand::HandlePackageMode(
-  const HandlePackageModeType handlePackageModeType)
+  HandlePackageModeType const handlePackageModeType)
 {
   this->ConsideredConfigs.clear();
 
@@ -1510,12 +1546,7 @@ bool cmFindPackageCommand::HandlePackageMode(
     if (this->CpsReader) {
       // The package has been found.
       found = true;
-
-      // Import targets.
-      cmPackageInfoReader* const reader = this->CpsReader.get();
-      result = reader->ImportTargets(this->Makefile, this->Status) &&
-        this->ImportTargetConfigurations(this->FileFound, reader) &&
-        this->ImportAppendices(this->FileFound);
+      result = this->ReadPackage();
     } else if (this->ReadListFile(this->FileFound, DoPolicyScope)) {
       // The package has been found.
       found = true;
@@ -1684,7 +1715,7 @@ bool cmFindPackageCommand::HandlePackageMode(
   std::string consideredConfigFiles;
   std::string consideredVersions;
 
-  const char* sep = "";
+  char const* sep = "";
   for (ConfigFileInfo const& i : this->ConsideredConfigs) {
     consideredConfigFiles += sep;
     consideredVersions += sep;
@@ -1766,7 +1797,7 @@ bool cmFindPackageCommand::FindConfig()
   return found;
 }
 
-void cmFindPackageCommand::SetConfigDirCacheVariable(const std::string& value)
+void cmFindPackageCommand::SetConfigDirCacheVariable(std::string const& value)
 {
   std::string const help =
     cmStrCat("The directory containing a CMake configuration file for ",
@@ -1816,10 +1847,42 @@ bool cmFindPackageCommand::FindEnvironmentConfig()
                      });
 }
 
-bool cmFindPackageCommand::ReadListFile(const std::string& f,
-                                        const PolicyScopeRule psr)
+cmFindPackageCommand::AppendixMap cmFindPackageCommand::FindAppendices(
+  std::string const& base, cmPackageInfoReader const& baseReader) const
 {
-  const bool noPolicyScope = !this->PolicyScope || psr == NoPolicyScope;
+  AppendixMap appendices;
+
+  // Find package appendices.
+  cmsys::Glob glob;
+  glob.RecurseOff();
+  if (glob.FindFiles(cmStrCat(cmSystemTools::GetFilenamePath(base), "/"_s,
+                              cmSystemTools::GetFilenameWithoutExtension(base),
+                              "[-:]*.[Cc][Pp][Ss]"_s))) {
+    // Check glob results for valid appendices.
+    for (std::string const& extra : glob.GetFiles()) {
+      // Exclude configuration-specific files for now; we look at them later
+      // when we load their respective configuration-agnostic appendices.
+      if (extra.find('@') != std::string::npos) {
+        continue;
+      }
+
+      std::unique_ptr<cmPackageInfoReader> reader =
+        cmPackageInfoReader::Read(extra, &baseReader);
+      if (reader && reader->GetName() == this->Name) {
+        std::vector<std::string> components = reader->GetComponentNames();
+        Appendix appendix{ std::move(reader), std::move(components) };
+        appendices.emplace(extra, std::move(appendix));
+      }
+    }
+  }
+
+  return appendices;
+}
+
+bool cmFindPackageCommand::ReadListFile(std::string const& f,
+                                        PolicyScopeRule const psr)
+{
+  bool const noPolicyScope = !this->PolicyScope || psr == NoPolicyScope;
 
   using ITScope = cmMakefile::ImportedTargetScope;
   ITScope scope = this->GlobalScope ? ITScope::Global : ITScope::Local;
@@ -1833,23 +1896,145 @@ bool cmFindPackageCommand::ReadListFile(const std::string& f,
   return false;
 }
 
-bool cmFindPackageCommand::ImportTargetConfigurations(
-  std::string const& base, cmPackageInfoReader* parent)
+bool cmFindPackageCommand::ReadPackage()
 {
+  // Resolve any transitive dependencies for the root file.
+  if (!FindPackageDependencies(this->FileFound, *this->CpsReader,
+                               this->Required)) {
+    return false;
+  }
+
+  auto const hasComponentsRequested =
+    !this->RequiredComponents.empty() || !this->OptionalComponents.empty();
+
+  cmMakefile::CallRAII scope{ this->Makefile, this->FileFound, this->Status };
+
+  // Loop over appendices.
+  auto iter = this->CpsAppendices.begin();
+  while (iter != this->CpsAppendices.end()) {
+    bool required = false;
+    bool important = false;
+
+    // Check if this appendix provides any requested components.
+    if (hasComponentsRequested) {
+      auto providesAny = [&iter](
+                           std::set<std::string> const& desiredComponents) {
+        return std::any_of(iter->second.Components.begin(),
+                           iter->second.Components.end(),
+                           [&desiredComponents](std::string const& component) {
+                             return cm::contains(desiredComponents, component);
+                           });
+      };
+
+      if (providesAny(this->RequiredComponents)) {
+        important = true;
+        required = this->Required;
+      } else if (!providesAny(this->OptionalComponents)) {
+        // This appendix doesn't provide any requested components; remove it
+        // from the set to be imported.
+        iter = this->CpsAppendices.erase(iter);
+        continue;
+      }
+    }
+
+    // Resolve any transitive dependencies for the appendix.
+    if (!this->FindPackageDependencies(iter->first, iter->second, required)) {
+      if (important) {
+        // Some dependencies are missing, and we need(ed) this appendix; fail.
+        return false;
+      }
+
+      // Some dependencies are missing, but we don't need this appendix; remove
+      // it from the set to be imported.
+      iter = this->CpsAppendices.erase(iter);
+    } else {
+      ++iter;
+    }
+  }
+
+  // Import targets from root file.
+  if (!this->ImportPackageTargets(this->FileFound, *this->CpsReader)) {
+    return false;
+  }
+
+  // Import targets from appendices.
+  // NOLINTNEXTLINE(readability-use-anyofallof)
+  for (auto const& appendix : this->CpsAppendices) {
+    cmMakefile::CallRAII appendixScope{ this->Makefile, appendix.first,
+                                        this->Status };
+    if (!this->ImportPackageTargets(appendix.first, appendix.second)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool cmFindPackageCommand::FindPackageDependencies(
+  std::string const& fileName, cmPackageInfoReader const& reader,
+  bool required)
+{
+  // Get package requirements.
+  for (cmPackageRequirement const& dep : reader.GetRequirements()) {
+    cmExecutionStatus status{ *this->Makefile };
+    cmMakefile::CallRAII scope{ this->Makefile, fileName, status };
+
+    // For each requirement, set up a nested instance to find it.
+    cmFindPackageCommand fp{ status };
+    fp.InheritOptions(this);
+
+    fp.Name = dep.Name;
+    fp.Required = required;
+    fp.UseFindModules = false;
+    fp.UseCpsFiles = true;
+
+    fp.Version = dep.Version;
+    fp.VersionComplete = dep.Version;
+    fp.VersionCount =
+      parseVersion(fp.Version, fp.VersionMajor, fp.VersionMinor,
+                   fp.VersionPatch, fp.VersionTweak);
+
+    fp.Components = cmJoin(cmMakeRange(dep.Components), ";"_s);
+    fp.RequiredComponents =
+      std::set<std::string>{ dep.Components.begin(), dep.Components.end() };
+
+    // TODO set hints
+
+    // Try to find the requirement; fail if we can't.
+    if (!fp.FindPackage() || fp.FileFound.empty()) {
+      this->SetError(cmStrCat("could not find "_s, dep.Name,
+                              ", required by "_s, this->Name, '.'));
+      return false;
+    }
+  }
+
+  // All requirements (if any) were found.
+  return true;
+}
+
+bool cmFindPackageCommand::ImportPackageTargets(std::string const& fileName,
+                                                cmPackageInfoReader& reader)
+{
+  // Import base file.
+  if (!reader.ImportTargets(this->Makefile, this->Status)) {
+    return false;
+  }
+
   // Find supplemental configuration files.
   cmsys::Glob glob;
   glob.RecurseOff();
-  if (glob.FindFiles(cmStrCat(cmSystemTools::GetFilenamePath(base), "/"_s,
-                              cmSystemTools::GetFilenameWithoutExtension(base),
-                              "@*.[Cc][Pp][Ss]"_s))) {
+  if (glob.FindFiles(
+        cmStrCat(cmSystemTools::GetFilenamePath(fileName), '/',
+                 cmSystemTools::GetFilenameWithoutExtension(fileName),
+                 "@*.[Cc][Pp][Ss]"_s))) {
 
     // Try to read supplemental data from each file found.
     for (std::string const& extra : glob.GetFiles()) {
-      std::unique_ptr<cmPackageInfoReader> const& reader =
-        cmPackageInfoReader::Read(extra, parent);
-      if (reader && reader->GetName() == this->Name) {
-        if (!reader->ImportTargetConfigurations(this->Makefile,
-                                                this->Status)) {
+      std::unique_ptr<cmPackageInfoReader> configReader =
+        cmPackageInfoReader::Read(extra, &reader);
+      if (configReader && configReader->GetName() == this->Name) {
+        if (!configReader->ImportTargetConfigurations(this->Makefile,
+                                                      this->Status)) {
           return false;
         }
       }
@@ -1859,37 +2044,7 @@ bool cmFindPackageCommand::ImportTargetConfigurations(
   return true;
 }
 
-bool cmFindPackageCommand::ImportAppendices(std::string const& base)
-{
-  // Find package appendices.
-  cmsys::Glob glob;
-  glob.RecurseOff();
-  if (glob.FindFiles(cmStrCat(cmSystemTools::GetFilenamePath(base), "/"_s,
-                              cmSystemTools::GetFilenameWithoutExtension(base),
-                              "[-:]*.[Cc][Pp][Ss]"_s))) {
-
-    // Try to read supplemental data from each appendix file found.
-    for (std::string const& extra : glob.GetFiles()) {
-      // This loop should not consider configuration-specific files.
-      if (extra.find('@') != std::string::npos) {
-        continue;
-      }
-
-      std::unique_ptr<cmPackageInfoReader> const& reader =
-        cmPackageInfoReader::Read(extra, this->CpsReader.get());
-      if (reader && reader->GetName() == this->Name) {
-        if (!reader->ImportTargets(this->Makefile, this->Status) ||
-            !this->ImportTargetConfigurations(extra, reader.get())) {
-          return false;
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
-void cmFindPackageCommand::AppendToFoundProperty(const bool found)
+void cmFindPackageCommand::AppendToFoundProperty(bool const found)
 {
   cmList foundContents;
   cmValue foundProp =
@@ -2087,7 +2242,7 @@ void cmFindPackageCommand::FillPrefixesPackageRedirect()
 {
   cmSearchPath& paths = this->LabeledPaths[PathLabel::PackageRedirect];
 
-  const auto redirectDir =
+  auto const redirectDir =
     this->Makefile->GetDefinition("CMAKE_FIND_PACKAGE_REDIRECTS_DIR");
   if (redirectDir && !redirectDir->empty()) {
     paths.AddPath(*redirectDir);
@@ -2278,8 +2433,8 @@ void cmFindPackageCommand::LoadPackageRegistryWinSystem()
   }
 }
 
-void cmFindPackageCommand::LoadPackageRegistryWin(const bool user,
-                                                  const unsigned int view,
+void cmFindPackageCommand::LoadPackageRegistryWin(bool const user,
+                                                  unsigned int const view,
                                                   cmSearchPath& outPaths)
 {
   std::wstring key = L"Software\\Kitware\\CMake\\Packages\\";
@@ -2364,7 +2519,7 @@ void cmFindPackageCommand::LoadPackageRegistryDir(std::string const& dir,
 }
 #endif
 
-bool cmFindPackageCommand::CheckPackageRegistryEntry(const std::string& fname,
+bool cmFindPackageCommand::CheckPackageRegistryEntry(std::string const& fname,
                                                      cmSearchPath& outPaths)
 {
   // Parse the content of one package registry entry.
@@ -2395,10 +2550,10 @@ void cmFindPackageCommand::FillPrefixesCMakeSystemVariable()
 {
   cmSearchPath& paths = this->LabeledPaths[PathLabel::CMakeSystem];
 
-  const bool install_prefix_in_list =
+  bool const install_prefix_in_list =
     !this->Makefile->IsOn("CMAKE_FIND_NO_INSTALL_PREFIX");
-  const bool remove_install_prefix = this->NoCMakeInstallPath;
-  const bool add_install_prefix = !this->NoCMakeInstallPath &&
+  bool const remove_install_prefix = this->NoCMakeInstallPath;
+  bool const add_install_prefix = !this->NoCMakeInstallPath &&
     this->Makefile->IsDefinitionSet("CMAKE_FIND_USE_INSTALL_PREFIX");
 
   // We have 3 possible states for `CMAKE_SYSTEM_PREFIX_PATH` and
@@ -2431,7 +2586,7 @@ void cmFindPackageCommand::FillPrefixesCMakeSystemVariable()
     // remove entry from CMAKE_SYSTEM_PREFIX_PATH
     cmList expanded{ *prefix_paths };
     long count = 0;
-    for (const auto& path : expanded) {
+    for (auto const& path : expanded) {
       bool const to_add =
         !(path == install_path_to_remove && ++count == install_prefix_count);
       if (to_add) {
@@ -2564,32 +2719,122 @@ bool cmFindPackageCommand::CheckVersion(std::string const& config_file)
     std::unique_ptr<cmPackageInfoReader> reader =
       cmPackageInfoReader::Read(config_file);
     if (reader && reader->GetName() == this->Name) {
+      // Read version information.
       cm::optional<std::string> cpsVersion = reader->GetVersion();
-      if (cpsVersion) {
-        // TODO: Implement version check for CPS
-        this->VersionFound = (version = std::move(*cpsVersion));
+      cm::optional<ParsedVersion> const& parsedVersion =
+        reader->ParseVersion(cpsVersion);
+      bool const hasVersion = cpsVersion.has_value();
 
-        std::vector<unsigned> const& versionParts = reader->ParseVersion();
-        this->VersionFoundCount = static_cast<unsigned>(versionParts.size());
-        switch (this->VersionFoundCount) {
-          case 4:
-            this->VersionFoundTweak = versionParts[3];
-            CM_FALLTHROUGH;
-          case 3:
-            this->VersionFoundPatch = versionParts[2];
-            CM_FALLTHROUGH;
-          case 2:
-            this->VersionFoundMinor = versionParts[1];
-            CM_FALLTHROUGH;
-          case 1:
-            this->VersionFoundMajor = versionParts[0];
-            CM_FALLTHROUGH;
-          default:
-            break;
+      // Test for version compatibility.
+      result = this->Version.empty();
+      if (hasVersion) {
+        version = std::move(*cpsVersion);
+
+        if (!this->Version.empty()) {
+          if (!parsedVersion) {
+            // If we don't understand the version, compare the exact versions
+            // using full string comparison. This is the correct behavior for
+            // the "custom" schema, and the best we can do otherwise.
+            result = (this->Version == version);
+          } else if (this->VersionExact) {
+            // If EXACT is specified, the version must be exactly the requested
+            // version.
+            result =
+              cmSystemTools::VersionCompareEqual(this->Version, version);
+          } else {
+            // Do we have a compat_version?
+            cm::optional<std::string> const& compatVersion =
+              reader->GetCompatVersion();
+            if (reader->ParseVersion(compatVersion)) {
+              // If yes, the initial result is whether the requested version is
+              // between the actual version and the compat version, inclusive.
+              result = cmSystemTools::VersionCompareGreaterEq(version,
+                                                              this->Version) &&
+                cmSystemTools::VersionCompareGreaterEq(this->Version,
+                                                       *compatVersion);
+
+              if (result && !this->VersionMax.empty()) {
+                // We must also check that the version is less than the version
+                // limit.
+                if (this->VersionRangeMax == VERSION_ENDPOINT_EXCLUDED) {
+                  result = cmSystemTools::VersionCompareGreater(
+                    this->VersionMax, version);
+                } else {
+                  result = cmSystemTools::VersionCompareGreaterEq(
+                    this->VersionMax, version);
+                }
+              }
+            } else {
+              // If no, compat_version is assumed to be exactly the actual
+              // version, so the result is whether the requested version is
+              // exactly the actual version, and we can ignore the version
+              // limit.
+              result =
+                cmSystemTools::VersionCompareEqual(this->Version, version);
+            }
+          }
         }
       }
-      this->CpsReader = std::move(reader);
-      result = true;
+
+      if (result) {
+        // Locate appendices.
+        cmFindPackageCommand::AppendixMap appendices =
+          this->FindAppendices(config_file, *reader);
+
+        // Collect available components.
+        std::set<std::string> allComponents;
+
+        std::vector<std::string> const& rootComponents =
+          reader->GetComponentNames();
+        allComponents.insert(rootComponents.begin(), rootComponents.end());
+
+        for (auto const& appendix : appendices) {
+          allComponents.insert(appendix.second.Components.begin(),
+                               appendix.second.Components.end());
+        }
+
+        // Verify that all required components are available.
+        std::vector<std::string> missingComponents;
+        std::set_difference(this->RequiredComponents.begin(),
+                            this->RequiredComponents.end(),
+                            allComponents.begin(), allComponents.end(),
+                            std::back_inserter(missingComponents));
+        if (!missingComponents.empty()) {
+          result = false;
+        }
+
+        if (result && hasVersion) {
+          this->VersionFound = version;
+
+          if (parsedVersion) {
+            std::vector<unsigned> const& versionParts =
+              parsedVersion->ReleaseComponents;
+
+            this->VersionFoundCount =
+              static_cast<unsigned>(versionParts.size());
+            switch (std::min(this->VersionFoundCount, 4u)) {
+              case 4:
+                this->VersionFoundTweak = versionParts[3];
+                CM_FALLTHROUGH;
+              case 3:
+                this->VersionFoundPatch = versionParts[2];
+                CM_FALLTHROUGH;
+              case 2:
+                this->VersionFoundMinor = versionParts[1];
+                CM_FALLTHROUGH;
+              case 1:
+                this->VersionFoundMajor = versionParts[0];
+                CM_FALLTHROUGH;
+              default:
+                break;
+            }
+          } else {
+            this->VersionFoundCount = 0;
+          }
+        }
+        this->CpsReader = std::move(reader);
+        this->CpsAppendices = std::move(appendices);
+      }
     }
   } else {
     // Get the filename without the .cmake extension.
@@ -2643,7 +2888,7 @@ bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file,
   this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_COMPLETE",
                                 this->VersionComplete);
 
-  auto addDefinition = [this](const std::string& variable,
+  auto addDefinition = [this](std::string const& variable,
                               cm::string_view value) {
     this->Makefile->AddDefinition(variable, value);
   };
@@ -2669,8 +2914,8 @@ bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file,
                                   this->VersionRangeMax);
   }
 
-  // Load the version check file.  Pass NoPolicyScope because we do
-  // our own policy push/pop independent of CMP0011.
+  // Load the version check file.
+  // Pass NoPolicyScope because we do our own policy push/pop.
   bool suitable = false;
   if (this->ReadListFile(version_file, NoPolicyScope)) {
     // Check the output variables.
@@ -2729,7 +2974,7 @@ void cmFindPackageCommand::StoreVersionFound()
 {
   // Store the whole version string.
   std::string const ver = cmStrCat(this->Name, "_VERSION");
-  auto addDefinition = [this](const std::string& variable,
+  auto addDefinition = [this](std::string const& variable,
                               cm::string_view value) {
     this->Makefile->AddDefinition(variable, value);
   };
@@ -2763,7 +3008,7 @@ bool cmFindPackageCommand::SearchPrefix(std::string const& prefix)
     return false;
   }
 
-  auto searchFn = [this](const std::string& fullPath,
+  auto searchFn = [this](std::string const& fullPath,
                          PackageDescriptionType type) -> bool {
     return this->SearchDirectory(fullPath, type);
   };
@@ -2916,7 +3161,7 @@ bool cmFindPackageCommand::SearchFrameworkPrefix(std::string const& prefix)
 {
   assert(!prefix.empty() && prefix.back() == '/');
 
-  auto searchFn = [this](const std::string& fullPath,
+  auto searchFn = [this](std::string const& fullPath,
                          PackageDescriptionType type) -> bool {
     return this->SearchDirectory(fullPath, type);
   };
@@ -2967,7 +3212,7 @@ bool cmFindPackageCommand::SearchAppBundlePrefix(std::string const& prefix)
 {
   assert(!prefix.empty() && prefix.back() == '/');
 
-  auto searchFn = [this](const std::string& fullPath,
+  auto searchFn = [this](std::string const& fullPath,
                          PackageDescriptionType type) -> bool {
     return this->SearchDirectory(fullPath, type);
   };
@@ -3001,7 +3246,7 @@ bool cmFindPackageCommand::SearchEnvironmentPrefix(std::string const& prefix)
     return false;
   }
 
-  auto searchFn = [this](const std::string& fullPath,
+  auto searchFn = [this](std::string const& fullPath,
                          PackageDescriptionType type) -> bool {
     return this->SearchDirectory(fullPath, type);
   };

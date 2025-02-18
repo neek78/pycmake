@@ -58,7 +58,7 @@ options that need to be passed to the wx-config utility.  For example,
 to use the base toolkit found in the /usr/local path, set the variable
 (before calling the FIND_PACKAGE command) as such:
 
-::
+.. code-block:: cmake
 
   set(wxWidgets_CONFIG_OPTIONS --toolkit=base --prefix=/usr)
 
@@ -93,7 +93,7 @@ and unix style:
 
 Sample usage:
 
-::
+.. code-block:: cmake
 
    # Note that for MinGW users the order of libs is important!
    find_package(wxWidgets COMPONENTS gl core base OPTIONAL_COMPONENTS net)
@@ -107,14 +107,14 @@ Sample usage:
 
 If wxWidgets is required (i.e., not an optional part):
 
-::
+.. code-block:: cmake
 
    find_package(wxWidgets REQUIRED gl core base OPTIONAL_COMPONENTS net)
    include(${wxWidgets_USE_FILE})
    # and for each of your dependent executable/library targets:
    target_link_libraries(<YourTarget> ${wxWidgets_LIBRARIES})
 
-Imported targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.27
@@ -187,9 +187,6 @@ macro(DBG_MSG_V _MSG)
 #  message(STATUS
 #    "${CMAKE_CURRENT_LIST_FILE}(${CMAKE_CURRENT_LIST_LINE}): ${_MSG}")
 endmacro()
-
-cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 
 # Clear return values in case the module is loaded more than once.
 set(wxWidgets_FOUND FALSE)
@@ -1003,7 +1000,7 @@ DBG_MSG("wxWidgets_USE_FILE        : ${wxWidgets_USE_FILE}")
 #=====================================================================
 #=====================================================================
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 
 # FIXME: set wxWidgets_<comp>_FOUND for wx-config branch
 #        and use HANDLE_COMPONENTS on Unix too
@@ -1241,5 +1238,3 @@ function(WXWIDGETS_ADD_RESOURCES _outfiles)
 
   set(${_outfiles} ${${_outfiles}} PARENT_SCOPE)
 endfunction()
-
-cmake_policy(POP)

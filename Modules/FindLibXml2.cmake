@@ -7,7 +7,7 @@ FindLibXml2
 
 Find the XML processing library (libxml2).
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 .. versionadded:: 3.12
@@ -59,7 +59,7 @@ cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 # in the find_path() and find_library() calls
 find_package(PkgConfig QUIET)
 if(PKG_CONFIG_FOUND)
-  PKG_CHECK_MODULES(PC_LIBXML QUIET libxml-2.0)
+  pkg_check_modules(PC_LIBXML QUIET libxml-2.0)
 endif()
 
 find_path(LIBXML2_INCLUDE_DIR NAMES libxml/xpath.h
@@ -109,8 +109,8 @@ foreach(libxml2_pc_lib_dir IN LISTS PC_LIBXML_LIBDIR PC_LIBXML_LIBRARY_DIRS)
   endif()
 endforeach()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(LibXml2
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LibXml2
                                   REQUIRED_VARS LIBXML2_LIBRARY LIBXML2_INCLUDE_DIR
                                   VERSION_VAR LIBXML2_VERSION_STRING)
 

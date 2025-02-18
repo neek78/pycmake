@@ -13,11 +13,15 @@ This module defines::
   LUA_LIBRARIES, both lua and lualib
   LUA_INCLUDE_DIR, where to find lua.h and lualib.h (and probably lauxlib.h)
 
-Note that the expected include convention is::
+Note that the expected include convention is:
+
+.. code-block:: c
 
   #include "lua.h"
 
-and not::
+and not:
+
+.. code-block:: c
 
   #include <lua/lua.h>
 
@@ -73,9 +77,9 @@ else()
 endif()
 
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set LUA_FOUND to TRUE if
 # all listed variables are TRUE
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Lua50  DEFAULT_MSG  LUA_LIBRARIES LUA_INCLUDE_DIR)
+find_package_handle_standard_args(Lua50  DEFAULT_MSG  LUA_LIBRARIES LUA_INCLUDE_DIR)
 
 mark_as_advanced(LUA_INCLUDE_DIR LUA_LIBRARIES)

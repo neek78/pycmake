@@ -241,7 +241,7 @@ function(env_module)
   if(MOD_ARGS_RESULT_VARIABLE)
     set(${MOD_ARGS_RESULT_VARIABLE} ${ret_var} PARENT_SCOPE)
   endif()
-endfunction(env_module)
+endfunction()
 
 #------------------------------------------------------------------------------
 function(env_module_swap out_mod in_mod)
@@ -268,7 +268,6 @@ endfunction()
 
 #------------------------------------------------------------------------------
 function(env_module_list out_var)
-  cmake_policy(SET CMP0007 NEW)
   env_module(COMMAND -t list OUTPUT_VARIABLE tmp_out)
 
   # Convert output into a CMake list
@@ -286,8 +285,6 @@ endfunction()
 
 #------------------------------------------------------------------------------
 function(env_module_avail)
-  cmake_policy(SET CMP0007 NEW)
-
   if(ARGC EQUAL 1)
     set(mod_prefix)
     set(out_var ${ARGV0})
@@ -331,5 +328,5 @@ find_program(EnvModules_COMMAND
   PATH_SUFFIXES libexec
 )
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(EnvModules DEFAULT_MSG EnvModules_COMMAND)

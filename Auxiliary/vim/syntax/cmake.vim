@@ -195,7 +195,7 @@ syn keyword cmakeProperty contained
             \ FOLDER
             \ FRAMEWORK
             \ FRAMEWORK_VERSION
-            \ Fortran_BUILDING_INSTRINSIC_MODULES
+            \ Fortran_BUILDING_INTRINSIC_MODULES
             \ Fortran_FORMAT
             \ Fortran_MODULE_DIRECTORY
             \ Fortran_PREPROCESS
@@ -305,6 +305,7 @@ syn keyword cmakeProperty contained
             \ MEASUREMENT
             \ MODIFIED
             \ MSVC_DEBUG_INFORMATION_FORMAT
+            \ MSVC_RUNTIME_CHECKS
             \ MSVC_RUNTIME_LIBRARY
             \ NAME
             \ NO_SONAME
@@ -487,7 +488,6 @@ syn keyword cmakeProperty contained
             \ XCODE_SCHEME_ENVIRONMENT
             \ XCODE_SCHEME_EXECUTABLE
             \ XCODE_SCHEME_GUARD_MALLOC
-            \ XCODE_SCHEME_LAUNCH_CONFIGURATION
             \ XCODE_SCHEME_LAUNCH_MODE
             \ XCODE_SCHEME_LLDB_INIT_FILE
             \ XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
@@ -501,6 +501,7 @@ syn keyword cmakeProperty contained
             \ XCODE_SCHEME_ENABLE_GPU_API_VALIDATION
             \ XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION
             \ XCODE_SCHEME_LAUNCH_CONFIGURATION
+            \ XCODE_SCHEME_TEST_CONFIGURATION
             \ XCODE_SCHEME_WORKING_DIRECTORY
             \ XCODE_SCHEME_ZOMBIE_OBJECTS
             \ XCODE_XCCONFIG
@@ -1180,6 +1181,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_EXE_LINKER_FLAGS
             \ CMAKE_EXE_LINKER_FLAGS_INIT
             \ CMAKE_EXPORT_COMPILE_COMMANDS
+            \ CMAKE_EXPORT_SARIF
             \ CMAKE_EXPORT_NO_PACKAGE_REGISTRY
             \ CMAKE_EXPORT_PACKAGE_REGISTRY
             \ CMAKE_EXTRA_GENERATOR
@@ -1532,6 +1534,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_MODULE_PATH
             \ CMAKE_MSVCIDE_RUN_PATH
             \ CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+            \ CMAKE_MSVC_RUNTIME_CHECKS
             \ CMAKE_MSVC_RUNTIME_LIBRARY
             \ CMAKE_NETRC
             \ CMAKE_NETRC_FILE
@@ -1853,7 +1856,6 @@ syn keyword cmakeVariable contained
             \ CMAKE_XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION
             \ CMAKE_XCODE_SCHEME_ENVIRONMENT
             \ CMAKE_XCODE_SCHEME_GUARD_MALLOC
-            \ CMAKE_XCODE_SCHEME_LAUNCH_CONFIGURATION
             \ CMAKE_XCODE_SCHEME_LAUNCH_MODE
             \ CMAKE_XCODE_SCHEME_LLDB_INIT_FILE
             \ CMAKE_XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
@@ -1867,6 +1869,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_XCODE_SCHEME_ENABLE_GPU_API_VALIDATION
             \ CMAKE_XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION
             \ CMAKE_XCODE_SCHEME_LAUNCH_CONFIGURATION
+            \ CMAKE_XCODE_SCHEME_TEST_CONFIGURATION
             \ CMAKE_XCODE_SCHEME_WORKING_DIRECTORY
             \ CMAKE_XCODE_SCHEME_ZOMBIE_OBJECTS
             \ CMAKE_XCODE_XCCONFIG

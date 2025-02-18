@@ -87,7 +87,7 @@ This module defines the following output variables:
 
 ================================== Example Usage:
 
-::
+.. code-block:: cmake
 
   find_package(OpenSceneGraph 2.0.0 REQUIRED osgDB osgUtil)
       # libOpenThreads & libosg automatically searched
@@ -95,7 +95,7 @@ This module defines the following output variables:
 
 
 
-::
+.. code-block:: cmake
 
   add_executable(foo foo.cc)
   target_link_libraries(foo ${OPENSCENEGRAPH_LIBRARIES})
@@ -225,8 +225,8 @@ if(OpenSceneGraph_FIND_REQUIRED)
     endforeach()
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenSceneGraph
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(OpenSceneGraph
                                   REQUIRED_VARS OPENSCENEGRAPH_LIBRARIES OPENSCENEGRAPH_INCLUDE_DIR ${_osg_component_founds}
                                   VERSION_VAR OPENSCENEGRAPH_VERSION)
 

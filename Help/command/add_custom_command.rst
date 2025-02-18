@@ -102,7 +102,7 @@ The options are:
 ``COMMAND``
   Specify the command-line(s) to execute at build time.
   At least one ``COMMAND`` would normally be given, but certain patterns
-  may omit it, such as adding commands in separate calls using `APPEND`.
+  may omit it, such as adding commands in separate calls using ``APPEND``.
 
   If more than one ``COMMAND`` is specified, they will be executed in order,
   but *not* necessarily composed into a stateful shell or batch script.
@@ -141,16 +141,15 @@ The options are:
   built before any target using this custom command
   (see policy :policy:`CMP0112`).
 
-    * ``TARGET_FILE``
-    * ``TARGET_LINKER_FILE``
-    * ``TARGET_SONAME_FILE``
-    * ``TARGET_PDB_FILE``
+  * ``TARGET_FILE``
+  * ``TARGET_LINKER_FILE``
+  * ``TARGET_SONAME_FILE``
+  * ``TARGET_PDB_FILE``
 
   This target-level dependency does NOT add a file-level dependency that would
   cause the custom command to re-run whenever the executable is recompiled.
   List target names with the ``DEPENDS`` option to add such file-level
   dependencies.
-
 
 ``COMMENT``
   Display the given message before the commands are executed at

@@ -178,7 +178,7 @@ if(PYTHON_EXECUTABLE)
     unset(_VERSION)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(PythonInterp REQUIRED_VARS PYTHON_EXECUTABLE VERSION_VAR PYTHON_VERSION_STRING)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(PythonInterp REQUIRED_VARS PYTHON_EXECUTABLE VERSION_VAR PYTHON_VERSION_STRING)
 
 mark_as_advanced(PYTHON_EXECUTABLE)

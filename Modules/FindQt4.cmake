@@ -203,7 +203,7 @@ more-manual way. Several macros are available to add targets for such uses.
         same argument to the target_link_libraries call.
 
 
-IMPORTED Targets
+Imported Targets
 ^^^^^^^^^^^^^^^^
 
 A particular Qt library may be used by using the corresponding
@@ -334,7 +334,7 @@ endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/CheckCXXSymbolExists.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/MacroAddFileDependencies.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 include(${CMAKE_CURRENT_LIST_DIR}/CMakePushCheckState.cmake)
 
 set(QT_USE_FILE ${CMAKE_ROOT}/Modules/UseQt4.cmake)
@@ -753,19 +753,19 @@ if (QT_QMAKE_EXECUTABLE AND
   list(APPEND CMAKE_REQUIRED_INCLUDES "${QT_INCLUDE_DIR}")
   set(CMAKE_REQUIRED_QUIET ${Qt4_FIND_QUIETLY})
   # Check for Window system symbols (note: only one should end up being set)
-  CHECK_CXX_SYMBOL_EXISTS(Q_WS_X11 "QtCore/qglobal.h" Q_WS_X11)
-  CHECK_CXX_SYMBOL_EXISTS(Q_WS_WIN "QtCore/qglobal.h" Q_WS_WIN)
-  CHECK_CXX_SYMBOL_EXISTS(Q_WS_QWS "QtCore/qglobal.h" Q_WS_QWS)
-  CHECK_CXX_SYMBOL_EXISTS(Q_WS_MAC "QtCore/qglobal.h" Q_WS_MAC)
+  check_cxx_symbol_exists(Q_WS_X11 "QtCore/qglobal.h" Q_WS_X11)
+  check_cxx_symbol_exists(Q_WS_WIN "QtCore/qglobal.h" Q_WS_WIN)
+  check_cxx_symbol_exists(Q_WS_QWS "QtCore/qglobal.h" Q_WS_QWS)
+  check_cxx_symbol_exists(Q_WS_MAC "QtCore/qglobal.h" Q_WS_MAC)
   if(Q_WS_MAC)
     if(QT_QMAKE_CHANGED)
       unset(QT_MAC_USE_COCOA CACHE)
     endif()
-    CHECK_CXX_SYMBOL_EXISTS(QT_MAC_USE_COCOA "QtCore/qconfig.h" QT_MAC_USE_COCOA)
+    check_cxx_symbol_exists(QT_MAC_USE_COCOA "QtCore/qconfig.h" QT_MAC_USE_COCOA)
   endif()
 
   if (QT_QTCOPY_REQUIRED)
-     CHECK_CXX_SYMBOL_EXISTS(QT_IS_QTCOPY "QtCore/qglobal.h" QT_KDE_QT_COPY)
+     check_cxx_symbol_exists(QT_IS_QTCOPY "QtCore/qglobal.h" QT_KDE_QT_COPY)
      if (NOT QT_IS_QTCOPY)
         message(FATAL_ERROR "qt-copy is required, but hasn't been found")
      endif ()
@@ -1080,23 +1080,21 @@ if (QT_QMAKE_EXECUTABLE AND
     set(_isExe $<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>)
     set(_isWin32 $<BOOL:$<TARGET_PROPERTY:WIN32_EXECUTABLE>>)
     set(_isNotExcluded $<NOT:$<BOOL:$<TARGET_PROPERTY:QT4_NO_LINK_QTMAIN>>>)
-    set(_isPolicyNEW $<TARGET_POLICY:CMP0020>)
     get_target_property(_configs Qt4::QtCore IMPORTED_CONFIGURATIONS)
     set_property(TARGET Qt4::QtCore APPEND PROPERTY
         INTERFACE_LINK_LIBRARIES
-          $<$<AND:${_isExe},${_isWin32},${_isNotExcluded},${_isPolicyNEW}>:Qt4::qtmain>
+          $<$<AND:${_isExe},${_isWin32},${_isNotExcluded}>:Qt4::qtmain>
     )
     foreach(_config ${_configs})
       set_property(TARGET Qt4::QtCore APPEND PROPERTY
         IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}
-          $<$<AND:${_isExe},${_isWin32},${_isNotExcluded},${_isPolicyNEW}>:Qt4::qtmain>
+          $<$<AND:${_isExe},${_isWin32},${_isNotExcluded}>:Qt4::qtmain>
       )
     endforeach()
     unset(_configs)
     unset(_isExe)
     unset(_isWin32)
     unset(_isNotExcluded)
-    unset(_isPolicyNEW)
   endif()
 
   #######################################
@@ -1325,7 +1323,7 @@ else()
     # explicitly.
     set(FPHSA_NAME_MISMATCHED 1)
   endif ()
-  FIND_PACKAGE_HANDLE_STANDARD_ARGS(Qt4
+  find_package_handle_standard_args(Qt4
     REQUIRED_VARS ${_QT4_FOUND_REQUIRED_VARS}
     VERSION_VAR QTVERSION
     )

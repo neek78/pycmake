@@ -14,11 +14,15 @@ This module defines::
   LUA_VERSION_STRING, the version of Lua found (since CMake 2.8.8)
 
 
-Note that the expected include convention is::
+Note that the expected include convention is:
+
+.. code-block:: c
 
   #include "lua.h"
 
-and not::
+and not:
+
+.. code-block:: c
 
   #include <lua/lua.h>
 
@@ -68,10 +72,10 @@ if(LUA_INCLUDE_DIR AND EXISTS "${LUA_INCLUDE_DIR}/lua.h")
   unset(lua_version_str)
 endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set LUA_FOUND to TRUE if
 # all listed variables are TRUE
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(Lua51
+find_package_handle_standard_args(Lua51
                                   REQUIRED_VARS LUA_LIBRARIES LUA_INCLUDE_DIR
                                   VERSION_VAR LUA_VERSION_STRING)
 

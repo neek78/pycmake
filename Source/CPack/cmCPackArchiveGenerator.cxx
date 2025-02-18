@@ -45,8 +45,8 @@ private:
    * @return DeduplicateStatus indicating whether to add, skip, or flag an
    * error for the file.
    */
-  DeduplicateStatus CompareFile(const std::string& path,
-                                const std::string& localTopLevel)
+  DeduplicateStatus CompareFile(std::string const& path,
+                                std::string const& localTopLevel)
   {
     auto fileItr = this->Files.find(path);
     if (fileItr != this->Files.end()) {
@@ -65,7 +65,7 @@ private:
    * @param path The path of the folder to compare.
    * @return DeduplicateStatus indicating whether to add or skip the folder.
    */
-  DeduplicateStatus CompareFolder(const std::string& path)
+  DeduplicateStatus CompareFolder(std::string const& path)
   {
     if (this->Folders.find(path) != this->Folders.end()) {
       return DeduplicateStatus::Skip;
@@ -82,7 +82,7 @@ private:
    * @return DeduplicateStatus indicating whether to add, skip, or flag an
    * error for the symlink.
    */
-  DeduplicateStatus CompareSymlink(const std::string& path)
+  DeduplicateStatus CompareSymlink(std::string const& path)
   {
     auto symlinkItr = this->Symlink.find(path);
     std::string symlinkValue;
@@ -112,8 +112,8 @@ public:
    * @return DeduplicateStatus indicating the action to take for the given
    * path.
    */
-  DeduplicateStatus IsDeduplicate(const std::string& path,
-                                  const std::string& localTopLevel)
+  DeduplicateStatus IsDeduplicate(std::string const& path,
+                                  std::string const& localTopLevel)
   {
     DeduplicateStatus status;
     if (cmSystemTools::FileIsDirectory(path)) {
@@ -169,6 +169,12 @@ cmCPackGenerator* cmCPackArchiveGenerator::CreateTZSTGenerator()
                                      ".tar.zst");
 }
 
+cmCPackGenerator* cmCPackArchiveGenerator::CreateTarGenerator()
+{
+  return new cmCPackArchiveGenerator(cmArchiveWrite::CompressNone, "gnutar",
+                                     ".tar");
+}
+
 cmCPackGenerator* cmCPackArchiveGenerator::CreateZIPGenerator()
 {
   return new cmCPackArchiveGenerator(cmArchiveWrite::CompressNone, "zip",
@@ -185,8 +191,21 @@ cmCPackArchiveGenerator::cmCPackArchiveGenerator(
 
 cmCPackArchiveGenerator::~cmCPackArchiveGenerator() = default;
 
+std::string cmCPackArchiveGenerator::GetArchiveFileName()
+{
+  std::string packageFileName = this->toplevel + "/";
+  if (cmValue v = this->GetOptionIfSet("CPACK_ARCHIVE_FILE_NAME")) {
+    packageFileName += *v;
+  } else {
+    v = this->GetOption("CPACK_PACKAGE_FILE_NAME");
+    packageFileName += *v;
+  }
+  packageFileName += this->GetOutputExtension();
+  return packageFileName;
+}
+
 std::string cmCPackArchiveGenerator::GetArchiveComponentFileName(
-  const std::string& component, bool isGroupName)
+  std::string const& component, bool isGroupName)
 {
   std::string componentUpper(cmSystemTools::UpperCase(component));
   std::string packageFileName;
@@ -392,17 +411,7 @@ int cmCPackArchiveGenerator::PackageComponentsAllInOne()
 {
   // reset the package file names
   this->packageFileNames.clear();
-  this->packageFileNames.emplace_back(this->toplevel);
-  this->packageFileNames[0] += "/";
-
-  if (cmValue v = this->GetOptionIfSet("CPACK_ARCHIVE_FILE_NAME")) {
-    this->packageFileNames[0] += *v;
-  } else {
-    v = this->GetOption("CPACK_PACKAGE_FILE_NAME");
-    this->packageFileNames[0] += *v;
-  }
-
-  this->packageFileNames[0] += this->GetOutputExtension();
+  this->packageFileNames.emplace_back(this->GetArchiveFileName());
 
   cmCPackLogger(cmCPackLog::LOG_VERBOSE,
                 "Packaging all groups in one package..."
@@ -443,6 +452,9 @@ int cmCPackArchiveGenerator::PackageFiles()
   }
 
   // CASE 3 : NON COMPONENT package.
+  this->packageFileNames.clear();
+  this->packageFileNames.emplace_back(this->GetArchiveFileName());
+
   DECLARE_AND_OPEN_ARCHIVE(packageFileNames[0], archive);
   cmWorkingDirectory workdir(this->toplevel);
   if (workdir.Failed()) {

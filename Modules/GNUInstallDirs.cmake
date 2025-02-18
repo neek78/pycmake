@@ -131,7 +131,7 @@ Macros
 
 .. command:: GNUInstallDirs_get_absolute_install_dir
 
-  ::
+  .. code-block:: cmake
 
     GNUInstallDirs_get_absolute_install_dir(absvar var dirname)
 
@@ -150,9 +150,6 @@ Macros
     Added the ``<dirname>`` parameter.  Previous versions of CMake passed
     this value through the variable ``${dir}``.
 #]=======================================================================]
-
-cmake_policy(PUSH)
-cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
 
 # Convert a cache variable to PATH type
 
@@ -452,5 +449,3 @@ foreach(dir
     )
   GNUInstallDirs_get_absolute_install_dir(CMAKE_INSTALL_FULL_${dir} CMAKE_INSTALL_${dir} ${dir})
 endforeach()
-
-cmake_policy(POP)

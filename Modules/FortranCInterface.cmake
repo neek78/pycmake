@@ -79,14 +79,18 @@ Module Functions
 .. command:: FortranCInterface_HEADER
 
   The ``FortranCInterface_HEADER`` function is provided to generate a
-  C header file containing macros to mangle symbol names::
+  C header file containing macros to mangle symbol names:
+
+  .. code-block:: cmake
 
     FortranCInterface_HEADER(<file>
                              [MACRO_NAMESPACE <macro-ns>]
                              [SYMBOL_NAMESPACE <ns>]
                              [SYMBOLS [<module>:]<function> ...])
 
-  It generates in ``<file>`` definitions of the following macros::
+  It generates in ``<file>`` definitions of the following macros:
+
+  .. code-block:: c
 
      #define FortranCInterface_GLOBAL (name,NAME) ...
      #define FortranCInterface_GLOBAL_(name,NAME) ...
@@ -125,7 +129,9 @@ Module Functions
 .. command:: FortranCInterface_VERIFY
 
   The ``FortranCInterface_VERIFY`` function is provided to verify
-  that the Fortran and C/C++ compilers work together::
+  that the Fortran and C/C++ compilers work together:
+
+  .. code-block:: cmake
 
     FortranCInterface_VERIFY([CXX] [QUIET])
 
@@ -194,9 +200,6 @@ are not needed.)
 if(FortranCInterface_SOURCE_DIR)
   return()
 endif()
-
-cmake_policy(PUSH)
-cmake_policy(SET CMP0007 NEW)
 
 #-----------------------------------------------------------------------------
 # Verify that C and Fortran are available.
@@ -351,12 +354,7 @@ function(FortranCInterface_VERIFY)
       set(_FortranCInterface_OSX_ARCH "")
     endif()
 
-    cmake_policy(GET CMP0056 _FortranCInterface_CMP0056)
-    if(_FortranCInterface_CMP0056 STREQUAL "NEW")
-      set(_FortranCInterface_EXE_LINKER_FLAGS "-DCMAKE_EXE_LINKER_FLAGS:STRING=${CMAKE_EXE_LINKER_FLAGS}")
-    else()
-      set(_FortranCInterface_EXE_LINKER_FLAGS "")
-    endif()
+    set(_FortranCInterface_EXE_LINKER_FLAGS "-DCMAKE_EXE_LINKER_FLAGS:STRING=${CMAKE_EXE_LINKER_FLAGS}")
 
     # Build a sample project which reports symbols.
     set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
@@ -402,6 +400,3 @@ function(FortranCInterface_VERIFY)
       "The output was:\n  ${_output}")
   endif()
 endfunction()
-
-# Restore including context policies.
-cmake_policy(POP)

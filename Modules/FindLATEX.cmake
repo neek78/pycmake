@@ -50,7 +50,9 @@ Possible components are::
   LATEX2HTML
   HTLATEX
 
-Example Usages::
+Example Usages:
+
+.. code-block:: cmake
 
   find_package(LATEX)
   find_package(LATEX COMPONENTS PDFLATEX)
@@ -71,17 +73,17 @@ if (WIN32)
   mark_as_advanced(MIKTEX_BINARY_PATH)
 
   # Try to find the GhostScript binary path (look for gswin32).
-  get_filename_component(GHOSTSCRIPT_BINARY_PATH_FROM_REGISTERY_8_00
+  get_filename_component(GHOSTSCRIPT_BINARY_PATH_FROM_REGISTRY_8_00
      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\AFPL Ghostscript\\8.00;GS_DLL]" PATH
   )
 
-  get_filename_component(GHOSTSCRIPT_BINARY_PATH_FROM_REGISTERY_7_04
+  get_filename_component(GHOSTSCRIPT_BINARY_PATH_FROM_REGISTRY_7_04
      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\AFPL Ghostscript\\7.04;GS_DLL]" PATH
   )
 
   find_path(GHOSTSCRIPT_BINARY_PATH gswin32.exe
-    ${GHOSTSCRIPT_BINARY_PATH_FROM_REGISTERY_8_00}
-    ${GHOSTSCRIPT_BINARY_PATH_FROM_REGISTERY_7_04}
+    ${GHOSTSCRIPT_BINARY_PATH_FROM_REGISTRY_8_00}
+    ${GHOSTSCRIPT_BINARY_PATH_FROM_REGISTRY_7_04}
     DOC "Path to the GhostScript binary directory."
   )
   mark_as_advanced(GHOSTSCRIPT_BINARY_PATH)
@@ -280,7 +282,7 @@ mark_as_advanced(
   HTLATEX_COMPILER
 )
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LATEX
   REQUIRED_VARS LATEX_COMPILER
   HANDLE_COMPONENTS

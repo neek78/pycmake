@@ -15,13 +15,11 @@
 #   CMAKE_RANLIB
 #   CMAKE_LINKER
 #   CMAKE_MT
+#   CMAKE_OBJDUMP
 #   CMAKE_STRIP
 #   CMAKE_INSTALL_NAME_TOOL
 
 # on UNIX, cygwin and mingw
-
-cmake_policy(PUSH)
-cmake_policy(SET CMP0057 NEW) # if IN_LIST
 
 # Resolve full path of CMAKE_TOOL from user-defined name and SEARCH_PATH.
 function(__resolve_tool_path CMAKE_TOOL SEARCH_PATH DOCSTRING)
@@ -111,10 +109,11 @@ elseif("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^x(Open)?W
   list(APPEND _CMAKE_TOOL_VARS LINKER AR)
 
 elseif("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^xIAR$")
-  # Get the architecture from the IAR compiler parent directory
-  get_filename_component(__iar_bin_dir "${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER}" DIRECTORY)
-  get_filename_component(__iar_toolkit_dir "${__iar_bin_dir}" DIRECTORY)
-  get_filename_component(__iar_arch_id "${__iar_toolkit_dir}" NAME)
+  # Detect the `<lang>` compiler name
+  get_filename_component(__iar_selected_compiler "${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER}" NAME)
+  # Strip out the `icc`,`iasm`,`a` prefixes and other `_suffixes leaving only the `<target>`
+  string(TOLOWER "${__iar_selected_compiler}" __iar_arch_id)
+  string(REGEX REPLACE "^x(icc|iasm|a)|(_.*)$" "" __iar_arch_id "x${__iar_arch_id}")
   # IAR Archive Tool
   set(_CMAKE_AR_NAMES
     "iarchive" "iarchive.exe"
@@ -147,8 +146,7 @@ elseif("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^xIAR$")
     "isymexport" "isymexport.exe"
   )
   list(APPEND _CMAKE_TOOL_VARS AR LINKER IAR_ELFDUMP IAR_ELFTOOL IAR_EXE2OBJ IAR_OBJMANIP IAR_SYMEXPORT)
-  unset(__iar_bin_dir)
-  unset(__iar_toolkit_dir)
+  unset(__iar_selected_compiler)
   unset(__iar_arch_id)
 
 # in all other cases search for ar, ranlib, etc.
@@ -274,5 +272,3 @@ if("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^xIAR$")
   set(CMAKE_IAR_LINKER "${CMAKE_LINKER}" CACHE FILEPATH "The IAR ILINK linker")
   mark_as_advanced(CMAKE_IAR_LINKER CMAKE_IAR_AR)
 endif()
-
-cmake_policy(POP)

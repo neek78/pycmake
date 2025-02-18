@@ -31,7 +31,7 @@ using UseTo = cmGeneratorTarget::UseTo;
 using TransitiveProperty = cmGeneratorTarget::TransitiveProperty;
 }
 
-const std::map<cm::string_view, TransitiveProperty>
+std::map<cm::string_view, TransitiveProperty> const
   cmGeneratorTarget::BuiltinTransitiveProperties = {
     { "AUTOMOC_MACRO_NAMES"_s,
       { "INTERFACE_AUTOMOC_MACRO_NAMES"_s, UseTo::Compile } },
@@ -183,7 +183,7 @@ cmGeneratorTarget::IsTransitiveProperty(cm::string_view prop,
                                         bool evaluatingLinkLibraries) const
 {
   cm::optional<TransitiveProperty> result;
-  static const cm::string_view kINTERFACE_ = "INTERFACE_"_s;
+  static cm::string_view const kINTERFACE_ = "INTERFACE_"_s;
   PropertyFor const propertyFor = cmHasPrefix(prop, kINTERFACE_)
     ? PropertyFor::Interface
     : PropertyFor::Build;
@@ -201,13 +201,6 @@ cmGeneratorTarget::IsTransitiveProperty(cm::string_view prop,
            prop == "LINK_OPTIONS"_s)) {
         result->Usage = cmGeneratorTarget::UseTo::Compile;
       }
-    }
-  } else if (cmHasLiteralPrefix(prop, "COMPILE_DEFINITIONS_")) {
-    cmPolicies::PolicyStatus cmp0043 =
-      lg->GetPolicyStatus(cmPolicies::CMP0043);
-    if (cmp0043 == cmPolicies::WARN || cmp0043 == cmPolicies::OLD) {
-      result = TransitiveProperty{ "INTERFACE_COMPILE_DEFINITIONS"_s,
-                                   UseTo::Compile };
     }
   } else if (!evaluatingLinkLibraries) {
     // Honor TRANSITIVE_COMPILE_PROPERTIES and TRANSITIVE_LINK_PROPERTIES
@@ -242,7 +235,7 @@ void cmGeneratorTarget::CustomTransitiveProperties::Add(cmValue props,
     cmList propsList(*props);
     for (std::string p : propsList) {
       std::string ip;
-      static const cm::string_view kINTERFACE_ = "INTERFACE_"_s;
+      static cm::string_view const kINTERFACE_ = "INTERFACE_"_s;
       if (cmHasPrefix(p, kINTERFACE_)) {
         ip = std::move(p);
         p = ip.substr(kINTERFACE_.length());
