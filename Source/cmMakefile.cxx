@@ -72,6 +72,10 @@
 #  include "cmDebuggerAdapter.h"
 #endif
 
+#ifdef CMake_ENABLE_PYTHON
+#include "Python/cmPythonScript.h"
+#endif
+
 #ifndef __has_feature
 #  define __has_feature(x) 0
 #endif
@@ -841,6 +845,20 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
     }
   }
 
+  RunDeferredCommands(defer, filenametoread);
+
+  this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentParentFile);
+  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", currentFile);
+  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
+                      cmSystemTools::GetFilenamePath(currentFile));
+  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
+  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
+  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
+}
+
+void cmMakefile::RunDeferredCommands(DeferCommands* defer,
+                             std::string const& filenametoread)
+{
   // Run any deferred commands.
   if (defer) {
     // Add a backtrace level indicating calls are deferred.
@@ -867,14 +885,6 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
       }
     }
   }
-
-  this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentParentFile);
-  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", currentFile);
-  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
-                      cmSystemTools::GetFilenamePath(currentFile));
-  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
 }
 
 void cmMakefile::EnforceDirectoryLevelRules() const
@@ -4198,3 +4208,49 @@ bool cmMakefile::GetDebugFindPkgMode() const
 {
   return this->DebugFindPkg;
 }
+
+#ifdef CMake_ENABLE_PYTHON 
+void cmMakefile::ConfigurePythonScript(const std::string& modPath, 
+        const std::string& modName)
+{  
+  if(!GetCMakeInstance()->IsPythonAvailable()) {
+      // python failed to init - we need to fatal here as we can't exec our script
+      cmSystemTools::SetFatalErrorOccurred();
+      const std::string msg = "could not launch python script '" + modName +
+        "' in dir " + modPath + " as python interpreter failed to init";
+      this->IssueMessage(MessageType::FATAL_ERROR, msg);
+      return;
+  }
+
+  // Shouldn't be any Deferred commands queued up yet..
+  assert(!this->Defer);
+
+  std::string fullPath = modPath + "/" + modName;
+  CurrentFiles current = UpdateListVars(fullPath);
+
+  this->Defer = cm::make_unique<DeferCommands>();
+
+  RunPythonScript(modPath, modName);
+
+  RunDeferredCommands(this->Defer.get(), fullPath);
+
+  this->Defer.reset();
+
+  RestoreListVars(current);
+}
+
+void cmMakefile::RunPythonScript(const std::string& modPath, 
+        const std::string& modName)
+{
+  cmPythonScript pythonScript(*this, modPath, modName);
+
+  // load and parse
+  if (!pythonScript.ParseScript()) {
+    return;
+  }
+
+  // run...
+  pythonScript.RunScript();
+}
+
+#endif

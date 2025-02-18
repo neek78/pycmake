@@ -1256,6 +1256,11 @@ private:
   // interfaces added for python support
   bool IsPython = false;  
 
+  void ConfigurePythonScript(const std::string& modPath, const std::string& modName);
+  void RunPythonScript(const std::string& modPath, const std::string& modName);
+
+  void RunDeferredCommands(DeferCommands* defer, std::string const& filenametoread);
+
 public:
   bool GetIsPython() const { return IsPython; }
     
