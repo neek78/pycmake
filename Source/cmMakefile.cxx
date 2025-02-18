@@ -810,20 +810,7 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
                              std::string const& filenametoread,
                              DeferCommands* defer)
 {
-  // add this list file to the list of dependencies
-  this->ListFiles.push_back(filenametoread);
-
-  std::string currentParentFile =
-    this->GetSafeDefinition("CMAKE_PARENT_LIST_FILE");
-  std::string currentFile = this->GetSafeDefinition("CMAKE_CURRENT_LIST_FILE");
-
-  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", filenametoread);
-  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
-                      cmSystemTools::GetFilenamePath(filenametoread));
-
-  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
+  auto current = UpdateListVars(filenametoread);
 
   // Run the parsed commands.
   size_t const numberFunctions = listFile.Functions.size();
@@ -846,11 +833,37 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
   }
 
   RunDeferredCommands(defer, filenametoread);
+  RestoreListVars(current);
+}
 
-  this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentParentFile);
-  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", currentFile);
+cmMakefile::CurrentFiles cmMakefile::UpdateListVars(std::string const& filenametoread)
+{
+  CurrentFiles ret;
+
+  // add this list file to the list of dependencies
+  this->ListFiles.push_back(filenametoread);
+
+  ret.currentParentFile =
+    this->GetSafeDefinition("CMAKE_PARENT_LIST_FILE");
+  ret.currentFile = this->GetSafeDefinition("CMAKE_CURRENT_LIST_FILE");
+
+  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", filenametoread);
   this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
-                      cmSystemTools::GetFilenamePath(currentFile));
+                      cmSystemTools::GetFilenamePath(filenametoread));
+
+  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
+  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
+  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
+
+  return ret;
+}
+
+void cmMakefile::RestoreListVars(const CurrentFiles& current)
+{
+  this->AddDefinition("CMAKE_PARENT_LIST_FILE", current.currentParentFile);
+  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", current.currentFile);
+  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
+                      cmSystemTools::GetFilenamePath(current.currentFile));
   this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
   this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
   this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
