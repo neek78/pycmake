@@ -75,7 +75,8 @@ void CMakeGUITest::tryConfigure(int expectedResult, int timeout)
     Qt::QueuedConnection);
   QVERIFY(configureDoneSpy.wait(timeout));
 
-  QCOMPARE(configureDoneSpy, { { expectedResult } });
+  QList<QVariant> configureDoneSignalArguments = configureDoneSpy.takeFirst();
+  QCOMPARE(configureDoneSignalArguments.at(0).toInt(), expectedResult);
 }
 
 void CMakeGUITest::sourceBinaryArgs()
@@ -359,13 +360,15 @@ void CMakeGUITest::changingPresets()
   QCOMPARE(this->m_window->Preset->isEnabled(), false);
 
   writePresets("build1", { "preset" });
-  loopSleep(1500);
+  this->m_window->ReloadPresetsButton->click();
+  loopSleep();
   QCOMPARE(this->m_window->Preset->presetName(), QString{});
   QCOMPARE(this->m_window->Preset->presets().size(), 1);
   QCOMPARE(this->m_window->BinaryDirectory->currentText(), "");
   QCOMPARE(this->m_window->Preset->isEnabled(), true);
 
   this->m_window->Preset->setPresetName("preset");
+  this->m_window->ReloadPresetsButton->click();
   loopSleep();
   QCOMPARE(this->m_window->Preset->presetName(), "preset");
   QCOMPARE(this->m_window->Preset->presets().size(), 1);
@@ -374,7 +377,8 @@ void CMakeGUITest::changingPresets()
   QCOMPARE(this->m_window->Preset->isEnabled(), true);
 
   writePresets("build2", { "preset2", "preset" });
-  loopSleep(1500);
+  this->m_window->ReloadPresetsButton->click();
+  loopSleep();
   QCOMPARE(this->m_window->Preset->presetName(), "preset");
   QCOMPARE(this->m_window->Preset->presets().size(), 2);
   QCOMPARE(this->m_window->BinaryDirectory->currentText(),
@@ -382,7 +386,8 @@ void CMakeGUITest::changingPresets()
   QCOMPARE(this->m_window->Preset->isEnabled(), true);
 
   writePresets("build3", { "preset2" });
-  loopSleep(1500);
+  this->m_window->ReloadPresetsButton->click();
+  loopSleep();
   QCOMPARE(this->m_window->Preset->presetName(), QString{});
   QCOMPARE(this->m_window->Preset->presets().size(), 1);
   QCOMPARE(this->m_window->BinaryDirectory->currentText(),
@@ -420,7 +425,8 @@ void CMakeGUITest::changingPresets()
 
   QFile(CMakeGUITest_BINARY_DIR "/changingPresets/src2/CMakePresets.json")
     .remove();
-  loopSleep(1500);
+  this->m_window->ReloadPresetsButton->click();
+  loopSleep();
   QCOMPARE(this->m_window->Preset->presetName(), QString{});
   QCOMPARE(this->m_window->Preset->presets().size(), 0);
   QCOMPARE(this->m_window->BinaryDirectory->currentText(),

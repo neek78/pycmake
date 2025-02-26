@@ -353,8 +353,8 @@ if(CMake_RUN_CLANG_TIDY)
     unset(clang_tidy_module_sha1)
   endif()
 
+  configure_file(.clang-tidy .clang-tidy COPYONLY)
 endif()
-configure_file(.clang-tidy .clang-tidy COPYONLY)
 
 
 option(CMake_RUN_IWYU "Run include-what-you-use with the compiler." OFF)

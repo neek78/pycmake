@@ -70,16 +70,25 @@ test_unparsed_version(BadVersion4 "+42")
 test_unparsed_version(CustomVersion "VII")
 
 ###############################################################################
+# Test finding a package whose CPS file is in the package prefix root.
+set(RootTest_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RootTest")
+find_package(RootTest)
+if(NOT RootTest_FOUND)
+  message(SEND_ERROR "RootTest not found !")
+endif()
+
+###############################################################################
 # Test glob sorting.
 
-set(SortLib_DIR "" CACHE FILEPATH "Wipe out find results for testing." FORCE)
-set(CMAKE_FIND_PACKAGE_SORT_ORDER NAME)
-set(CMAKE_FIND_PACKAGE_SORT_DIRECTION ASC)
-find_package(SortLib CONFIG)
-if(NOT "${SortLib_VERSION}" STREQUAL "3.1.1")
-  message(SEND_ERROR "FIND_PACKAGE_SORT_ORDER Name Asc! ${SortLib_VERSION}")
-endif()
-unset(SortLib_VERSION)
+foreach(CMAKE_FIND_PACKAGE_SORT_DIRECTION IN ITEMS "" ASC Bogus)
+  set(SortLib_DIR "" CACHE FILEPATH "Wipe out find results for testing." FORCE)
+  set(CMAKE_FIND_PACKAGE_SORT_ORDER NAME)
+  find_package(SortLib CONFIG)
+  if(NOT "${SortLib_VERSION}" STREQUAL "3.1.1")
+    message(SEND_ERROR "FIND_PACKAGE_SORT_ORDER Name Asc! ${SortLib_VERSION}")
+  endif()
+  unset(SortLib_VERSION)
+endforeach()
 
 set(SortLib_DIR "" CACHE FILEPATH "Wipe out find results for testing." FORCE)
 set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)

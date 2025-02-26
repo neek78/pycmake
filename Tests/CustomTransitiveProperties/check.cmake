@@ -32,16 +32,34 @@ main CUSTOM_V: 'CUSTOM_V_MAIN;CUSTOM_V_STATIC1_IFACE;CUSTOM_V_IFACE1'
 main INTERFACE_CUSTOM_V: ''
 main CUSTOM_W: 'CUSTOM_W_MAIN;CUSTOM_W_IFACE1;CUSTOM_W_OBJECT1_IFACE'
 main INTERFACE_CUSTOM_W: ''
+
+iface1 LINK_LIBRARIES: ''
+iface1 INTERFACE_LINK_LIBRARIES: ''
+iface2 LINK_LIBRARIES: ''
+iface2 INTERFACE_LINK_LIBRARIES: 'iface1'
+static1 LINK_LIBRARIES: 'iface2'
+static1 INTERFACE_LINK_LIBRARIES: '\$<LINK_ONLY:iface2>'
+main LINK_LIBRARIES: 'static1;object1'
+main INTERFACE_LINK_LIBRARIES: ''
+iface10 LINK_LIBRARIES: ''
+iface10 INTERFACE_LINK_LIBRARIES: ''
+iface11 LINK_LIBRARIES: ''
+iface11 INTERFACE_LINK_LIBRARIES: 'iface10'
+static10 LINK_LIBRARIES: 'iface11;iface10'
+static10 INTERFACE_LINK_LIBRARIES: 'iface11;iface10'
+static11 LINK_LIBRARIES: 'static10;iface11;iface11;iface10'
+static11 INTERFACE_LINK_LIBRARIES: 'static10;iface11;iface11;iface10'
+main10 LINK_LIBRARIES: 'static11;static10;static10;iface11;iface11;iface10'
+main10 INTERFACE_LINK_LIBRARIES: ''
+iface20 LINK_LIBRARIES: ''
+iface20 INTERFACE_LINK_LIBRARIES: ''
+iface21 LINK_LIBRARIES: ''
+iface21 INTERFACE_LINK_LIBRARIES: 'iface20'
+static20 LINK_LIBRARIES: 'iface21'
+static20 INTERFACE_LINK_LIBRARIES: '\$<LINK_ONLY:iface21>'
+static21 LINK_LIBRARIES: 'static20;iface21'
+static21 INTERFACE_LINK_LIBRARIES: '\$<LINK_ONLY:static20>;\$<LINK_ONLY:iface21>'
+main20 LINK_LIBRARIES: 'static21;static20'
+main20 INTERFACE_LINK_LIBRARIES: ''
 ]])
-string(REGEX REPLACE "\r\n" "\n" expect "${expect}")
-string(REGEX REPLACE "\n+$" "" expect "${expect}")
-
-file(READ "${out}" actual)
-string(REGEX REPLACE "\r\n" "\n" actual "${actual}")
-string(REGEX REPLACE "\n+$" "" actual "${actual}")
-
-if(NOT actual MATCHES "^${expect}$")
-  string(REPLACE "\n" "\n expect> " expect " expect> ${expect}")
-  string(REPLACE "\n" "\n actual> " actual " actual> ${actual}")
-  message(FATAL_ERROR "Expected file(GENERATE) output:\n${expect}\ndoes not match actual output:\n${actual}")
-endif()
+include(${CMAKE_CURRENT_LIST_DIR}/check-common.cmake)
