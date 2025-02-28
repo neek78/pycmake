@@ -397,7 +397,8 @@ set_property(TEST RunCMake.CompilerId APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC"
 add_RunCMake_test(CompilerTest ${CMake_TEST_LANG_VARS})
 set_property(TEST RunCMake.CompilerTest APPEND PROPERTY LABELS "CUDA" "HIP" "ISPC" "Fortran")
 add_RunCMake_test(Configure -DMSVC_IDE=${MSVC_IDE})
-add_RunCMake_test(CpsExportImport)
+add_RunCMake_test(CpsExportImportBuild)
+add_RunCMake_test(CpsExportImportInstall)
 add_RunCMake_test(DisallowedCommands)
 if("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(ExportCompileCommands)
@@ -660,7 +661,10 @@ add_RunCMake_test(return)
 add_RunCMake_test(SarifOutput)
 add_RunCMake_test(separate_arguments)
 add_RunCMake_test(set_property)
-add_RunCMake_test(string)
+add_RunCMake_test(string
+  -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+  -DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+  )
 add_RunCMake_test(test_include_dirs)
 add_RunCMake_test(BundleUtilities)
 if(APPLE)
@@ -1205,7 +1209,8 @@ add_RunCMake_test(AutoExportDll
   )
 
 add_RunCMake_test(AndroidMK)
-add_RunCMake_test(PackageInfo)
+add_RunCMake_test(ExportPackageInfo)
+add_RunCMake_test(InstallPackageInfo)
 
 if(CMake_TEST_ANDROID_NDK OR CMake_TEST_ANDROID_STANDALONE_TOOLCHAIN)
   if(NOT "${CMAKE_GENERATOR}" MATCHES "Make|Ninja|Visual Studio 1[456]")
