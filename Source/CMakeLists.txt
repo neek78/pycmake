@@ -1,5 +1,5 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-# file Copyright.txt or https://cmake.org/licensing for details.
+# file LICENSE.rst or https://cmake.org/licensing for details.
 
 # To ensure maximum portability across various compilers and platforms
 # deactivate any compiler extensions.  Skip this for QNX, where additional
@@ -1038,7 +1038,7 @@ if(WIN32 AND NOT CYGWIN)
   list(APPEND _tools cmcldeps)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_SYSTEM_VERSION STREQUAL "5.10" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
+if(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_SYSTEM_VERSION STREQUAL "5.10" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(i386|x86_64)$")
   set_property(SOURCE cmSystemTools.cxx APPEND PROPERTY COMPILE_DEFINITIONS CMAKE_NO_MKDTEMP)
 endif()
 

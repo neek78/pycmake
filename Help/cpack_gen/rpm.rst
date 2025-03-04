@@ -324,7 +324,7 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set RPM dependencies (requires). Note that you must enclose
- the complete requires string between quotes, for example:
+ the entire value between quotes when setting this variable, for example:
 
  .. code-block:: cmake
 
@@ -343,7 +343,8 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set negative RPM dependencies (conflicts). Note that you must
- enclose the complete requires string between quotes, for example:
+ enclose the entire value between quotes when setting this variable,
+ for example:
 
  .. code-block:: cmake
 
@@ -364,7 +365,8 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set RPM preinstall dependencies (requires(pre)). Note that
- you must enclose the complete requires string between quotes, for example:
+ you must enclose the entire value between quotes when setting this variable,
+ for example:
 
  .. code-block:: cmake
 
@@ -381,7 +383,8 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set RPM postinstall dependencies (requires(post)). Note that
- you must enclose the complete requires string between quotes, for example:
+ you must enclose the entire value between quotes when setting this variable,
+ for example:
 
  .. code-block:: cmake
 
@@ -398,8 +401,8 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set RPM postuninstall dependencies (requires(postun)). Note
- that you must enclose the complete requires string between quotes, for
- example:
+ that you must enclose the entire value between quotes when setting this
+ variable, for example:
 
  .. code-block:: cmake
 
@@ -416,7 +419,8 @@ List of CPack RPM generator specific variables:
  :Default:
 
  May be used to set RPM preuninstall dependencies (requires(preun)). Note that
- you must enclose the complete requires string between quotes, for example:
+ you must enclose the entire value between quotes when setting this variable,
+ for example:
 
  .. code-block:: cmake
 
@@ -425,15 +429,60 @@ List of CPack RPM generator specific variables:
 .. variable:: CPACK_RPM_PACKAGE_SUGGESTS
               CPACK_RPM_<component>_PACKAGE_SUGGESTS
 
- RPM spec suggest field.
+ RPM spec suggests field.
 
  :Mandatory: No
  :Default:
 
  May be used to set weak RPM dependencies (suggests). If ``rpmbuild`` doesn't
  support the ``Suggests`` tag, CPack will emit a warning and ignore this
- variable. Note that you must enclose the complete requires string between
- quotes.
+ variable. Note that you must enclose the entire value between quotes when
+ setting this variable.
+
+.. variable:: CPACK_RPM_PACKAGE_RECOMMENDS
+              CPACK_RPM_<component>_PACKAGE_RECOMMENDS
+
+ .. versionadded:: 4.1
+
+ RPM spec recommends field.
+
+ :Mandatory: No
+ :Default:
+
+ May be used to set weak RPM dependencies (recommends). If ``rpmbuild`` doesn't
+ support the ``Recommends`` tag, CPack will emit a warning and ignore this
+ variable. Note that you must enclose the entire value between quotes when
+ setting this variable.
+
+.. variable:: CPACK_RPM_PACKAGE_SUPPLEMENTS
+              CPACK_RPM_<component>_PACKAGE_SUPPLEMENTS
+
+ .. versionadded:: 4.1
+
+ RPM spec supplements field.
+
+ :Mandatory: No
+ :Default:
+
+ May be used to set weak RPM dependencies (supplements). If ``rpmbuild`` doesn't
+ support the ``Supplements`` tag, CPack will emit a warning and ignore this
+ variable. Note that you must enclose the entire value between quotes when
+ setting this variable.
+
+.. variable:: CPACK_RPM_PACKAGE_ENHANCES
+              CPACK_RPM_<component>_PACKAGE_ENHANCES
+
+ .. versionadded:: 4.1
+
+ RPM spec enhances field.
+
+ :Mandatory: No
+ :Default:
+
+ May be used to set weak RPM dependencies (enhances). If ``rpmbuild`` doesn't
+ support the ``Enhances`` tag, CPack will emit a warning and ignore this
+ variable. Note that you must enclose the entire value between quotes when
+ setting this variable.
 
 .. variable:: CPACK_RPM_PACKAGE_PROVIDES
               CPACK_RPM_<component>_PACKAGE_PROVIDES
@@ -1087,8 +1136,8 @@ Source RPM packaging has its own set of variables:
  :Default:
 
  May be used to set source RPM build dependencies (BuildRequires). Note that
- you must enclose the complete build requirements string between quotes, for
- example:
+ you must enclose the entire value between quotes when setting this variable,
+ for example:
 
  .. code-block:: cmake
 

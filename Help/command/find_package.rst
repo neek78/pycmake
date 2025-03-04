@@ -132,7 +132,7 @@ Basic Signature
 .. code-block:: cmake
 
   find_package(<PackageName> [version] [EXACT] [QUIET] [MODULE]
-               [REQUIRED] [[COMPONENTS] [components...]]
+               [REQUIRED|OPTIONAL] [[COMPONENTS] [components...]]
                [OPTIONAL_COMPONENTS components...]
                [REGISTRY_VIEW  (64|32|64_32|32_64|HOST|TARGET|BOTH)]
                [GLOBAL]
@@ -159,32 +159,36 @@ otherwise execution still continues.  As a form of shorthand, if the
 ``REQUIRED`` option is present, the ``COMPONENTS`` keyword can be omitted
 and the required components can be listed directly after ``REQUIRED``.
 
-Additional optional components may be listed after
-``OPTIONAL_COMPONENTS``.  If these cannot be satisfied, the package overall
-can still be considered found, as long as all required components are
-satisfied.
+The :variable:`CMAKE_FIND_REQUIRED` variable can be enabled to make this call
+``REQUIRED`` by default. This behavior can be overridden by providing the
+``OPTIONAL`` keyword. As with the ``REQUIRED`` option, a list of components
+can be listed directly after ``OPTIONAL``, which is equivalent to listing
+them after the ``COMPONENTS`` keyword. When the ``OPTIONAL`` keyword is given,
+the warning output when a package is not found is suppressed.
 
-.. TODO Once CPS honors COMPONENTS, note that OPTIONAL_COMPONENTS will cause
-   CMake to attempt to locate dependencies for optional components.  Also note
-   that CMake will *not* load any appendices that don't include COMPONENTS or
-   OPTIONAL_COMPONENTS.  (That isn't the case now, but will be when we don't
-   just ignore COMPONENTS.)  The following paragraph will also need changes.
+Additional optional components may be listed after ``OPTIONAL_COMPONENTS``.
+If these cannot be satisfied, the package overall can still be considered
+found, as long as all required components are satisfied.
 
 The set of available components and their meaning are defined by the
-target package.  For CMake-script package configuration files, it is formally
-up to the target package how to interpret the component information given to
-it, but it should follow the expectations stated above.  For calls where no
-components are specified, there is no single expected behavior and target
-packages should clearly define what occurs in such cases.  Common arrangements
-include assuming it should find all components, no components or some
-well-defined subset of the available components.
+target package:
 
-.. note::
+* For CMake-script package configuration files, it is formally up to the target
+  package how to interpret the component information given to it, but it should
+  follow the expectations stated above.  For calls where no components are
+  specified, there is no single expected behavior and target packages should
+  clearly define what occurs in such cases.  Common arrangements include
+  assuming it should find all components, no components or some well-defined
+  subset of the available components.
 
-  If the experimental ``CMAKE_EXPERIMENTAL_FIND_CPS_PACKAGES`` is enabled,
-  CMake currently imports all available components if the located package
-  configuration file is a |CPS| file.  At this time, ``COMPONENTS`` and
-  ``OPTIONAL_COMPONENTS`` have no effect when considering a CPS file.
+* |CPS| packages consist of a root configuration file and zero or more
+  appendices, each of which provide components and may have dependencies.
+  CMake always attempts to load the root configuration file.  Appendices are
+  only loaded if their dependencies can be satisfied, and if they either
+  provide requested components, or if no components were requested.  If the
+  dependencies of an appendix providing a required component cannot be
+  satisfied, the package is considered not found.  Otherwise, that appendix
+  is ignored.
 
 .. versionadded:: 3.24
   The ``REGISTRY_VIEW`` keyword specifies which registry views should be
@@ -249,7 +253,7 @@ Full Signature
 .. code-block:: cmake
 
   find_package(<PackageName> [version] [EXACT] [QUIET]
-               [REQUIRED] [[COMPONENTS] [components...]]
+               [REQUIRED|OPTIONAL] [[COMPONENTS] [components...]]
                [OPTIONAL_COMPONENTS components...]
                [CONFIG|NO_MODULE]
                [GLOBAL]
@@ -634,6 +638,9 @@ Every non-REQUIRED ``find_package`` call can be disabled or made REQUIRED:
   to ``TRUE`` makes the package REQUIRED.
 
 Setting both variables to ``TRUE`` simultaneously is an error.
+
+The :variable:`CMAKE_REQUIRE_FIND_PACKAGE_<PackageName>` variable takes priority
+over the ``OPTIONAL`` keyword in determining whether a package is required.
 
 .. _`version selection`:
 
