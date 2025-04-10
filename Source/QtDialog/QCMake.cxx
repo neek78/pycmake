@@ -82,7 +82,8 @@ void QCMake::setSourceDirectory(QString const& _dir)
     emit this->sourceDirChanged(this->SourceDirectory);
     this->loadPresets();
     this->setPreset(QString{});
-    if (!cmSystemTools::FileIsFullPath(
+    if (!this->MaybeRelativeBinaryDirectory.isEmpty() &&
+        !cmSystemTools::FileIsFullPath(
           this->MaybeRelativeBinaryDirectory.toStdString())) {
       this->setBinaryDirectory(this->MaybeRelativeBinaryDirectory);
     }
@@ -309,8 +310,8 @@ void QCMake::open()
   InterruptFlag = 0;
   cmSystemTools::ResetErrorOccurredFlag();
 
-  auto successful =
-    this->CMakeInstance->Open(this->BinaryDirectory.toStdString(), false);
+  auto successful = this->CMakeInstance->Open(
+    this->BinaryDirectory.toStdString(), cmake::DryRun::No);
 
 #ifdef Q_OS_WIN
   SetErrorMode(lastErrorMode);
@@ -714,6 +715,6 @@ void QCMake::setWarnUninitializedMode(bool value)
 void QCMake::checkOpenPossible()
 {
   std::string data = this->BinaryDirectory.toStdString();
-  auto possible = this->CMakeInstance->Open(data, true);
+  auto possible = this->CMakeInstance->Open(data, cmake::DryRun::Yes);
   emit openPossible(possible);
 }

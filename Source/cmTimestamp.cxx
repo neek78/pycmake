@@ -11,6 +11,13 @@
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #  define _XOPEN_SOURCE 700
 #endif
+#if defined(__APPLE__)
+// Restore Darwin APIs removed by _POSIX_C_SOURCE:
+//   aligned_alloc
+//   timespec_get
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#  define _DARWIN_C_SOURCE
+#endif
 
 #include "cmTimestamp.h"
 
@@ -63,7 +70,8 @@ std::string cmTimestamp::FileModificationTime(char const* path,
                                               std::string const& formatString,
                                               bool utcFlag) const
 {
-  std::string real_path = cmSystemTools::GetRealPath(path);
+  std::string real_path =
+    cmSystemTools::GetRealPathResolvingWindowsSubst(path);
 
   if (!cmsys::SystemTools::FileExists(real_path)) {
     return std::string();

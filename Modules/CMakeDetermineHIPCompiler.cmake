@@ -90,7 +90,7 @@ if(NOT CMAKE_HIP_COMPILER_ID_RUN)
   # We determine the vendor to use the right flags for detection right away.
   # The main compiler identification is still needed below to extract other information.
   list(APPEND CMAKE_HIP_COMPILER_ID_VENDORS NVIDIA Clang)
-  set(CMAKE_HIP_COMPILER_ID_VENDOR_REGEX_NVIDIA "nvcc: NVIDIA \\(R\\) Cuda compiler driver")
+  set(CMAKE_HIP_COMPILER_ID_VENDOR_REGEX_NVIDIA "nvcc: [^\n]+ Cuda compiler driver")
   set(CMAKE_HIP_COMPILER_ID_VENDOR_REGEX_Clang "(clang version)")
   CMAKE_DETERMINE_COMPILER_ID_VENDOR(HIP "--version")
 
@@ -266,13 +266,6 @@ if(CMAKE_HIP_COMPILER_SYSROOT)
     "set(CMAKE_COMPILER_SYSROOT \"${CMAKE_HIP_COMPILER_SYSROOT}\")")
 else()
   set(_SET_CMAKE_HIP_COMPILER_SYSROOT "")
-endif()
-
-if(CMAKE_HIP_COMPILER_ARCHITECTURE_ID)
-  set(_SET_CMAKE_HIP_COMPILER_ARCHITECTURE_ID
-    "set(CMAKE_HIP_COMPILER_ARCHITECTURE_ID ${CMAKE_HIP_COMPILER_ARCHITECTURE_ID})")
-else()
-  set(_SET_CMAKE_HIP_COMPILER_ARCHITECTURE_ID "")
 endif()
 
 if(MSVC_HIP_ARCHITECTURE_ID)

@@ -230,7 +230,7 @@ endif()
 if(NOT CMAKE_USE_SYSTEM_LIBARCHIVE)
   if(CMAKE_USE_SYSTEM_LIBLZMA)
     find_package(LibLZMA)
-    if(NOT LIBLZMA_FOUND)
+    if(NOT LibLZMA_FOUND)
       message(FATAL_ERROR "CMAKE_USE_SYSTEM_LIBLZMA is ON but LibLZMA is not found!")
     endif()
   else()
@@ -358,7 +358,7 @@ if(BUILD_CursesDialog)
   if(UNIX)
     set(CURSES_NEED_NCURSES TRUE)
     find_package(Curses)
-    if(NOT CURSES_FOUND)
+    if(NOT Curses_FOUND)
       message(WARNING
         "'ccmake' will not be built because Curses was not found.\n"
         "Turn off BUILD_CursesDialog to suppress this message."

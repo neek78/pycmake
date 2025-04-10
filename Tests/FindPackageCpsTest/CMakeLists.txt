@@ -268,3 +268,35 @@ elseif(TARGET TransitiveDep::Target4)
 elseif(TARGET TransitiveDep::Target5)
   message(SEND_ERROR "TransitiveDep::Target5 exists ?!")
 endif()
+
+###############################################################################
+# Test finding a package more than once.
+
+find_package(Repeat REQUIRED OPTIONAL_COMPONENTS DoesNotExist)
+if(NOT TARGET Repeat::Base)
+  message(SEND_ERROR "Repeat::Base missing !")
+elseif(TARGET Repeat::Extra)
+  message(SEND_ERROR "Repeat::Extra exists ?!")
+endif()
+
+find_package(Repeat REQUIRED COMPONENTS Extra)
+if(NOT TARGET Repeat::Extra)
+  message(SEND_ERROR "Repeat::Extra missing !")
+endif()
+
+###############################################################################
+# Test default configurations.
+
+find_package(DefaultConfigurationsTest)
+if(NOT DefaultConfigurationsTest_FOUND)
+  message(SEND_ERROR "DefaultConfigurationsTest not found !")
+elseif(NOT TARGET DefaultConfigurationsTest::Target)
+  message(SEND_ERROR "DefaultConfigurationsTest::Target missing !")
+else()
+  get_property(dct_configs
+    TARGET DefaultConfigurationsTest::Target PROPERTY IMPORTED_CONFIGURATIONS)
+  if(NOT "${dct_configs}" STREQUAL "DEFAULT;TEST")
+    message(SEND_ERROR "DefaultConfigurationsTest::Target has wrong configurations '${dct_configs}' !")
+  endif()
+  set(dct_configs)
+endif()

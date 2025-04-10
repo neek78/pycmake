@@ -666,7 +666,8 @@ bool cmake::SetCacheArgs(std::vector<std::string> const& args)
     GetProjectCommandsInScriptMode(state->GetState());
     // Documented behavior of CMAKE{,_CURRENT}_{SOURCE,BINARY}_DIR is to be
     // set to $PWD for -P mode.
-    state->SetWorkingMode(SCRIPT_MODE);
+    state->SetWorkingMode(SCRIPT_MODE,
+                          cmake::CommandFailureAction::FATAL_ERROR);
     state->SetHomeDirectory(cmSystemTools::GetLogicalWorkingDirectory());
     state->SetHomeOutputDirectory(cmSystemTools::GetLogicalWorkingDirectory());
     state->ReadListFile(args, path);
@@ -1547,8 +1548,8 @@ void cmake::SetArgs(std::vector<std::string> const& args)
     auto result = presetsGraph.ReadProjectPresets(this->GetHomeDirectory());
     if (result != true) {
       std::string errorMsg =
-        cmStrCat("Could not read presets from ", this->GetHomeDirectory(), ":",
-                 presetsGraph.parseState.GetErrorMessage());
+        cmStrCat("Could not read presets from ", this->GetHomeDirectory(),
+                 ":\n", presetsGraph.parseState.GetErrorMessage());
       cmSystemTools::Error(errorMsg);
       return;
     }
@@ -1568,7 +1569,8 @@ void cmake::SetArgs(std::vector<std::string> const& args)
         presetsGraph.PrintAllPresets();
       }
 
-      this->SetWorkingMode(WorkingMode::HELP_MODE);
+      this->SetWorkingMode(WorkingMode::HELP_MODE,
+                           cmake::CommandFailureAction::FATAL_ERROR);
       return;
     }
 
@@ -2652,8 +2654,7 @@ int cmake::ActualConfigure()
   // actually do the configure
   auto startTime = std::chrono::steady_clock::now();
 #if !defined(CMAKE_BOOTSTRAP)
-  if (!this->Instrumentation->errorMsg.empty()) {
-    cmSystemTools::Error(this->Instrumentation->errorMsg);
+  if (this->Instrumentation->HasErrors()) {
     return 1;
   }
   auto doConfigure = [this]() -> int {
@@ -3781,8 +3782,8 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
     auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());
     if (result != true) {
       cmSystemTools::Error(
-        cmStrCat("Could not read presets from ", this->GetHomeDirectory(), ":",
-                 settingsFile.parseState.GetErrorMessage()));
+        cmStrCat("Could not read presets from ", this->GetHomeDirectory(),
+                 ":\n", settingsFile.parseState.GetErrorMessage()));
       return 1;
     }
 
@@ -4008,8 +4009,7 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
 
 #if !defined(CMAKE_BOOTSTRAP)
   cmInstrumentation instrumentation(dir);
-  if (!instrumentation.errorMsg.empty()) {
-    cmSystemTools::Error(instrumentation.errorMsg);
+  if (instrumentation.HasErrors()) {
     return 1;
   }
   instrumentation.CollectTimingData(
@@ -4042,12 +4042,14 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
   return buildresult;
 }
 
-bool cmake::Open(std::string const& dir, bool dryRun)
+bool cmake::Open(std::string const& dir, DryRun dryRun)
 {
   this->SetHomeDirectory("");
   this->SetHomeOutputDirectory("");
   if (!cmSystemTools::FileIsDirectory(dir)) {
-    std::cerr << "Error: " << dir << " is not a directory\n";
+    if (dryRun == DryRun::No) {
+      std::cerr << "Error: " << dir << " is not a directory\n";
+    }
     return false;
   }
 
@@ -4083,7 +4085,7 @@ bool cmake::Open(std::string const& dir, bool dryRun)
     return false;
   }
 
-  return gen->Open(dir, *cachedProjectName, dryRun);
+  return gen->Open(dir, *cachedProjectName, dryRun == DryRun::Yes);
 }
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -4151,7 +4153,7 @@ int cmake::Workflow(std::string const& presetName,
   auto result = settingsFile.ReadProjectPresets(this->GetHomeDirectory());
   if (result != true) {
     cmSystemTools::Error(cmStrCat("Could not read presets from ",
-                                  this->GetHomeDirectory(), ":",
+                                  this->GetHomeDirectory(), ":\n",
                                   settingsFile.parseState.GetErrorMessage()));
     return 1;
   }

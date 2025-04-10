@@ -871,7 +871,7 @@ bool HandleMakeDirectoryCommand(std::vector<std::string> const& args,
         cmMakeRange(cm::begin(unparsedArguments), cm::end(unparsedArguments)),
         "\n");
       status.SetError("MAKE_DIRECTORY called with unexpected\n"
-                      "arguments:\n" +
+                      "arguments:\n  " +
                       unexpectedArgsStr);
       return false;
     }
@@ -882,9 +882,7 @@ bool HandleMakeDirectoryCommand(std::vector<std::string> const& args,
   }
 
   std::string expr;
-  for (std::string const& arg :
-       cmMakeRange(args).advance(1)) // Get rid of subcommand
-  {
+  for (std::string const& arg : argsRange) {
     std::string const* cdir = &arg;
     if (!cmsys::SystemTools::FileIsFullPath(arg)) {
       expr =
@@ -1712,7 +1710,9 @@ size_t cmWriteToFileCallback(void* ptr, size_t size, size_t nmemb, void* data)
   cmsys::ofstream* fout = static_cast<cmsys::ofstream*>(data);
   if (fout) {
     char const* chPtr = static_cast<char*>(ptr);
-    fout->write(chPtr, realsize);
+    if (!fout->write(chPtr, realsize)) {
+      return CURL_WRITEFUNC_ERROR;
+    }
   }
   return realsize;
 }
@@ -2292,6 +2292,14 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   g_curl.release();
   ::curl_easy_cleanup(curl);
 
+  // Explicitly close the file so we can check for write errors.
+  if (!file.empty()) {
+    fout.close();
+    if (!fout) {
+      res = CURLE_WRITE_ERROR;
+    }
+  }
+
   if (!statusVar.empty()) {
     std::string m = curl_easy_strerror(res);
     if ((res == CURLE_SSL_CONNECT_ERROR ||
@@ -2313,13 +2321,6 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   if (!logVar.empty()) {
     chunkDebug.push_back(0);
     status.GetMakefile().AddDefinition(logVar, chunkDebug.data());
-  }
-
-  // Explicitly flush/close so we can measure the md5 accurately.
-  //
-  if (!file.empty()) {
-    fout.flush();
-    fout.close();
   }
 
   // Verify MD5 sum if requested:

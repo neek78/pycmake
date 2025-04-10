@@ -1,7 +1,7 @@
 # CMake version number components.
 set(CMake_VERSION_MAJOR 4)
 set(CMake_VERSION_MINOR 0)
-set(CMake_VERSION_PATCH 20250307)
+set(CMake_VERSION_PATCH 20250410)
 #set(CMake_VERSION_RC 0)
 set(CMake_VERSION_IS_DIRTY 0)
 
@@ -28,7 +28,7 @@ if(NOT CMake_VERSION_NO_GIT)
   if(NOT git_info MATCHES "^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]?[0-9a-f]?)[0-9a-f]* "
       AND EXISTS "${git_toplevel}/.git")
     find_package(Git QUIET)
-    if(GIT_FOUND)
+    if(Git_FOUND)
       macro(_git)
         execute_process(
           COMMAND ${GIT_EXECUTABLE} ${ARGN}
