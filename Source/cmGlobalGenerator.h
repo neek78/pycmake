@@ -666,6 +666,7 @@ public:
   };
   StripCommandStyle GetStripCommandStyle(std::string const& strip);
 
+  std::string GetEncodedLiteral(std::string const& lit);
   virtual std::string& EncodeLiteral(std::string& lit) { return lit; }
 
   bool CheckCMP0171() const;
@@ -724,8 +725,9 @@ protected:
   void CheckTargetProperties();
   bool IsExcluded(cmStateSnapshot const& root,
                   cmStateSnapshot const& snp) const;
-  bool IsExcluded(cmLocalGenerator* root, cmLocalGenerator* gen) const;
-  bool IsExcluded(cmLocalGenerator* root,
+  bool IsExcluded(cmLocalGenerator const* root,
+                  cmLocalGenerator const* gen) const;
+  bool IsExcluded(cmLocalGenerator const* root,
                   cmGeneratorTarget const* target) const;
   virtual void InitializeProgressMarks() {}
 

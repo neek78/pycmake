@@ -94,6 +94,59 @@
 #  endif
 #endif
 
+namespace {
+std::string const kCMAKE_CURRENT_LIST_DIR = "CMAKE_CURRENT_LIST_DIR";
+std::string const kCMAKE_CURRENT_LIST_FILE = "CMAKE_CURRENT_LIST_FILE";
+std::string const kCMAKE_PARENT_LIST_FILE = "CMAKE_PARENT_LIST_FILE";
+
+class FileScopeBase
+{
+protected:
+  cmMakefile* Makefile;
+
+private:
+  std::string OldCurrent;
+  cm::optional<std::string> OldParent;
+
+public:
+  FileScopeBase(cmMakefile* mf)
+    : Makefile(mf)
+  {
+  }
+  void PushListFileVars(std::string const& newCurrent)
+  {
+    if (cmValue p = this->Makefile->GetDefinition(kCMAKE_PARENT_LIST_FILE)) {
+      this->OldParent = *p;
+    }
+    if (cmValue c = this->Makefile->GetDefinition(kCMAKE_CURRENT_LIST_FILE)) {
+      this->OldCurrent = *c;
+      this->Makefile->AddDefinition(kCMAKE_PARENT_LIST_FILE, this->OldCurrent);
+      this->Makefile->MarkVariableAsUsed(kCMAKE_PARENT_LIST_FILE);
+    }
+    this->Makefile->AddDefinition(kCMAKE_CURRENT_LIST_FILE, newCurrent);
+    this->Makefile->AddDefinition(kCMAKE_CURRENT_LIST_DIR,
+                                  cmSystemTools::GetFilenamePath(newCurrent));
+    this->Makefile->MarkVariableAsUsed(kCMAKE_CURRENT_LIST_FILE);
+    this->Makefile->MarkVariableAsUsed(kCMAKE_CURRENT_LIST_DIR);
+  }
+  void PopListFileVars()
+  {
+    if (this->OldParent) {
+      this->Makefile->AddDefinition(kCMAKE_PARENT_LIST_FILE, *this->OldParent);
+      this->Makefile->MarkVariableAsUsed(kCMAKE_PARENT_LIST_FILE);
+    } else {
+      this->Makefile->RemoveDefinition(kCMAKE_PARENT_LIST_FILE);
+    }
+    this->Makefile->AddDefinition(kCMAKE_CURRENT_LIST_FILE, this->OldCurrent);
+    this->Makefile->AddDefinition(
+      kCMAKE_CURRENT_LIST_DIR,
+      cmSystemTools::GetFilenamePath(this->OldCurrent));
+    this->Makefile->MarkVariableAsUsed(kCMAKE_CURRENT_LIST_FILE);
+    this->Makefile->MarkVariableAsUsed(kCMAKE_CURRENT_LIST_DIR);
+  }
+};
+}
+
 class cmMessenger;
 
 cmDirectoryId::cmDirectoryId(std::string s)
@@ -563,7 +616,7 @@ bool cmMakefile::IsImportedTargetGlobalScope() const
   return this->CurrentImportedTargetScope == ImportedTargetScope::Global;
 }
 
-class cmMakefile::IncludeScope
+class cmMakefile::IncludeScope : public FileScopeBase
 {
 public:
   IncludeScope(cmMakefile* mf, std::string const& filenametoread,
@@ -575,7 +628,6 @@ public:
   IncludeScope& operator=(IncludeScope const&) = delete;
 
 private:
-  cmMakefile* Makefile;
   bool NoPolicyScope;
   bool ReportError = true;
 };
@@ -583,7 +635,7 @@ private:
 cmMakefile::IncludeScope::IncludeScope(cmMakefile* mf,
                                        std::string const& filenametoread,
                                        bool noPolicyScope)
-  : Makefile(mf)
+  : FileScopeBase(mf)
   , NoPolicyScope(noPolicyScope)
 {
   this->Makefile->Backtrace = this->Makefile->Backtrace.Push(
@@ -597,10 +649,12 @@ cmMakefile::IncludeScope::IncludeScope(cmMakefile* mf,
   if (!this->NoPolicyScope) {
     this->Makefile->PushPolicy();
   }
+  this->PushListFileVars(filenametoread);
 }
 
 cmMakefile::IncludeScope::~IncludeScope()
 {
+  this->PopListFileVars();
   if (!this->NoPolicyScope) {
     // Pop the scope we pushed for the script.
     this->Makefile->PopPolicy();
@@ -615,9 +669,6 @@ cmMakefile::IncludeScope::~IncludeScope()
 bool cmMakefile::ReadDependentFile(std::string const& filename,
                                    bool noPolicyScope)
 {
-  if (cmValue def = this->GetDefinition("CMAKE_CURRENT_LIST_FILE")) {
-    this->AddDefinition("CMAKE_PARENT_LIST_FILE", *def);
-  }
   std::string filenametoread = cmSystemTools::CollapseFullPath(
     filename, this->GetCurrentSourceDirectory());
 
@@ -657,11 +708,11 @@ bool cmMakefile::ReadDependentFile(std::string const& filename,
   return true;
 }
 
-class cmMakefile::ListFileScope
+class cmMakefile::ListFileScope : public FileScopeBase
 {
 public:
   ListFileScope(cmMakefile* mf, std::string const& filenametoread)
-    : Makefile(mf)
+    : FileScopeBase(mf)
   {
     this->Makefile->Backtrace = this->Makefile->Backtrace.Push(
       cmListFileContext::FromListFilePath(filenametoread));
@@ -672,10 +723,12 @@ public:
     assert(this->Makefile->StateSnapshot.IsValid());
 
     this->Makefile->PushFunctionBlockerBarrier();
+    this->PushListFileVars(filenametoread);
   }
 
   ~ListFileScope()
   {
+    this->PopListFileVars();
     this->Makefile->PopSnapshot(this->ReportError);
     this->Makefile->PopFunctionBlockerBarrier(this->ReportError);
     this->Makefile->Backtrace = this->Makefile->Backtrace.Pop();
@@ -687,7 +740,6 @@ public:
   ListFileScope& operator=(ListFileScope const&) = delete;
 
 private:
-  cmMakefile* Makefile;
   bool ReportError = true;
 };
 
@@ -812,6 +864,9 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
                              DeferCommands* defer)
 {
   auto current = UpdateListVars(filenametoread);
+
+  // add this list file to the list of dependencies
+  this->ListFiles.push_back(filenametoread);
 
   // Run the parsed commands.
   size_t const numberFunctions = listFile.Functions.size();
@@ -1475,11 +1530,11 @@ bool cmMakefile::IsRootMakefile() const
   return !this->StateSnapshot.GetBuildsystemDirectoryParent().IsValid();
 }
 
-class cmMakefile::BuildsystemFileScope
+class cmMakefile::BuildsystemFileScope : public FileScopeBase
 {
 public:
   BuildsystemFileScope(cmMakefile* mf)
-    : Makefile(mf)
+    : FileScopeBase(mf)
   {
     std::string currentStart =
       this->Makefile->GetCMakeInstance()->GetCMakeListFile(
@@ -1489,6 +1544,7 @@ public:
       this->Makefile->StateSnapshot.GetState()->CreatePolicyScopeSnapshot(
         this->Makefile->StateSnapshot);
     this->Makefile->PushFunctionBlockerBarrier();
+    this->PushListFileVars(currentStart);
 
     this->GG = mf->GetGlobalGenerator();
     this->CurrentMakefile = this->GG->GetCurrentMakefile();
@@ -1502,6 +1558,7 @@ public:
 
   ~BuildsystemFileScope()
   {
+    this->PopListFileVars();
     this->Makefile->PopFunctionBlockerBarrier(this->ReportError);
     this->Makefile->PopSnapshot(this->ReportError);
 #if !defined(CMAKE_BOOTSTRAP)
@@ -1517,7 +1574,6 @@ public:
   BuildsystemFileScope& operator=(BuildsystemFileScope const&) = delete;
 
 private:
-  cmMakefile* Makefile;
   cmGlobalGenerator* GG;
   cmMakefile* CurrentMakefile;
   cmStateSnapshot Snapshot;
@@ -1543,7 +1599,7 @@ void cmMakefile::Configure()
   cmSystemTools::MakeDirectory(filesDir);
 
   assert(cmSystemTools::FileExists(currentStart, true));
-  this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentStart);
+  this->AddDefinition(kCMAKE_PARENT_LIST_FILE, currentStart);
 
 #ifdef CMake_ENABLE_DEBUGGER
   if (this->GetCMakeInstance()->GetDebugAdapter()) {
@@ -3415,7 +3471,7 @@ std::string cmMakefile::GetModulesFile(cm::string_view filename, bool& system,
   // from which we are being called is located itself in CMAKE_ROOT, then
   // prefer results from CMAKE_ROOT depending on the policy setting.
   if (!moduleInCMakeModulePath.empty() && !moduleInCMakeRoot.empty()) {
-    cmValue currentFile = this->GetDefinition("CMAKE_CURRENT_LIST_FILE");
+    cmValue currentFile = this->GetDefinition(kCMAKE_CURRENT_LIST_FILE);
     std::string mods = cmStrCat(cmSystemTools::GetCMakeRoot(), "/Modules/");
     if (currentFile && cmSystemTools::IsSubDirectory(*currentFile, mods)) {
       system = true;

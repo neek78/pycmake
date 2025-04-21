@@ -2742,6 +2742,9 @@ int cmake::ActualConfigure()
                                       this->Messenger.get());
   this->SaveCache(this->GetHomeOutputDirectory());
   if (cmSystemTools::GetErrorOccurredFlag()) {
+#if !defined(CMAKE_BOOTSTRAP)
+    this->FileAPI->WriteReplies(cmFileAPI::IndexFor::FailedConfigure);
+#endif
     return -1;
   }
   return 0;
@@ -3072,6 +3075,7 @@ int cmake::Generate()
   auto profilingRAII = this->CreateProfilingEntry("project", "generate");
   auto doGenerate = [this]() -> int {
     if (!this->GlobalGenerator->Compute()) {
+      this->FileAPI->WriteReplies(cmFileAPI::IndexFor::FailedCompute);
       return -1;
     }
     this->GlobalGenerator->Generate();
@@ -3111,6 +3115,9 @@ int cmake::Generate()
     this->RunCheckForUnusedVariables();
   }
   if (cmSystemTools::GetErrorOccurredFlag()) {
+#if !defined(CMAKE_BOOTSTRAP)
+    this->FileAPI->WriteReplies(cmFileAPI::IndexFor::FailedGenerate);
+#endif
     return -1;
   }
   // Save the cache again after a successful Generate so that any internal
@@ -3120,7 +3127,7 @@ int cmake::Generate()
 
 #if !defined(CMAKE_BOOTSTRAP)
   this->GlobalGenerator->WriteInstallJson();
-  this->FileAPI->WriteReplies();
+  this->FileAPI->WriteReplies(cmFileAPI::IndexFor::Success);
 #endif
 
   return 0;

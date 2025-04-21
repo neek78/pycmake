@@ -2407,8 +2407,8 @@ bool cmGlobalGenerator::IsExcluded(cmStateSnapshot const& rootSnp,
   return false;
 }
 
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
-                                   cmLocalGenerator* gen) const
+bool cmGlobalGenerator::IsExcluded(cmLocalGenerator const* root,
+                                   cmLocalGenerator const* gen) const
 {
   assert(gen);
 
@@ -2418,7 +2418,7 @@ bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
   return this->IsExcluded(rootSnp, snp);
 }
 
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
+bool cmGlobalGenerator::IsExcluded(cmLocalGenerator const* root,
                                    cmGeneratorTarget const* target) const
 {
   if (!target->IsInBuildSystem()) {
@@ -3889,6 +3889,12 @@ cmGlobalGenerator::StripCommandStyle cmGlobalGenerator::GetStripCommandStyle(
   static_cast<void>(strip);
   return StripCommandStyle::Default;
 #endif
+}
+
+std::string cmGlobalGenerator::GetEncodedLiteral(std::string const& lit)
+{
+  std::string result = lit;
+  return this->EncodeLiteral(result);
 }
 
 void cmGlobalGenerator::AddInstallScript(std::string const& file)
