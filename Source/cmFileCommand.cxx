@@ -235,7 +235,7 @@ bool HandleReadCommand(std::vector<std::string> const& args,
     char c;
     while ((sizeLimit > 0) && (file.get(c))) {
       char hex[4];
-      snprintf(hex, sizeof(hex), "%.2x", c & 0xff);
+      snprintf(hex, sizeof(hex), "%.2x", c & 0xFFu);
       output += hex;
       sizeLimit--;
     }
@@ -2147,8 +2147,7 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   url = cmCurlFixFileURL(url);
 
   ::CURL* curl;
-  cmCurlInitOnce();
-  ::curl_global_init(CURL_GLOBAL_DEFAULT);
+  cm_curl_global_init(CURL_GLOBAL_DEFAULT);
   curl = cm_curl_easy_init();
   if (!curl) {
     status.SetError("DOWNLOAD error initializing curl.");
@@ -2548,8 +2547,7 @@ bool HandleUploadCommand(std::vector<std::string> const& args,
   url = cmCurlFixFileURL(url);
 
   ::CURL* curl;
-  cmCurlInitOnce();
-  ::curl_global_init(CURL_GLOBAL_DEFAULT);
+  cm_curl_global_init(CURL_GLOBAL_DEFAULT);
   curl = cm_curl_easy_init();
   if (!curl) {
     status.SetError("UPLOAD error initializing curl.");

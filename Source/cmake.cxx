@@ -2257,6 +2257,7 @@ int cmake::DoPreConfigureChecks()
 
   //FIXME: do this property§
   // do a sanity check on some values
+#if 0
   if (this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY")) {
     std::string cacheStart =
       cmStrCat(*this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY"),
@@ -2266,6 +2267,15 @@ int cmake::DoPreConfigureChecks()
                "/", this->PythonScriptName);
     if (!cmSystemTools::SameFile(cacheStart, srcList) &&
         !cmSystemTools::SameFile(pyStart, srcPy)) {
+#endif
+
+  // FIXME: remove
+  std::string pyStart = "";
+
+  if (cmValue dir =
+        this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY")) {
+    std::string cacheStart = cmStrCat(*dir, '/', this->CMakeListName);
+    if (!cmSystemTools::SameFile(cacheStart, srcList)) {
       std::string message =
         cmStrCat("The source \"", srcList, "\" does not match the source \"",
                  cacheStart, "\" or \"", pyStart,
