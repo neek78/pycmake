@@ -1738,7 +1738,7 @@ void cmMakefile::ConfigureSubDirectory(cmMakefile* mf)
     this->IssueMessage(MessageType::FATAL_ERROR,
                        cmStrCat("The source directory\n  ", currentStart,
                                 "\n"
-                                "does not contain a CMakeLists.txt file."));
+                                "does not contain a CMakeLists.txt or cmake_build.py file."));
     return;
   }
   // finally configure the subdir
