@@ -148,11 +148,9 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
   set(KWSYS_USE_System 1)
   set(KWSYS_USE_SystemTools 1)
   set(KWSYS_USE_CommandLineArguments 1)
-  set(KWSYS_USE_Terminal 1)
   set(KWSYS_USE_FStream 1)
   set(KWSYS_USE_String 1)
   set(KWSYS_USE_SystemInformation 1)
-  set(KWSYS_USE_ConsoleBuf 1)
 endif()
 
 # Enforce component dependencies.
@@ -191,9 +189,6 @@ if(KWSYS_USE_DynamicLoader)
   set(KWSYS_USE_Encoding 1)
 endif()
 if(KWSYS_USE_FStream)
-  set(KWSYS_USE_Encoding 1)
-endif()
-if(KWSYS_USE_ConsoleBuf)
   set(KWSYS_USE_Encoding 1)
 endif()
 
@@ -619,7 +614,7 @@ set(KWSYS_HXX_FILES Configure)
 # Add selected C++ classes.
 set(cppclasses
   Directory DynamicLoader Encoding Glob RegularExpression SystemTools
-  CommandLineArguments FStream SystemInformation ConsoleBuf Status
+  CommandLineArguments FStream SystemInformation Status
   )
 foreach(cpp IN LISTS cppclasses)
   if(KWSYS_USE_${cpp})
@@ -635,7 +630,7 @@ endforeach()
 
 # Add selected C components.
 foreach(c IN ITEMS
-    Process Base64 Encoding MD5 Terminal System String
+    Process Base64 Encoding MD5 System String
     )
   if(KWSYS_USE_${c})
     # Use the corresponding header file.
@@ -666,7 +661,7 @@ if(KWSYS_USE_Process)
 endif()
 
 # Add selected C sources.
-foreach(c IN ITEMS Base64 Encoding MD5 Terminal System String)
+foreach(c IN ITEMS Base64 Encoding MD5 System String)
   if(KWSYS_USE_${c})
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${c}C.c)
       list(APPEND KWSYS_C_SRCS ${c}C.c)
@@ -931,7 +926,6 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
     # C tests
     set(KWSYS_C_TESTS
       testEncode.c
-      testTerminal.c
       )
     if(KWSYS_STANDALONE)
       set(KWSYS_C_TESTS ${KWSYS_C_TESTS} testFail.c)
@@ -969,24 +963,6 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
       set(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
         testFStream.cxx
         )
-    endif()
-    if(KWSYS_USE_ConsoleBuf)
-      add_executable(testConsoleBufChild testConsoleBufChild.cxx)
-      set_property(TARGET testConsoleBufChild PROPERTY C_CLANG_TIDY "")
-      set_property(TARGET testConsoleBufChild PROPERTY CXX_CLANG_TIDY "")
-      set_property(TARGET testConsoleBufChild PROPERTY C_INCLUDE_WHAT_YOU_USE "")
-      set_property(TARGET testConsoleBufChild PROPERTY CXX_INCLUDE_WHAT_YOU_USE "")
-      set_property(TARGET testConsoleBufChild PROPERTY LABELS ${KWSYS_LABELS_EXE})
-      target_link_libraries(testConsoleBufChild ${KWSYS_TARGET_LINK})
-      set(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
-        testConsoleBuf.cxx
-        )
-      if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND
-         CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "19.0.23506")
-        set_property(SOURCE testConsoleBuf.cxx testConsoleBufChild.cxx PROPERTY COMPILE_FLAGS /utf-8)
-      endif()
-      set_property(SOURCE testConsoleBuf.cxx APPEND PROPERTY COMPILE_DEFINITIONS
-        KWSYS_ENCODING_DEFAULT_CODEPAGE=${KWSYS_ENCODING_DEFAULT_CODEPAGE})
     endif()
     if(KWSYS_USE_SystemInformation)
       set(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS} testSystemInformation.cxx)

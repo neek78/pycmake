@@ -5,19 +5,39 @@
 CheckStructHasMember
 --------------------
 
-Check if the given struct or class has the specified member variable
+This module provides a command to check whether a struct or class has a
+specified member variable.
+
+Load this module in a CMake project with:
+
+.. code-block:: cmake
+
+  include(CheckStructHasMember)
+
+Commands
+^^^^^^^^
+
+This module provides the following command:
 
 .. command:: check_struct_has_member
 
+  Checks once if the given struct or class has the specified member variable:
+
   .. code-block:: cmake
 
-    check_struct_has_member(<struct> <member> <headers> <variable>
-                            [LANGUAGE <language>])
+    check_struct_has_member(
+      <struct>
+      <member>
+      <headers>
+      <variable>
+      [LANGUAGE <language>]
+    )
 
-  Check that the struct or class ``<struct>`` has the specified ``<member>``
-  after including the given header(s) ``<headers>`` where the prototype should
-  be declared. Specify the list of header files in one argument as a
-  semicolon-separated list. The result is stored in an internal cache variable
+  This command checks once whether the struct or class ``<struct>`` contains
+  the specified ``<member>`` after including the given header(s) ``<headers>``
+  where the prototype should be declared.  Multiple header files can be
+  specified in one argument as a string using a :ref:`semicolon-separated list
+  <CMake Language Lists>`.  The result is stored in an internal cache variable
   ``<variable>``.
 
   The options are:
@@ -27,32 +47,88 @@ Check if the given struct or class has the specified member variable
     Acceptable values are ``C`` and ``CXX``.
     If not specified, it defaults to ``C``.
 
-The following variables may be set before calling this macro to modify
-the way the check is run:
+  .. rubric:: Variables Affecting the Check
 
-.. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
+  The following variables may be set before calling this command to modify
+  the way the check is run:
 
-.. include:: /module/include/CMAKE_REQUIRED_DEFINITIONS.rst
+  .. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_INCLUDES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_DEFINITIONS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LINK_OPTIONS.rst
+  .. include:: /module/include/CMAKE_REQUIRED_INCLUDES.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LIBRARIES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LINK_OPTIONS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LINK_DIRECTORIES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LIBRARIES.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LINK_DIRECTORIES.rst
 
-Example
-^^^^^^^
+  .. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
+
+Examples
+^^^^^^^^
+
+Example: Checking C Struct Member
+"""""""""""""""""""""""""""""""""
+
+In the following example, this module checks if the C struct ``timeval`` has
+a member variable ``tv_sec`` after including the ``<sys/select.h>`` header.
+The result of the check is stored in the internal cache variable
+``HAVE_TIMEVAL_TV_SEC``.
 
 .. code-block:: cmake
 
   include(CheckStructHasMember)
 
-  check_struct_has_member("struct timeval" tv_sec sys/select.h
-                          HAVE_TIMEVAL_TV_SEC LANGUAGE C)
+  check_struct_has_member(
+    "struct timeval"
+    tv_sec
+    sys/select.h
+    HAVE_TIMEVAL_TV_SEC
+  )
+
+Example: Checking C++ Struct Member
+"""""""""""""""""""""""""""""""""""
+
+In the following example, this module checks if the C++ struct ``std::tm``
+has a member variable ``tm_gmtoff`` after including the ``<ctime>`` header.
+The result of the check is stored in the internal cache variable
+``HAVE_TM_GMTOFF``.
+
+.. code-block:: cmake
+
+  include(CheckStructHasMember)
+
+  check_struct_has_member(
+    std::tm
+    tm_gmtoff
+    ctime
+    HAVE_TM_GMTOFF
+    LANGUAGE CXX
+  )
+
+Example: Isolated Check With Compile Definitions
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+In the following example, the check is performed with temporarily modified
+compile definitions using the :module:`CMakePushCheckState` module:
+
+.. code-block:: cmake
+
+  include(CheckStructHasMember)
+  include(CMakePushCheckState)
+
+  cmake_push_check_state(RESET)
+    set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
+
+    check_struct_has_member(
+      "struct utsname"
+      domainname
+      sys/utsname.h
+      HAVE_UTSNAME_DOMAINNAME
+    )
+  cmake_pop_check_state()
 #]=======================================================================]
 
 include_guard(GLOBAL)

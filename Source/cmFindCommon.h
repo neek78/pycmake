@@ -8,6 +8,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "cmPathLabel.h"
@@ -40,6 +41,7 @@ protected:
   friend class cmSearchPath;
   friend class cmFindBaseDebugState;
   friend class cmFindCommonDebugState;
+  friend class cmFindPackageDebugState;
 
   /** Used to define groups of path labels */
   class PathGroup : public cmPathLabel
@@ -186,6 +188,15 @@ protected:
   virtual void WriteDebug() const = 0;
 #ifndef CMAKE_BOOTSTRAP
   virtual void WriteEvent(cmConfigureLog& log, cmMakefile const& mf) const = 0;
+  void WriteSearchVariables(cmConfigureLog& log, cmMakefile const& mf) const;
+  enum class VariableSource
+  {
+    String,
+    PathList,
+    EnvironmentList,
+  };
+  virtual std::vector<std::pair<VariableSource, std::string>>
+  ExtraSearchVariables() const;
 #endif
 
   cmFindCommon const* const FindCommand;

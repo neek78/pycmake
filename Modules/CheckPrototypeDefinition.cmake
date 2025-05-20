@@ -5,9 +5,23 @@
 CheckPrototypeDefinition
 ------------------------
 
-Check if a ``C`` function has the expected prototype.
+This module provides a command to check if a C function has the expected
+prototype.
+
+Load this module in a CMake project with:
+
+.. code-block:: cmake
+
+  include(CheckPrototypeDefinition)
+
+Commands
+^^^^^^^^
+
+This module provides the following command:
 
 .. command:: check_prototype_definition
+
+  Checks if a C function has the expected prototype:
 
   .. code-block:: cmake
 
@@ -41,22 +55,24 @@ Check if a ``C`` function has the expected prototype.
     <prototype> { return <return>; }
     int main(...) { ...<function>()... }
 
-The following variables may be set before calling this function to modify
-the way the check is run:
+  .. rubric:: Variables Affecting the Check
 
-.. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
+  The following variables may be set before calling this command to modify
+  the way the check is run:
 
-.. include:: /module/include/CMAKE_REQUIRED_DEFINITIONS.rst
+  .. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_INCLUDES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_DEFINITIONS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LINK_OPTIONS.rst
+  .. include:: /module/include/CMAKE_REQUIRED_INCLUDES.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LIBRARIES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LINK_OPTIONS.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_LINK_DIRECTORIES.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LIBRARIES.rst
 
-.. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
+  .. include:: /module/include/CMAKE_REQUIRED_LINK_DIRECTORIES.rst
+
+  .. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
 
 Examples
 ^^^^^^^^
