@@ -91,41 +91,6 @@ static std::map<std::string, std::string> const compilerIdToFastbuildFamily = {
 static std::set<std::string> const supportedLanguages = { "C", "CXX", "CUDA",
                                                           "OBJC", "OBJCXX" };
 
-static void ReadCompilerOptions(FastbuildCompiler& compiler, cmMakefile* mf)
-{
-  if (compiler.CompilerFamily == "custom") {
-    return;
-  }
-
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_LIGHTCACHE))) {
-    compiler.UseLightCache = true;
-  }
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_RELATIVE_PATHS))) {
-    compiler.UseRelativePaths = true;
-  }
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_DETERMINISTIC_PATHS))) {
-    compiler.UseDeterministicPaths = true;
-  }
-  std::string sourceMapping = mf->GetSafeDefinition(FASTBUILD_SOURCE_MAPPING);
-  if (!sourceMapping.empty()) {
-    compiler.SourceMapping = std::move(sourceMapping);
-  }
-  auto const clangRewriteIncludesDef =
-    mf->GetDefinition(FASTBUILD_CLANG_REWRITE_INCLUDES);
-  if (clangRewriteIncludesDef.IsSet() && clangRewriteIncludesDef.IsOff()) {
-    compiler.ClangRewriteIncludes = false;
-  }
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_CLANG_GCC_UPDATE_XLANG_ARG))) {
-    compiler.ClangGCCUpdateXLanguageArg = true;
-  }
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_ALLOW_RESPONSE_FILE))) {
-    compiler.AllowResponseFile = true;
-  }
-  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_FORCE_RESPONSE_FILE))) {
-    compiler.ForceResponseFile = true;
-  }
-}
-
 template <class T>
 FastbuildAliasNode generateAlias(std::string const& name, char const* postfix,
                                  T const& nodes)
@@ -230,6 +195,43 @@ cmGlobalFastbuildGenerator::cmGlobalFastbuildGenerator(cmake* cm)
   this->FindMakeProgramFile = "CMakeFastbuildFindMake.cmake";
   cm->GetState()->SetFastbuildMake(true);
   cm->GetState()->SetIsGeneratorMultiConfig(false);
+}
+
+void cmGlobalFastbuildGenerator::ReadCompilerOptions(
+  FastbuildCompiler& compiler, cmMakefile* mf)
+{
+  if (compiler.CompilerFamily == "custom") {
+    return;
+  }
+
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_LIGHTCACHE))) {
+    compiler.UseLightCache = true;
+  }
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_RELATIVE_PATHS))) {
+    compiler.UseRelativePaths = true;
+    UsingRelativePaths = true;
+  }
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_USE_DETERMINISTIC_PATHS))) {
+    compiler.UseDeterministicPaths = true;
+  }
+  std::string sourceMapping = mf->GetSafeDefinition(FASTBUILD_SOURCE_MAPPING);
+  if (!sourceMapping.empty()) {
+    compiler.SourceMapping = std::move(sourceMapping);
+  }
+  auto const clangRewriteIncludesDef =
+    mf->GetDefinition(FASTBUILD_CLANG_REWRITE_INCLUDES);
+  if (clangRewriteIncludesDef.IsSet() && clangRewriteIncludesDef.IsOff()) {
+    compiler.ClangRewriteIncludes = false;
+  }
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_CLANG_GCC_UPDATE_XLANG_ARG))) {
+    compiler.ClangGCCUpdateXLanguageArg = true;
+  }
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_ALLOW_RESPONSE_FILE))) {
+    compiler.AllowResponseFile = true;
+  }
+  if (cmIsOn(mf->GetSafeDefinition(FASTBUILD_FORCE_RESPONSE_FILE))) {
+    compiler.ForceResponseFile = true;
+  }
 }
 
 void cmGlobalFastbuildGenerator::ProcessEnvironment()
@@ -1178,6 +1180,9 @@ void cmGlobalFastbuildGenerator::WriteUnity(FastbuildUnityNode const& Unity)
       WriteArray("UnityInputIsolatedFiles",
                  Wrap(Unity.UnityInputIsolatedFiles), 2);
     }
+    if (UsingRelativePaths) {
+      WriteVariable("UseRelativePaths_Experimental", "true", 2);
+    }
   }
   Indent(1);
   *BuildFileStream << "}\n";
@@ -1255,7 +1260,8 @@ void cmGlobalFastbuildGenerator::WriteLinker(
       WriteVariable("AllowDistribution", "false", 2);
     }
 
-    if (!LinkerNode.Compiler.empty()) {
+    if (!LinkerNode.Compiler.empty() &&
+        LinkerNode.Type == FastbuildLinkerNode::STATIC_LIBRARY) {
       WriteVariable("Compiler", LinkerNode.Compiler, 2);
       WriteVariable("CompilerOptions", Quote(LinkerNode.CompilerOptions), 2);
       WriteVariable("CompilerOutputPath", Quote("."), 2);
@@ -1590,8 +1596,7 @@ void cmGlobalFastbuildGenerator::WriteSolution()
       std::move(projectsInFolder.begin(), projectsInFolder.end(),
                 std::back_inserter(VSProjectsWithoutFolder));
     } else {
-      std::string folderName =
-        cmStrCat("Folder_", std::to_string(++folderNumber));
+      std::string folderName = cmStrCat("Folder_", ++folderNumber);
       WriteStruct(
         folderName,
         { { "Path", Quote(pathToFolder) },
