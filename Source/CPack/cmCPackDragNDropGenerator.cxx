@@ -76,6 +76,14 @@ int cmCPackDragNDropGenerator::InitializeInternal()
   paths.emplace_back("/Applications/Xcode.app/Contents/Developer/Tools");
   paths.emplace_back("/Developer/Tools");
 
+  std::string const sync_path = cmSystemTools::FindProgram("sync");
+  if (sync_path.empty()) {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Cannot locate sync command" << std::endl);
+    return 0;
+  }
+  this->SetOptionIfNotSet("CPACK_COMMAND_SYNC", sync_path);
+
   std::string const hdiutil_path = cmSystemTools::FindProgram("hdiutil");
   if (hdiutil_path.empty()) {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -415,6 +423,16 @@ int cmCPackDragNDropGenerator::CreateDMG(std::string const& src_dir,
   std::string temp_image =
     cmStrCat(this->GetOption("CPACK_TOPLEVEL_DIRECTORY"), "/temp.dmg");
 
+  // Finish filesystem operations before writing disk image.
+  std::string sync_command = this->GetOption("CPACK_COMMAND_SYNC");
+  std::string sync_error;
+  if (!this->RunCommand(sync_command, &sync_error)) {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Error running sync command." << std::endl
+                                                << sync_error << std::endl);
+    return 0;
+  }
+
   std::string create_error;
   auto temp_image_command =
     cmStrCat(this->GetOption("CPACK_COMMAND_HDIUTIL"),
@@ -597,15 +615,18 @@ int cmCPackDragNDropGenerator::CreateDMG(std::string const& src_dir,
         CFStringRef iso_language =
           CFLocaleCreateCanonicalLanguageIdentifierFromString(
             nullptr, language_cfstring);
+        CFRelease(language_cfstring);
         if (!iso_language) {
           cmCPackLogger(cmCPackLog::LOG_ERROR,
                         language << " is not a recognized language"
                                  << std::endl);
+          return 0;
         }
         char iso_language_cstr[65];
         CFStringGetCString(iso_language, iso_language_cstr,
                            sizeof(iso_language_cstr) - 1,
                            kCFStringEncodingMacRoman);
+        CFRelease(iso_language);
         LangCode lang = 0;
         RegionCode region = 0;
 #if HAVE_CoreServices

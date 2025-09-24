@@ -1,24 +1,30 @@
 #include "cmInstrumentation.h"
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
-#include <memory>
 #include <set>
 #include <sstream>
 #include <utility>
 
+#include <cm/memory>
 #include <cm/optional>
 
+#include <cm3p/json/reader.h>
+#include <cm3p/json/version.h>
 #include <cm3p/json/writer.h>
 #include <cm3p/uv.h>
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/FStream.hxx"
-#include <cmsys/SystemInformation.hxx>
+#include "cmsys/SystemInformation.hxx"
 
+#include "cmCMakePath.h"
 #include "cmCryptoHash.h"
 #include "cmExperimental.h"
+#include "cmFileLock.h"
+#include "cmFileLockResult.h"
 #include "cmInstrumentationQuery.h"
 #include "cmJSONState.h"
 #include "cmStringAlgorithms.h"
@@ -27,7 +33,57 @@
 #include "cmUVProcessChain.h"
 #include "cmValue.h"
 
-cmInstrumentation::cmInstrumentation(std::string const& binary_dir)
+using LoadQueriesAfter = cmInstrumentation::LoadQueriesAfter;
+
+std::map<std::string, std::string> cmInstrumentation::cdashSnippetsMap = {
+  {
+    "configure",
+    "configure",
+  },
+  {
+    "generate",
+    "configure",
+  },
+  {
+    "compile",
+    "build",
+  },
+  {
+    "link",
+    "build",
+  },
+  {
+    "custom",
+    "build",
+  },
+  {
+    "build",
+    "skip",
+  },
+  {
+    "cmakeBuild",
+    "build",
+  },
+  {
+    "cmakeInstall",
+    "build",
+  },
+  {
+    "install",
+    "build",
+  },
+  {
+    "ctest",
+    "build",
+  },
+  {
+    "test",
+    "test",
+  }
+};
+
+cmInstrumentation::cmInstrumentation(std::string const& binary_dir,
+                                     LoadQueriesAfter loadQueries)
 {
   std::string const uuid =
     cmExperimental::DataForFeature(cmExperimental::Feature::Instrumentation)
@@ -35,12 +91,15 @@ cmInstrumentation::cmInstrumentation(std::string const& binary_dir)
   this->binaryDir = binary_dir;
   this->timingDirv1 =
     cmStrCat(this->binaryDir, "/.cmake/instrumentation-", uuid, "/v1");
+  this->cdashDir = cmStrCat(this->timingDirv1, "/cdash");
   if (cm::optional<std::string> configDir =
         cmSystemTools::GetCMakeConfigDirectory()) {
     this->userTimingDirv1 =
       cmStrCat(configDir.value(), "/instrumentation-", uuid, "/v1");
   }
-  this->LoadQueries();
+  if (loadQueries == LoadQueriesAfter::Yes) {
+    this->LoadQueries();
+  }
 }
 
 void cmInstrumentation::LoadQueries()
@@ -55,7 +114,10 @@ void cmInstrumentation::LoadQueries()
     this->hasQuery = this->hasQuery ||
       this->ReadJSONQueries(cmStrCat(this->userTimingDirv1, "/query"));
   }
+}
 
+void cmInstrumentation::CheckCDashVariable()
+{
   std::string envVal;
   if (cmSystemTools::GetEnv("CTEST_USE_INSTRUMENTATION", envVal) &&
       !cmIsOff(envVal)) {
@@ -64,66 +126,34 @@ void cmInstrumentation::LoadQueries()
                                  cmExperimental::Feature::Instrumentation)
                                  .Uuid;
       if (envVal == uuid) {
+        std::set<cmInstrumentationQuery::Option> options_ = {
+          cmInstrumentationQuery::Option::CDashSubmit,
+          cmInstrumentationQuery::Option::DynamicSystemInformation
+        };
+        if (cmSystemTools::GetEnv("CTEST_USE_VERBOSE_INSTRUMENTATION",
+                                  envVal) &&
+            !cmIsOff(envVal)) {
+          options_.insert(cmInstrumentationQuery::Option::CDashVerbose);
+        }
+        for (auto const& option : options_) {
+          this->AddOption(option);
+        }
+        std::set<cmInstrumentationQuery::Hook> hooks_ = {
+          cmInstrumentationQuery::Hook::PrepareForCDash
+        };
         this->AddHook(cmInstrumentationQuery::Hook::PrepareForCDash);
-        this->AddQuery(
-          cmInstrumentationQuery::Query::DynamicSystemInformation);
-        this->cdashDir = cmStrCat(this->timingDirv1, "/cdash");
-        cmSystemTools::MakeDirectory(this->cdashDir);
-        cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/configure"));
-        cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/build"));
-        cmSystemTools::MakeDirectory(
-          cmStrCat(this->cdashDir, "/build/commands"));
-        cmSystemTools::MakeDirectory(
-          cmStrCat(this->cdashDir, "/build/targets"));
-        cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/test"));
-        this->cdashSnippetsMap = { {
-                                     "configure",
-                                     "configure",
-                                   },
-                                   {
-                                     "generate",
-                                     "configure",
-                                   },
-                                   {
-                                     "compile",
-                                     "build",
-                                   },
-                                   {
-                                     "link",
-                                     "build",
-                                   },
-                                   {
-                                     "custom",
-                                     "build",
-                                   },
-                                   {
-                                     "build",
-                                     "skip",
-                                   },
-                                   {
-                                     "cmakeBuild",
-                                     "build",
-                                   },
-                                   {
-                                     "cmakeInstall",
-                                     "build",
-                                   },
-                                   {
-                                     "install",
-                                     "build",
-                                   },
-                                   {
-                                     "ctest",
-                                     "build",
-                                   },
-                                   {
-                                     "test",
-                                     "test",
-                                   } };
-        this->hasQuery = true;
+        this->WriteJSONQuery(options_, hooks_, {});
       }
     }
   }
+}
+
+cmsys::SystemInformation& cmInstrumentation::GetSystemInformation()
+{
+  if (!this->systemInformation) {
+    this->systemInformation = cm::make_unique<cmsys::SystemInformation>();
+  }
+  return *this->systemInformation;
 }
 
 bool cmInstrumentation::ReadJSONQueries(std::string const& directory)
@@ -146,7 +176,7 @@ bool cmInstrumentation::ReadJSONQueries(std::string const& directory)
 void cmInstrumentation::ReadJSONQuery(std::string const& file)
 {
   auto query = cmInstrumentationQuery();
-  query.ReadJSON(file, this->errorMsg, this->queries, this->hooks,
+  query.ReadJSON(file, this->errorMsg, this->options, this->hooks,
                  this->callbacks);
   if (!this->errorMsg.empty()) {
     cmSystemTools::Error(cmStrCat(
@@ -161,15 +191,15 @@ bool cmInstrumentation::HasErrors() const
 }
 
 void cmInstrumentation::WriteJSONQuery(
-  std::set<cmInstrumentationQuery::Query> const& queries_,
+  std::set<cmInstrumentationQuery::Option> const& options_,
   std::set<cmInstrumentationQuery::Hook> const& hooks_,
   std::vector<std::vector<std::string>> const& callbacks_)
 {
   Json::Value root;
   root["version"] = 1;
-  root["queries"] = Json::arrayValue;
-  for (auto const& query : queries_) {
-    root["queries"].append(cmInstrumentationQuery::QueryString[query]);
+  root["options"] = Json::arrayValue;
+  for (auto const& option : options_) {
+    root["options"].append(cmInstrumentationQuery::OptionString[option]);
   }
   root["hooks"] = Json::arrayValue;
   for (auto const& hook : hooks_) {
@@ -179,13 +209,74 @@ void cmInstrumentation::WriteJSONQuery(
   for (auto const& callback : callbacks_) {
     root["callbacks"].append(cmInstrumentation::GetCommandStr(callback));
   }
-  cmsys::Directory d;
-  int n = 0;
-  if (d.Load(cmStrCat(this->timingDirv1, "/query/generated"))) {
-    n = (int)d.GetNumberOfFiles() - 2; // Don't count '.' or '..'
+  this->WriteInstrumentationJson(
+    root, "query/generated",
+    cmStrCat("query-", this->writtenJsonQueries++, ".json"));
+}
+
+void cmInstrumentation::AddCustomContent(std::string const& name,
+                                         Json::Value const& contents)
+{
+  this->customContent[name] = contents;
+}
+
+void cmInstrumentation::WriteCustomContent()
+{
+  if (!this->customContent.isNull()) {
+    this->WriteInstrumentationJson(
+      this->customContent, "data/content",
+      cmStrCat("configure-", this->ComputeSuffixTime(), ".json"));
   }
-  this->WriteInstrumentationJson(root, "query/generated",
-                                 cmStrCat("query-", n, ".json"));
+}
+
+std::string cmInstrumentation::GetLatestFile(std::string const& dataSubdir)
+{
+  std::string fullDir = cmStrCat(this->timingDirv1, "/data/", dataSubdir);
+  std::string latestFile;
+  if (cmSystemTools::FileExists(fullDir)) {
+    cmsys::Directory d;
+    if (d.Load(fullDir)) {
+      for (unsigned int i = 0; i < d.GetNumberOfFiles(); i++) {
+        std::string fname = d.GetFileName(i);
+        if (fname != "." && fname != ".." && fname > latestFile) {
+          latestFile = fname;
+        }
+      }
+    }
+  }
+  return latestFile;
+}
+
+void cmInstrumentation::RemoveOldFiles(std::string const& dataSubdir)
+{
+  std::string const dataSubdirPath =
+    cmStrCat(this->timingDirv1, "/data/", dataSubdir);
+  if (cmSystemTools::FileExists(dataSubdirPath)) {
+    std::string latestFile = this->GetLatestFile(dataSubdir);
+    cmsys::Directory d;
+    if (d.Load(dataSubdirPath)) {
+      for (unsigned int i = 0; i < d.GetNumberOfFiles(); i++) {
+        std::string fname = d.GetFileName(i);
+        std::string fpath = d.GetFilePath(i);
+        if (fname != "." && fname != ".." && fname < latestFile) {
+          if (dataSubdir == "trace") {
+            // Check if this trace file shares a name with any existing index
+            // files, in which case it is listed by that index file and a
+            // callback is running, so we shouldn't delete it yet.
+            std::string index = "index-";
+            std::string json = ".json";
+            std::string timestamp = fname.substr(
+              index.size(), fname.size() - index.size() - json.size() - 1);
+            if (cmSystemTools::FileExists(cmStrCat(
+                  this->timingDirv1, "/data/index-", timestamp, ".json"))) {
+              continue;
+            }
+          }
+          cmSystemTools::RemoveFile(fpath);
+        }
+      }
+    }
+  }
 }
 
 void cmInstrumentation::ClearGeneratedQueries()
@@ -201,9 +292,9 @@ bool cmInstrumentation::HasQuery() const
   return this->hasQuery;
 }
 
-bool cmInstrumentation::HasQuery(cmInstrumentationQuery::Query query) const
+bool cmInstrumentation::HasOption(cmInstrumentationQuery::Option option) const
 {
-  return (this->queries.find(query) != this->queries.end());
+  return (this->options.find(option) != this->options.end());
 }
 
 bool cmInstrumentation::HasHook(cmInstrumentationQuery::Hook hook) const
@@ -220,16 +311,15 @@ bool cmInstrumentation::HasPreOrPostBuildHook() const
 int cmInstrumentation::CollectTimingData(cmInstrumentationQuery::Hook hook)
 {
   // Don't run collection if hook is disabled
-  if (hook != cmInstrumentationQuery::Hook::Manual &&
-      this->hooks.find(hook) == this->hooks.end()) {
+  if (hook != cmInstrumentationQuery::Hook::Manual && !this->HasHook(hook)) {
     return 0;
   }
 
   // Touch index file immediately to claim snippets
   std::string const& directory = cmStrCat(this->timingDirv1, "/data");
-  std::string const& file_name =
-    cmStrCat("index-", ComputeSuffixTime(), ".json");
-  std::string index_path = cmStrCat(directory, "/", file_name);
+  std::string suffix_time = ComputeSuffixTime();
+  std::string const& index_name = cmStrCat("index-", suffix_time, ".json");
+  std::string index_path = cmStrCat(directory, '/', index_name);
   cmSystemTools::Touch(index_path, true);
 
   // Gather Snippets
@@ -241,10 +331,8 @@ int cmInstrumentation::CollectTimingData(cmInstrumentationQuery::Hook hook)
     for (unsigned int i = 0; i < d.GetNumberOfFiles(); i++) {
       std::string fpath = d.GetFilePath(i);
       std::string fname = d.GetFile(i);
-      if (fname.rfind('.', 0) == 0) {
-        continue;
-      }
-      if (fname == file_name) {
+      if (fname.rfind('.', 0) == 0 || fname == index_name ||
+          d.FileIsDirectory(i)) {
         continue;
       }
       if (fname.rfind("index-", 0) == 0) {
@@ -269,7 +357,8 @@ int cmInstrumentation::CollectTimingData(cmInstrumentationQuery::Hook hook)
   index["dataDir"] = directory;
   index["buildDir"] = this->binaryDir;
   index["version"] = 1;
-  if (this->HasQuery(cmInstrumentationQuery::Query::StaticSystemInformation)) {
+  if (this->HasOption(
+        cmInstrumentationQuery::Option::StaticSystemInformation)) {
     this->InsertStaticSystemInformation(index);
   }
   for (auto const& file : files) {
@@ -283,25 +372,38 @@ int cmInstrumentation::CollectTimingData(cmInstrumentationQuery::Hook hook)
       }
     }
   }
-  this->WriteInstrumentationJson(index, "data", file_name);
+
+  // Parse snippets into the Google trace file
+  if (this->HasOption(cmInstrumentationQuery::Option::Trace)) {
+    std::string trace_name = cmStrCat("trace-", suffix_time, ".json");
+    this->WriteTraceFile(index, trace_name);
+    index["trace"] = "trace/" + trace_name;
+  }
+
+  // Write index file
+  this->WriteInstrumentationJson(index, "data", index_name);
 
   // Execute callbacks
   for (auto& cb : this->callbacks) {
-    cmSystemTools::RunSingleCommand(cmStrCat(cb, " \"", index_path, "\""),
+    cmSystemTools::RunSingleCommand(cmStrCat(cb, " \"", index_path, '"'),
                                     nullptr, nullptr, nullptr, nullptr,
                                     cmSystemTools::OUTPUT_PASSTHROUGH);
   }
 
   // Special case for CDash collation
-  if (this->HasHook(cmInstrumentationQuery::Hook::PrepareForCDash)) {
+  if (this->HasOption(cmInstrumentationQuery::Option::CDashSubmit)) {
     this->PrepareDataForCDash(directory, index_path);
   }
 
   // Delete files
   for (auto const& f : index["snippets"]) {
-    cmSystemTools::RemoveFile(cmStrCat(directory, "/", f.asString()));
+    cmSystemTools::RemoveFile(cmStrCat(directory, '/', f.asString()));
   }
   cmSystemTools::RemoveFile(index_path);
+
+  // Delete old content and trace files
+  this->RemoveOldFiles("content");
+  this->RemoveOldFiles("trace");
 
   return 0;
 }
@@ -309,36 +411,38 @@ int cmInstrumentation::CollectTimingData(cmInstrumentationQuery::Hook hook)
 void cmInstrumentation::InsertDynamicSystemInformation(
   Json::Value& root, std::string const& prefix)
 {
-  cmsys::SystemInformation info;
   Json::Value data;
-  info.RunCPUCheck();
-  info.RunMemoryCheck();
+  double memory;
+  double load;
+  this->GetDynamicSystemInformation(memory, load);
   if (!root.isMember("dynamicSystemInformation")) {
     root["dynamicSystemInformation"] = Json::objectValue;
   }
   root["dynamicSystemInformation"][cmStrCat(prefix, "HostMemoryUsed")] =
-    (double)info.GetHostMemoryUsed();
-  root["dynamicSystemInformation"][cmStrCat(prefix, "CPULoadAverage")] =
-    info.GetLoadAverage();
+    memory;
+  root["dynamicSystemInformation"][cmStrCat(prefix, "CPULoadAverage")] = load;
 }
 
 void cmInstrumentation::GetDynamicSystemInformation(double& memory,
                                                     double& load)
 {
-  cmsys::SystemInformation info;
-  Json::Value data;
-  info.RunCPUCheck();
-  info.RunMemoryCheck();
+  cmsys::SystemInformation& info = this->GetSystemInformation();
+  if (!this->ranSystemChecks) {
+    info.RunCPUCheck();
+    info.RunMemoryCheck();
+    this->ranSystemChecks = true;
+  }
   memory = (double)info.GetHostMemoryUsed();
   load = info.GetLoadAverage();
 }
 
 void cmInstrumentation::InsertStaticSystemInformation(Json::Value& root)
 {
-  cmsys::SystemInformation info;
-  info.RunCPUCheck();
-  info.RunOSCheck();
-  info.RunMemoryCheck();
+  cmsys::SystemInformation& info = this->GetSystemInformation();
+  if (!this->ranOSCheck) {
+    info.RunOSCheck();
+    this->ranOSCheck = true;
+  }
   Json::Value infoRoot;
   infoRoot["familyId"] = info.GetFamilyID();
   infoRoot["hostname"] = info.GetHostname();
@@ -378,6 +482,27 @@ void cmInstrumentation::InsertTimingData(
   root["duration"] = static_cast<Json::Value::UInt64>(duration);
 }
 
+Json::Value cmInstrumentation::ReadJsonSnippet(std::string const& directory,
+                                               std::string const& file_name)
+{
+  Json::CharReaderBuilder builder;
+  builder["collectComments"] = false;
+  cmsys::ifstream ftmp(cmStrCat(directory, '/', file_name).c_str());
+  Json::Value snippetData;
+  builder["collectComments"] = false;
+
+  if (!Json::parseFromStream(builder, ftmp, &snippetData, nullptr)) {
+#if JSONCPP_VERSION_HEXA < 0x01070300
+    snippetData = Json::Value::null;
+#else
+    snippetData = Json::Value::nullSingleton();
+#endif
+  }
+
+  ftmp.close();
+  return snippetData;
+}
+
 void cmInstrumentation::WriteInstrumentationJson(Json::Value& root,
                                                  std::string const& subdir,
                                                  std::string const& file_name)
@@ -386,9 +511,9 @@ void cmInstrumentation::WriteInstrumentationJson(Json::Value& root,
   wbuilder["indentation"] = "\t";
   std::unique_ptr<Json::StreamWriter> JsonWriter =
     std::unique_ptr<Json::StreamWriter>(wbuilder.newStreamWriter());
-  std::string const& directory = cmStrCat(this->timingDirv1, "/", subdir);
+  std::string const& directory = cmStrCat(this->timingDirv1, '/', subdir);
   cmSystemTools::MakeDirectory(directory);
-  cmsys::ofstream ftmp(cmStrCat(directory, "/", file_name).c_str());
+  cmsys::ofstream ftmp(cmStrCat(directory, '/', file_name).c_str());
   JsonWriter->write(root, &ftmp);
   ftmp << "\n";
   ftmp.close();
@@ -413,12 +538,12 @@ std::string cmInstrumentation::InstrumentTest(
 
   // Post-Command
   this->InsertTimingData(root, steadyStart, systemStart);
-  if (this->HasQuery(
-        cmInstrumentationQuery::Query::DynamicSystemInformation)) {
+  if (this->HasOption(
+        cmInstrumentationQuery::Option::DynamicSystemInformation)) {
     this->InsertDynamicSystemInformation(root, "after");
   }
 
-  cmsys::SystemInformation info;
+  cmsys::SystemInformation& info = this->GetSystemInformation();
   std::string file_name = cmStrCat(
     "test-",
     this->ComputeSuffixHash(cmStrCat(command_str, info.GetProcessId())),
@@ -429,8 +554,8 @@ std::string cmInstrumentation::InstrumentTest(
 
 void cmInstrumentation::GetPreTestStats()
 {
-  if (this->HasQuery(
-        cmInstrumentationQuery::Query::DynamicSystemInformation)) {
+  if (this->HasOption(
+        cmInstrumentationQuery::Option::DynamicSystemInformation)) {
     this->InsertDynamicSystemInformation(this->preTestStats, "before");
   }
 }
@@ -438,14 +563,14 @@ void cmInstrumentation::GetPreTestStats()
 int cmInstrumentation::InstrumentCommand(
   std::string command_type, std::vector<std::string> const& command,
   std::function<int()> const& callback,
-  cm::optional<std::map<std::string, std::string>> options,
-  cm::optional<std::map<std::string, std::string>> arrayOptions,
-  bool reloadQueriesAfterCommand)
+  cm::optional<std::map<std::string, std::string>> data,
+  cm::optional<std::map<std::string, std::string>> arrayData,
+  LoadQueriesAfter reloadQueriesAfterCommand)
 {
 
   // Always begin gathering data for configure in case cmake_instrumentation
   // command creates a query
-  if (!this->hasQuery && !reloadQueriesAfterCommand) {
+  if (!this->hasQuery && reloadQueriesAfterCommand == LoadQueriesAfter::No) {
     return callback();
   }
 
@@ -464,10 +589,10 @@ int cmInstrumentation::InstrumentCommand(
   auto system_start = std::chrono::system_clock::now();
   double preConfigureMemory = 0;
   double preConfigureLoad = 0;
-  if (this->HasQuery(
-        cmInstrumentationQuery::Query::DynamicSystemInformation)) {
+  if (this->HasOption(
+        cmInstrumentationQuery::Option::DynamicSystemInformation)) {
     this->InsertDynamicSystemInformation(root, "before");
-  } else if (reloadQueriesAfterCommand) {
+  } else if (reloadQueriesAfterCommand == LoadQueriesAfter::Yes) {
     this->GetDynamicSystemInformation(preConfigureMemory, preConfigureLoad);
   }
 
@@ -475,14 +600,19 @@ int cmInstrumentation::InstrumentCommand(
   int ret = callback();
   root["result"] = ret;
 
+  // Write configure content if command was configure
+  if (command_type == "configure") {
+    this->WriteCustomContent();
+  }
+
   // Exit early if configure didn't generate a query
-  if (reloadQueriesAfterCommand) {
+  if (reloadQueriesAfterCommand == LoadQueriesAfter::Yes) {
     this->LoadQueries();
-    if (!this->hasQuery) {
+    if (!this->HasQuery()) {
       return ret;
     }
-    if (this->HasQuery(
-          cmInstrumentationQuery::Query::DynamicSystemInformation)) {
+    if (this->HasOption(
+          cmInstrumentationQuery::Option::DynamicSystemInformation)) {
       root["dynamicSystemInformation"] = Json::objectValue;
       root["dynamicSystemInformation"]["beforeHostMemoryUsed"] =
         preConfigureMemory;
@@ -493,14 +623,14 @@ int cmInstrumentation::InstrumentCommand(
 
   // Post-Command
   this->InsertTimingData(root, steady_start, system_start);
-  if (this->HasQuery(
-        cmInstrumentationQuery::Query::DynamicSystemInformation)) {
+  if (this->HasOption(
+        cmInstrumentationQuery::Option::DynamicSystemInformation)) {
     this->InsertDynamicSystemInformation(root, "after");
   }
 
   // Gather additional data
-  if (options.has_value()) {
-    for (auto const& item : options.value()) {
+  if (data.has_value()) {
+    for (auto const& item : data.value()) {
       if (item.first == "role" && !item.second.empty()) {
         command_type = item.second;
       } else if (!item.second.empty()) {
@@ -515,8 +645,8 @@ int cmInstrumentation::InstrumentCommand(
     root["config"] = "";
   }
 
-  if (arrayOptions.has_value()) {
-    for (auto const& item : arrayOptions.value()) {
+  if (arrayData.has_value()) {
+    for (auto const& item : arrayData.value()) {
       if (item.first == "targetLabels" && command_type != "link") {
         continue;
       }
@@ -531,7 +661,7 @@ int cmInstrumentation::InstrumentCommand(
         for (auto const& output : root["outputs"]) {
           root["outputSizes"].append(
             static_cast<Json::Value::UInt64>(cmSystemTools::FileLength(
-              cmStrCat(this->binaryDir, "/", output.asCString()))));
+              cmStrCat(this->binaryDir, '/', output.asCString()))));
         }
       }
     }
@@ -539,10 +669,16 @@ int cmInstrumentation::InstrumentCommand(
   root["role"] = command_type;
   root["workingDir"] = cmSystemTools::GetLogicalWorkingDirectory();
 
+  // Add custom configure content
+  std::string contentFile = this->GetLatestFile("content");
+  if (!contentFile.empty()) {
+    root["configureContent"] = cmStrCat("content/", contentFile);
+  }
+
   // Write Json
-  cmsys::SystemInformation info;
+  cmsys::SystemInformation& info = this->GetSystemInformation();
   std::string const& file_name = cmStrCat(
-    command_type, "-",
+    command_type, '-',
     this->ComputeSuffixHash(cmStrCat(command_str, info.GetProcessId())),
     this->ComputeSuffixTime(), ".json");
   this->WriteInstrumentationJson(root, "data", file_name);
@@ -590,33 +726,51 @@ std::string cmInstrumentation::ComputeSuffixTime()
 }
 
 /*
- * Called by ctest --start-instrumentation as part of the START_INSTRUMENTATION
- * rule when using the Ninja generator.
- * This creates a detached process which waits for the Ninja process to die
- * before running the postBuild hook. In this way, the postBuild hook triggers
- * after every ninja invocation, regardless of whether the build passed or
- * failed.
+ * Called by ctest --start-instrumentation.
+ *
+ * This creates a detached process which waits for the parent process (i.e.,
+ * the build system) to die before running the postBuild hook. In this way, the
+ * postBuild hook triggers after every invocation of the build system,
+ * regardless of whether the build passed or failed.
  */
 int cmInstrumentation::SpawnBuildDaemon()
 {
+  // Do not inherit handles from the parent process, so that the daemon is
+  // fully detached. This helps prevent deadlock between the two.
+  uv_disable_stdio_inheritance();
+
   // preBuild Hook
-  this->CollectTimingData(cmInstrumentationQuery::Hook::PreBuild);
+  if (this->LockBuildDaemon()) {
+    // Release lock before spawning the build daemon, to prevent blocking it.
+    this->lock.Release();
+    this->CollectTimingData(cmInstrumentationQuery::Hook::PreBuild);
+  }
 
   // postBuild Hook
   if (this->HasHook(cmInstrumentationQuery::Hook::PostBuild)) {
-    auto ninja_pid = uv_os_getppid();
-    if (ninja_pid) {
+    auto ppid = uv_os_getppid();
+    if (ppid) {
       std::vector<std::string> args;
       args.push_back(cmSystemTools::GetCTestCommand());
       args.push_back("--wait-and-collect-instrumentation");
       args.push_back(this->binaryDir);
-      args.push_back(std::to_string(ninja_pid));
+      args.push_back(std::to_string(ppid));
       auto builder = cmUVProcessChainBuilder().SetDetached().AddCommand(args);
       auto chain = builder.Start();
       uv_run(&chain.GetLoop(), UV_RUN_DEFAULT);
     }
   }
   return 0;
+}
+
+// Prevent multiple build daemons from running simultaneously
+bool cmInstrumentation::LockBuildDaemon()
+{
+  std::string const lockFile = cmStrCat(this->timingDirv1, "/.build.lock");
+  if (!cmSystemTools::FileExists(lockFile)) {
+    cmSystemTools::Touch(lockFile, true);
+  }
+  return this->lock.Lock(lockFile, 0).IsOk();
 }
 
 /*
@@ -627,6 +781,11 @@ int cmInstrumentation::SpawnBuildDaemon()
  */
 int cmInstrumentation::CollectTimingAfterBuild(int ppid)
 {
+  // Check if another process is already instrumenting the build.
+  // This lock will be released when the process exits at the end of the build.
+  if (!this->LockBuildDaemon()) {
+    return 0;
+  }
   std::function<int()> waitForBuild = [ppid]() -> int {
     while (0 == uv_kill(ppid, 0)) {
       cmSystemTools::Delay(100);
@@ -635,7 +794,7 @@ int cmInstrumentation::CollectTimingAfterBuild(int ppid)
   };
   int ret = this->InstrumentCommand(
     "build", {}, [waitForBuild]() { return waitForBuild(); }, cm::nullopt,
-    cm::nullopt, false);
+    cm::nullopt, LoadQueriesAfter::No);
   this->CollectTimingData(cmInstrumentationQuery::Hook::PostBuild);
   return ret;
 }
@@ -645,9 +804,9 @@ void cmInstrumentation::AddHook(cmInstrumentationQuery::Hook hook)
   this->hooks.insert(hook);
 }
 
-void cmInstrumentation::AddQuery(cmInstrumentationQuery::Query query)
+void cmInstrumentation::AddOption(cmInstrumentationQuery::Option option)
 {
-  this->queries.insert(query);
+  this->options.insert(option);
 }
 
 std::string const& cmInstrumentation::GetCDashDir()
@@ -661,6 +820,13 @@ std::string const& cmInstrumentation::GetCDashDir()
 void cmInstrumentation::PrepareDataForCDash(std::string const& data_dir,
                                             std::string const& index_path)
 {
+  cmSystemTools::MakeDirectory(this->cdashDir);
+  cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/configure"));
+  cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/build"));
+  cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/build/commands"));
+  cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/build/targets"));
+  cmSystemTools::MakeDirectory(cmStrCat(this->cdashDir, "/test"));
+
   Json::Value root;
   std::string error_msg;
   cmJSONState parseState = cmJSONState(index_path, &root);
@@ -742,4 +908,97 @@ void cmInstrumentation::PrepareDataForCDash(std::string const& data_dir,
       cmSystemTools::Error(error_msg);
     }
   }
+}
+
+void cmInstrumentation::WriteTraceFile(Json::Value const& index,
+                                       std::string const& trace_name)
+{
+  std::string const& directory = cmStrCat(this->timingDirv1, "/data");
+  std::vector<Json::Value> snippets = std::vector<Json::Value>();
+  for (auto const& f : index["snippets"]) {
+    Json::Value snippetData = this->ReadJsonSnippet(directory, f.asString());
+    snippets.push_back(snippetData);
+  }
+  // Reverse-sort snippets by timeEnd (timeStart + duration) as a
+  // prerequisite for AssignTargetToTraceThread().
+  std::sort(snippets.begin(), snippets.end(),
+            [](Json::Value snippetA, Json::Value snippetB) {
+              uint64_t timeEndA = snippetA["timeStart"].asUInt64() +
+                snippetA["duration"].asUInt64();
+              uint64_t timeEndB = snippetB["timeStart"].asUInt64() +
+                snippetB["duration"].asUInt64();
+              return timeEndA > timeEndB;
+            });
+
+  Json::Value trace = Json::arrayValue;
+  std::vector<uint64_t> workers = std::vector<uint64_t>();
+  for (auto const& snippetData : snippets) {
+    this->AppendTraceEvent(trace, workers, snippetData);
+  }
+
+  this->WriteInstrumentationJson(trace, "data/trace", trace_name);
+}
+
+void cmInstrumentation::AppendTraceEvent(Json::Value& trace,
+                                         std::vector<uint64_t>& workers,
+                                         Json::Value const& snippetData)
+{
+  Json::Value snippetTraceEvent;
+
+  // Provide a useful trace event name depending on what data is available
+  // from the snippet.
+  std::string name = cmStrCat(snippetData["role"].asString(), ": ");
+  if (snippetData["role"] == "compile") {
+    name.append(snippetData["source"].asString());
+  } else if (snippetData["role"] == "link") {
+    name.append(snippetData["target"].asString());
+  } else if (snippetData["role"] == "install") {
+    cmCMakePath workingDir(snippetData["workingDir"].asCString());
+    std::string lastDirName = workingDir.GetFileName().String();
+    name.append(lastDirName);
+  } else if (snippetData["role"] == "custom") {
+    name.append(snippetData["command"].asString());
+  } else if (snippetData["role"] == "test") {
+    name.append(snippetData["testName"].asString());
+  }
+  snippetTraceEvent["name"] = name;
+
+  snippetTraceEvent["cat"] = snippetData["role"];
+  snippetTraceEvent["ph"] = "X";
+  snippetTraceEvent["args"] = snippetData;
+
+  // Time in the Trace Event Format is stored in microseconds
+  // but the snippet files store time in milliseconds.
+  snippetTraceEvent["ts"] = snippetData["timeStart"].asUInt64() * 1000;
+  snippetTraceEvent["dur"] = snippetData["duration"].asUInt64() * 1000;
+
+  // Assign an arbitrary PID, since this data isn't useful for the
+  // visualization in our case.
+  snippetTraceEvent["pid"] = 0;
+  // Assign TID of 0 for snippets which will have other snippet data
+  // visualized "underneath" them. (For others, start from 1.)
+  if (snippetData["role"] == "build" || snippetData["role"] == "cmakeBuild" ||
+      snippetData["role"] == "ctest" ||
+      snippetData["role"] == "cmakeInstall") {
+    snippetTraceEvent["tid"] = 0;
+  } else {
+    snippetTraceEvent["tid"] = static_cast<Json::Value::UInt64>(
+      AssignTargetToTraceThread(workers, snippetData["timeStart"].asUInt64(),
+                                snippetData["duration"].asUInt64()));
+  }
+
+  trace.append(snippetTraceEvent);
+}
+
+size_t cmInstrumentation::AssignTargetToTraceThread(
+  std::vector<uint64_t>& workers, uint64_t timeStart, uint64_t duration)
+{
+  for (size_t i = 0; i < workers.size(); i++) {
+    if (workers[i] >= timeStart + duration) {
+      workers[i] = timeStart;
+      return i + 1;
+    }
+  }
+  workers.push_back(timeStart);
+  return workers.size();
 }

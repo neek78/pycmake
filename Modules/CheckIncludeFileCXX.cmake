@@ -5,21 +5,46 @@
 CheckIncludeFileCXX
 -------------------
 
-Provides a macro to check if a header file can be included in ``CXX``.
+This module provides a command to check a C++ header file.
+
+Load this module in a CMake project with:
+
+.. code-block:: cmake
+
+  include(CheckIncludeFileCXX)
+
+Commands
+^^^^^^^^
+
+This module provides the following command:
 
 .. command:: check_include_file_cxx
+
+  Checks once whether a header file exists and can be included in C++ code:
 
   .. code-block:: cmake
 
     check_include_file_cxx(<include> <variable> [<flags>])
 
-  Check if the given ``<include>`` file may be included in a ``CXX``
-  source file and store the result in an internal cache entry named
-  ``<variable>``.  The optional third argument may be used to add
-  compilation flags to the check (or use ``CMAKE_REQUIRED_FLAGS`` below).
+  .. rubric:: The arguments are:
 
-The following variables may be set before calling this macro to modify
-the way the check is run:
+  ``<include>``
+    A header file to be checked.
+
+  ``<variable>``
+    The name of the variable to store the result of the check.  This
+    variable will be created as an internal cache variable.
+
+  ``<flags>``
+    (Optional) A :ref:`semicolon-separated list <CMake Language Lists>` of
+    additional compilation flags to be added to the check.  Alternatively,
+    flags can be also specified with the ``CMAKE_REQUIRED_FLAGS`` variable
+    below.
+
+  .. rubric:: Variables Affecting the Check
+
+  The following variables may be set before calling this command to modify
+  the way the check is run:
 
   .. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
 
@@ -34,6 +59,10 @@ the way the check is run:
   .. include:: /module/include/CMAKE_REQUIRED_LINK_DIRECTORIES.rst
 
   .. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
+
+  .. versionadded:: 3.12
+    The ``CMAKE_REQUIRED_LIBRARIES`` variable, if policy :policy:`CMP0075` is
+    set to ``NEW``.
 
 Examples
 ^^^^^^^^
@@ -50,9 +79,9 @@ check result in the ``HAVE_STDFLOAT_HEADER`` cache variable:
 See Also
 ^^^^^^^^
 
-* The :module:`CheckIncludeFile` module to check for single ``C`` header.
-* The :module:`CheckIncludeFiles` module to check for one or more ``C`` or
-  ``C++`` headers at once.
+* The :module:`CheckIncludeFile` module to check for single C header.
+* The :module:`CheckIncludeFiles` module to check for one or more C or
+  C++ headers at once.
 #]=======================================================================]
 
 include_guard(GLOBAL)

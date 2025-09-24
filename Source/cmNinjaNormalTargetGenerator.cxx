@@ -204,24 +204,24 @@ std::string cmNinjaNormalTargetGenerator::LanguageLinkerRule(
   std::string const& config) const
 {
   return cmStrCat(
-    this->TargetLinkLanguage(config), "_",
+    this->TargetLinkLanguage(config), '_',
     cmState::GetTargetTypeName(this->GetGeneratorTarget()->GetType()),
     "_LINKER__",
     cmGlobalNinjaGenerator::EncodeRuleName(
       this->GetGeneratorTarget()->GetName()),
-    "_", config);
+    '_', config);
 }
 
 std::string cmNinjaNormalTargetGenerator::LanguageLinkerDeviceRule(
   std::string const& config) const
 {
   return cmStrCat(
-    this->TargetLinkLanguage(config), "_",
+    this->TargetLinkLanguage(config), '_',
     cmState::GetTargetTypeName(this->GetGeneratorTarget()->GetType()),
     "_DEVICE_LINKER__",
     cmGlobalNinjaGenerator::EncodeRuleName(
       this->GetGeneratorTarget()->GetName()),
-    "_", config);
+    '_', config);
 }
 
 std::string cmNinjaNormalTargetGenerator::LanguageLinkerCudaDeviceRule(
@@ -332,6 +332,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkRule(
     }
 
     vars.ObjectDir = "$OBJECT_DIR";
+    vars.TargetSupportDir = "$TARGET_SUPPORT_DIR";
 
     vars.Target = "$TARGET_FILE";
 
@@ -356,8 +357,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkRule(
 
     auto rulePlaceholderExpander =
       this->GetLocalGenerator()->CreateRulePlaceholderExpander(
-        cmBuildStep::Link, this->GetGeneratorTarget(),
-        this->TargetLinkLanguage(config));
+        cmBuildStep::Link);
 
     // Rule for linking library/executable.
     std::vector<std::string> linkCmds = this->ComputeDeviceLinkCmd();
@@ -424,8 +424,7 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkRules(
     "CMAKE_CUDA_DEVICE_LINK_COMPILE");
   auto rulePlaceholderExpander =
     this->GetLocalGenerator()->CreateRulePlaceholderExpander(
-      cmBuildStep::Link, this->GetGeneratorTarget(),
-      this->TargetLinkLanguage(config));
+      cmBuildStep::Link);
   rulePlaceholderExpander->ExpandRuleVariables(this->GetLocalGenerator(),
                                                compileCmd, vars);
 
@@ -445,6 +444,13 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkRules(
   rule.Comment = "Rule for CUDA fatbinaries.";
   rule.Description = "Creating fatbinary $out";
   this->GetGlobalGenerator()->AddRule(rule);
+}
+
+static void NinjaSafeComment(std::string& comment)
+{
+  // Replace control characters in comments.
+  cmSystemTools::ReplaceString(comment, "\n", " / ");
+  cmSystemTools::ReplaceString(comment, "$", "$$");
 }
 
 void cmNinjaNormalTargetGenerator::WriteLinkRule(
@@ -534,6 +540,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
     }
 
     vars.ObjectDir = "$OBJECT_DIR";
+    vars.TargetSupportDir = "$TARGET_SUPPORT_DIR";
 
     vars.Target = "$TARGET_FILE";
 
@@ -584,8 +591,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
 
     auto rulePlaceholderExpander =
       this->GetLocalGenerator()->CreateRulePlaceholderExpander(
-        cmBuildStep::Link, this->GetGeneratorTarget(),
-        this->TargetLinkLanguage(config));
+        cmBuildStep::Link);
 
     // Rule for linking library/executable.
     std::vector<std::string> linkCmds = this->ComputeLinkCmd(config);
@@ -610,10 +616,12 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(
     char const* presep = "";
     char const* postsep = "";
     auto prelink = cmJoin(preLinkComments, "; ");
+    NinjaSafeComment(prelink);
     if (!prelink.empty()) {
       presep = "; ";
     }
     auto postbuild = cmJoin(postBuildComments, "; ");
+    NinjaSafeComment(postbuild);
     if (!postbuild.empty()) {
       postsep = "; ";
     }
@@ -844,8 +852,9 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatement(
     this->Makefile->GetSafeDefinition("CMAKE_CUDA_OUTPUT_EXTENSION");
 
   std::string targetOutputDir =
-    cmStrCat(this->GetLocalGenerator()->GetTargetDirectory(genTarget),
-             globalGen->ConfigDirectory(config), "/");
+    this->GetLocalGenerator()->MaybeRelativeToTopBinDir(
+      cmStrCat(genTarget->GetSupportDirectory(),
+               globalGen->ConfigDirectory(config), '/'));
   targetOutputDir = globalGen->ExpandCFGIntDir(targetOutputDir, config);
 
   std::string targetOutputReal =
@@ -980,8 +989,9 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
 
   if (config != fileConfig) {
     std::string targetOutputFileConfigDir =
-      cmStrCat(this->GetLocalGenerator()->GetTargetDirectory(genTarget),
-               globalGen->ConfigDirectory(fileConfig), "/");
+      this->GetLocalGenerator()->MaybeRelativeToTopBinDir(
+        cmStrCat(genTarget->GetSupportDirectory(),
+                 globalGen->ConfigDirectory(config), '/'));
     targetOutputFileConfigDir =
       globalGen->ExpandCFGIntDir(outputDir, fileConfig);
     if (outputDir == targetOutputFileConfigDir) {
@@ -1033,7 +1043,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
                               vars["LINK_FLAGS"], frameworkPath, linkPath,
                               genTarget);
 
-  this->addPoolNinjaVariable("JOB_POOL_LINK", genTarget, vars);
+  this->addPoolNinjaVariable("JOB_POOL_LINK", genTarget, nullptr, vars);
 
   vars["MANIFESTS"] = this->GetManifests(config);
 
@@ -1075,6 +1085,14 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
   vars["OBJECT_DIR"] = this->GetLocalGenerator()->ConvertToOutputFormat(
     this->ConvertToNinjaPath(objPath), cmOutputConverter::SHELL);
   this->EnsureDirectoryExists(objPath);
+
+  std::string const targetSupportPath =
+    this->GetGeneratorTarget()->GetCMFSupportDirectory();
+
+  vars["TARGET_SUPPORT_DIR"] =
+    this->GetLocalGenerator()->ConvertToOutputFormat(
+      this->ConvertToNinjaPath(targetSupportPath), cmOutputConverter::SHELL);
+  this->EnsureDirectoryExists(targetSupportPath);
 
   this->SetMsvcTargetPdbVariable(vars, config);
 
@@ -1319,7 +1337,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                            this->TargetLinkLanguage(config), "CURRENT", false);
   }
 
-  this->addPoolNinjaVariable("JOB_POOL_LINK", gt, vars);
+  this->addPoolNinjaVariable("JOB_POOL_LINK", gt, nullptr, vars);
 
   this->UseLWYU = this->GetLocalGenerator()->AppendLWYUFlags(
     vars["LINK_FLAGS"], this->GetGeneratorTarget(),
@@ -1398,6 +1416,12 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     this->ConvertToNinjaPath(objPath), cmOutputConverter::SHELL);
   this->EnsureDirectoryExists(objPath);
 
+  std::string const targetSupportPath = gt->GetCMFSupportDirectory();
+  vars["TARGET_SUPPORT_DIR"] =
+    this->GetLocalGenerator()->ConvertToOutputFormat(
+      this->ConvertToNinjaPath(targetSupportPath), cmOutputConverter::SHELL);
+  this->EnsureDirectoryExists(targetSupportPath);
+
   std::string& linkLibraries = vars["LINK_LIBRARIES"];
   std::string& link_path = vars["LINK_PATH"];
   if (globalGen->IsGCCOnWindows()) {
@@ -1448,6 +1472,14 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     }
   }
 
+  // If we have any PRE_LINK commands, we need to go back to CMAKE_BINARY_DIR
+  // for the link commands.
+  if (!preLinkCmdLines.empty()) {
+    std::string const homeOutDir = localGen.ConvertToOutputFormat(
+      localGen.GetBinaryDirectory(), cmOutputConverter::SHELL);
+    preLinkCmdLines.push_back("cd " + homeOutDir);
+  }
+
   // maybe create .def file from list of objects
   cmGeneratorTarget::ModuleDefinitionInfo const* mdi =
     gt->GetModuleDefinitionInfo(config);
@@ -1487,13 +1519,6 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     for (cmSourceFile const* src : mdi->Sources) {
       fout << src->GetFullPath() << "\n";
     }
-  }
-  // If we have any PRE_LINK commands, we need to go back to CMAKE_BINARY_DIR
-  // for the link commands.
-  if (!preLinkCmdLines.empty()) {
-    std::string const homeOutDir = localGen.ConvertToOutputFormat(
-      localGen.GetBinaryDirectory(), cmOutputConverter::SHELL);
-    preLinkCmdLines.push_back("cd " + homeOutDir);
   }
 
   vars["PRE_LINK"] = localGen.BuildCommandLine(
@@ -1562,7 +1587,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   }
 
   // Add dependencies on swiftmodule files when using the swift linker
-  if (this->TargetLinkLanguage(config) == "Swift") {
+  if (!this->GetLocalGenerator()->IsSplitSwiftBuild() &&
+      this->TargetLinkLanguage(config) == "Swift") {
     if (cmComputeLinkInformation* cli =
           this->GeneratorTarget->GetLinkInformation(config)) {
       for (auto const& dependency : cli->GetItems()) {

@@ -121,9 +121,14 @@ protected:
   void SelectDefaultSearchModes();
 
   /** The `InitialPass` functions of the child classes should set
-      this->DebugMode to the result of these.  */
+      this->FullDebugMode to the result of these.  */
   bool ComputeIfDebugModeWanted();
   bool ComputeIfDebugModeWanted(std::string const& var);
+
+  /** The `InitialPass` functions of the child classes should not initialize
+     `DebugState` if there is not a debug mode wanted and these return `true`.
+   */
+  bool ComputeIfImplicitDebugModeSuppressed();
 
   // Path arguments prior to path manipulation routines
   std::vector<std::string> UserHintsArgs;
@@ -136,6 +141,7 @@ protected:
   void AddPathSuffix(std::string const& arg);
 
   void DebugMessage(std::string const& msg) const;
+  bool FullDebugMode;
   std::unique_ptr<cmFindCommonDebugState> DebugState;
   bool NoDefaultPath;
   bool NoPackageRootPath;
@@ -184,6 +190,7 @@ protected:
   virtual void FoundAtImpl(std::string const& path, std::string regexName) = 0;
   virtual void FailedAtImpl(std::string const& path,
                             std::string regexName) = 0;
+  virtual bool ShouldImplicitlyLogEvents() const;
 
   virtual void WriteDebug() const = 0;
 #ifndef CMAKE_BOOTSTRAP

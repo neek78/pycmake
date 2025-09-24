@@ -91,6 +91,9 @@ private:
                                 Json::Value const& data,
                                 std::string const& package) const;
 
+  void AddTargetConfiguration(cmTarget* target,
+                              cm::string_view configuration) const;
+
   void SetTargetProperties(cmMakefile* makefile, cmTarget* target,
                            Json::Value const& data, std::string const& package,
                            cm::string_view configuration) const;
@@ -98,7 +101,8 @@ private:
                          cm::string_view configuration,
                          Json::Value const& value) const;
   void SetMetaProperty(cmTarget* target, cm::string_view property,
-                       Json::Value const& value) const;
+                       Json::Value const& value,
+                       std::string const& defaultValue = {}) const;
 
   std::string ResolvePath(std::string path) const;
 
@@ -108,4 +112,5 @@ private:
 
   std::map<std::string, cmTarget*> ComponentTargets;
   std::vector<std::string> DefaultConfigurations;
+  std::string DefaultLicense;
 };

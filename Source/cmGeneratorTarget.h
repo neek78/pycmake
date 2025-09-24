@@ -5,6 +5,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <set>
@@ -20,10 +21,18 @@
 #include "cmAlgorithms.h"
 #include "cmLinkItem.h"
 #include "cmListFileCache.h"
+#include "cmObjectLocation.h"
 #include "cmPolicies.h"
 #include "cmStandardLevel.h"
 #include "cmStateTypes.h"
 #include "cmValue.h"
+
+namespace cm {
+namespace GenEx {
+struct Context;
+struct Evaluation;
+}
+}
 
 class cmake;
 enum class cmBuildStep;
@@ -38,7 +47,6 @@ class cmSourceFile;
 struct cmSyntheticTargetCache;
 class cmTarget;
 
-struct cmGeneratorExpressionContext;
 struct cmGeneratorExpressionDAGChecker;
 
 class cmGeneratorTarget
@@ -298,9 +306,14 @@ public:
                                   cmStateEnums::RuntimeBinaryArtifact) const;
 
   /** Get the names of an object library's object files underneath
-      its object file directory.  */
+      its object file directory for the build.  */
   void GetTargetObjectNames(std::string const& config,
                             std::vector<std::string>& objects) const;
+  /** Get the build and install locations of objects for a given context. */
+  void GetTargetObjectLocations(
+    std::string const& config,
+    std::function<void(cmObjectLocation const&, cmObjectLocation const&)> cb)
+    const;
 
   /** What hierarchy level should the reported directory contain */
   enum BundleDirectoryLevel
@@ -566,6 +579,7 @@ public:
     std::string TargetPDB;
     std::string TargetCompilePDB;
     std::string ObjectDir;
+    std::string TargetSupportDir;
     std::string ObjectFileDir;
     std::string DependencyFile;
     std::string DependencyTarget;
@@ -692,6 +706,9 @@ public:
   std::vector<BT<std::string>> GetPrecompileHeaders(
     std::string const& config, std::string const& language) const;
 
+  void MarkAsPchReused() { this->PchReused = true; }
+  cmGeneratorTarget const* GetPchReuseTarget() const;
+  cmGeneratorTarget* GetPchReuseTarget();
   std::vector<std::string> GetPchArchs(std::string const& config,
                                        std::string const& lang) const;
   std::string GetPchHeader(std::string const& config,
@@ -834,7 +851,7 @@ public:
    */
   void ClearLinkInterfaceCache();
 
-  void AddSource(std::string const& src, bool before = false);
+  cmSourceFile* AddSource(std::string const& src, bool before = false);
   void AddTracedSources(std::vector<std::string> const& srcs);
 
   /**
@@ -933,8 +950,18 @@ public:
   /** Return whether or not the target has a DLL import library.  */
   bool HasImportLibrary(std::string const& config) const;
 
+  bool GetUseShortObjectNames(
+    cmStateEnums::IntermediateDirKind kind =
+      cmStateEnums::IntermediateDirKind::ObjectFiles) const;
+  cmObjectLocations::UseShortPath GetUseShortObjectNamesForInstall() const;
+
   /** Get a build-tree directory in which to place target support files.  */
-  std::string GetSupportDirectory() const;
+  std::string GetSupportDirectory(
+    cmStateEnums::IntermediateDirKind kind =
+      cmStateEnums::IntermediateDirKind::ObjectFiles) const;
+  std::string GetCMFSupportDirectory(
+    cmStateEnums::IntermediateDirKind kind =
+      cmStateEnums::IntermediateDirKind::ObjectFiles) const;
 
   /** Return whether this target may be used to link another target.  */
   bool IsLinkable() const;
@@ -985,7 +1012,7 @@ public:
   class TargetPropertyEntry;
 
   std::string EvaluateInterfaceProperty(
-    std::string const& prop, cmGeneratorExpressionContext* context,
+    std::string const& prop, cm::GenEx::Evaluation* eval,
     cmGeneratorExpressionDAGChecker* dagCheckerParent, UseTo usage) const;
 
   struct TransitiveProperty
@@ -1129,7 +1156,7 @@ private:
   using SourceEntriesType = std::map<cmSourceFile const*, SourceEntry>;
   SourceEntriesType SourceDepends;
   mutable std::set<std::string> VisitedConfigsForObjects;
-  mutable std::map<cmSourceFile const*, std::string> Objects;
+  mutable std::map<cmSourceFile const*, cmObjectLocations> Objects;
   std::set<cmSourceFile const*> ExplicitObjectName;
 
   using TargetPtrToBoolMap = std::unordered_map<cmTarget*, bool>;
@@ -1295,7 +1322,7 @@ private:
 
   mutable std::unordered_map<std::string, bool> MaybeInterfacePropertyExists;
   bool MaybeHaveInterfaceProperty(std::string const& prop,
-                                  cmGeneratorExpressionContext* context,
+                                  cm::GenEx::Evaluation* eval,
                                   UseTo usage) const;
 
   using TargetPropertyEntryVector =
@@ -1517,6 +1544,9 @@ private:
     std::map<cmSourceFile const*, ClassifiedFlags> SourceFlags;
   };
   mutable std::map<std::string, InfoByConfig> Configs;
+  bool PchReused = false;
+  mutable bool ComputingPchReuse = false;
+  mutable bool PchReuseCycleDetected = false;
 };
 
 class cmGeneratorTarget::TargetPropertyEntry
@@ -1537,10 +1567,8 @@ public:
     cmFileSet const* fileSet, cmLinkImplItem const& item = NoLinkImplItem);
 
   virtual std::string const& Evaluate(
-    cmLocalGenerator* lg, std::string const& config,
-    cmGeneratorTarget const* headTarget,
-    cmGeneratorExpressionDAGChecker* dagChecker,
-    std::string const& language) const = 0;
+    cm::GenEx::Context const& context, cmGeneratorTarget const* headTarget,
+    cmGeneratorExpressionDAGChecker* dagChecker) const = 0;
 
   virtual cmListFileBacktrace GetBacktrace() const = 0;
   virtual std::string const& GetInput() const = 0;

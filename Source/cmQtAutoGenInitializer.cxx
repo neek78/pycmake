@@ -31,6 +31,7 @@
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmEvaluatedTargetProperty.h"
+#include "cmGenExContext.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorExpressionDAGChecker.h"
@@ -325,8 +326,8 @@ cmQtAutoGen::ConfigStrings<std::vector<std::string>> generateListOptions(
 
 cmQtAutoGenInitializer::cmQtAutoGenInitializer(
   cmQtAutoGenGlobalInitializer* globalInitializer,
-  cmGeneratorTarget* genTarget, IntegerVersion const& qtVersion,
-  bool mocEnabled, bool uicEnabled, bool rccEnabled, bool globalAutogenTarget,
+  cmGeneratorTarget* genTarget, IntegerVersion qtVersion, bool mocEnabled,
+  bool uicEnabled, bool rccEnabled, bool globalAutogenTarget,
   bool globalAutoRccTarget)
   : GlobalInitializer(globalInitializer)
   , GenTarget(genTarget)
@@ -460,17 +461,31 @@ bool cmQtAutoGenInitializer::InitCustomTargets()
     // Collapsed current binary directory
     std::string const cbd = cmSystemTools::CollapseFullPath(
       std::string(), this->Makefile->GetCurrentBinaryDirectory());
+    std::string infoDir;
+    std::string buildDir;
+    auto idirkind = cmStateEnums::IntermediateDirKind::QtAutogenMetadata;
+    if (this->GenTarget->GetUseShortObjectNames(idirkind)) {
+      infoDir = cmSystemTools::CollapseFullPath(
+        std::string(),
+        cmStrCat(this->GenTarget->GetSupportDirectory(idirkind),
+                 "/autogen_info"));
+      buildDir = cmSystemTools::CollapseFullPath(
+        std::string(),
+        cmStrCat(this->GenTarget->GetSupportDirectory(idirkind), "/autogen"));
+    } else {
+      infoDir = cmStrCat(cbd, "/CMakeFiles/", this->GenTarget->GetName(),
+                         "_autogen.dir");
+      buildDir = cmStrCat(cbd, '/', this->GenTarget->GetName(), "_autogen");
+    }
 
     // Info directory
-    this->Dir.Info = cmStrCat(cbd, "/CMakeFiles/", this->GenTarget->GetName(),
-                              "_autogen.dir");
+    this->Dir.Info = infoDir;
     cmSystemTools::ConvertToUnixSlashes(this->Dir.Info);
 
     // Build directory
     this->Dir.Build = this->GenTarget->GetSafeProperty("AUTOGEN_BUILD_DIR");
     if (this->Dir.Build.empty()) {
-      this->Dir.Build =
-        cmStrCat(cbd, '/', this->GenTarget->GetName(), "_autogen");
+      this->Dir.Build = buildDir;
     }
     cmSystemTools::ConvertToUnixSlashes(this->Dir.Build);
     this->Dir.RelativeBuild =
@@ -723,33 +738,71 @@ bool cmQtAutoGenInitializer::InitMoc()
 
   // Moc includes
   {
-    SearchPathSanitizer const sanitizer(this->Makefile);
-    auto getDirs =
-      [this, &sanitizer](std::string const& cfg) -> std::vector<std::string> {
-      // Get the include dirs for this target, without stripping the implicit
-      // include dirs off, see issue #13667.
-      std::vector<std::string> dirs;
-      bool const appendImplicit = (this->QtVersion.Major >= 5);
-      this->LocalGen->GetIncludeDirectoriesImplicit(
-        dirs, this->GenTarget, "CXX", cfg, false, appendImplicit);
-      return sanitizer(dirs);
-    };
+    // If the property AUTOMOC_INCLUDE_DIRECTORIES is set on the target,
+    // use its value for moc include paths instead of gathering all
+    // include directories from the target.
+    cmValue autoIncDirs =
+      this->GenTarget->GetProperty("AUTOMOC_INCLUDE_DIRECTORIES");
+    if (autoIncDirs) {
+      cmListFileBacktrace lfbt = this->Makefile->GetBacktrace();
+      cmGeneratorExpression ge(*this->Makefile->GetCMakeInstance(), lfbt);
+      auto cge = ge.Parse(*autoIncDirs);
 
-    // Other configuration settings
-    if (this->MultiConfig) {
-      for (std::string const& cfg : this->ConfigsList) {
-        std::vector<std::string> dirs = getDirs(cfg);
-        if (dirs == this->Moc.Includes.Default) {
-          continue;
+      // Build a single list of configs to iterate, whether single or multi
+      std::vector<std::string> configs = this->MultiConfig
+        ? this->ConfigsList
+        : std::vector<std::string>{ this->ConfigDefault };
+
+      for (auto const& cfg : configs) {
+        std::string eval = cge->Evaluate(this->LocalGen, cfg);
+        std::vector<std::string> incList = cmList(eval);
+
+        // Validate absolute paths
+        for (auto const& path : incList) {
+          if (!cmGeneratorExpression::StartsWithGeneratorExpression(path) &&
+              !cmSystemTools::FileIsFullPath(path)) {
+            this->Makefile->IssueMessage(
+              MessageType::FATAL_ERROR,
+              cmStrCat("AUTOMOC_INCLUDE_DIRECTORIES: path '", path,
+                       "' is not absolute."));
+            return false;
+          }
         }
-        this->Moc.Includes.Config[cfg] = std::move(dirs);
+        if (this->MultiConfig) {
+          this->Moc.Includes.Config[cfg] = std::move(incList);
+        } else {
+          this->Moc.Includes.Default = std::move(incList);
+        }
       }
     } else {
-      // Default configuration include directories
-      this->Moc.Includes.Default = getDirs(this->ConfigDefault);
+      // Otherwise, discover include directories from the target for moc.
+      SearchPathSanitizer const sanitizer(this->Makefile);
+      auto getDirs = [this, &sanitizer](
+                       std::string const& cfg) -> std::vector<std::string> {
+        // Get the include dirs for this target, without stripping the implicit
+        // include dirs off, see issue #13667.
+        std::vector<std::string> dirs;
+        bool const appendImplicit = (this->QtVersion.Major >= 5);
+        this->LocalGen->GetIncludeDirectoriesImplicit(
+          dirs, this->GenTarget, "CXX", cfg, false, appendImplicit);
+        return sanitizer(dirs);
+      };
+
+      // Other configuration settings
+      if (this->MultiConfig) {
+        for (std::string const& cfg : this->ConfigsList) {
+          std::vector<std::string> dirs = getDirs(cfg);
+          if (dirs == this->Moc.Includes.Default) {
+            continue;
+          }
+          this->Moc.Includes.Config[cfg] = std::move(dirs);
+        }
+      } else {
+        // Default configuration include directories
+        this->Moc.Includes.Default = getDirs(this->ConfigDefault);
+      }
     }
   }
-
   // Moc compile definitions
   {
     auto getDefs = [this](std::string const& cfg) -> std::set<std::string> {
@@ -879,21 +932,24 @@ bool cmQtAutoGenInitializer::InitRcc()
 
   // Disable zstd if it is not supported
   {
-    std::string const qtFeatureZSTD = "QT_FEATURE_zstd";
-    if (this->GenTarget->Target->GetMakefile()->IsDefinitionSet(
-          qtFeatureZSTD)) {
-      auto const zstdDef =
-        this->GenTarget->Target->GetMakefile()->GetSafeDefinition(
-          qtFeatureZSTD);
-      auto const zstdVal = cmValue(zstdDef);
-      if (zstdVal.IsOff()) {
-        auto const& kw = this->GlobalInitializer->kw();
-        auto rccOptions = this->GenTarget->GetSafeProperty(kw.AUTORCC_OPTIONS);
-        std::string const nozstd = "--no-zstd";
-        if (rccOptions.find(nozstd) == std::string::npos) {
-          rccOptions.append(";" + nozstd + ";");
+    if (this->QtVersion.Major >= 6) {
+      std::string const qtFeatureZSTD = "QT_FEATURE_zstd";
+      if (this->GenTarget->Target->GetMakefile()->IsDefinitionSet(
+            qtFeatureZSTD)) {
+        auto const zstdDef =
+          this->GenTarget->Target->GetMakefile()->GetSafeDefinition(
+            qtFeatureZSTD);
+        auto const zstdVal = cmValue(zstdDef);
+        if (zstdVal.IsOff()) {
+          auto const& kw = this->GlobalInitializer->kw();
+          auto rccOptions =
+            this->GenTarget->GetSafeProperty(kw.AUTORCC_OPTIONS);
+          std::string const nozstd = "--no-zstd";
+          if (rccOptions.find(nozstd) == std::string::npos) {
+            rccOptions.append(";" + nozstd + ";");
+          }
+          this->GenTarget->Target->SetProperty(kw.AUTORCC_OPTIONS, rccOptions);
         }
-        this->GenTarget->Target->SetProperty(kw.AUTORCC_OPTIONS, rccOptions);
       }
     }
   }
@@ -1166,7 +1222,8 @@ bool cmQtAutoGenInitializer::InitScanFiles()
       this->Makefile->IssueMessage(
         MessageType::AUTHOR_WARNING,
         cmStrCat(
-          cmPolicies::GetPolicyWarning(cmPolicies::CMP0071), '\n',
+          cmPolicies::GetPolicyWarning(cmPolicies::CMP0071),
+          "\n"
           "For compatibility, CMake is excluding the GENERATED source "
           "file(s):\n",
           files, "from processing by ",
@@ -1197,9 +1254,10 @@ bool cmQtAutoGenInitializer::InitScanFiles()
     this->Makefile->IssueMessage(
       MessageType::AUTHOR_WARNING,
       cmStrCat(
-        cmPolicies::GetPolicyWarning(cmPolicies::CMP0100), '\n',
-        "For compatibility, CMake is excluding the header file(s):\n", files,
-        "from processing by ",
+        cmPolicies::GetPolicyWarning(cmPolicies::CMP0100),
+        "\n"
+        "For compatibility, CMake is excluding the header file(s):\n",
+        files, "from processing by ",
         cmQtAutoGen::Tools(this->Moc.Enabled, this->Uic.Enabled, false),
         ".  If any of the files should be processed, set CMP0100 to NEW.  "
         "If any of the files should not be processed, "
@@ -1233,7 +1291,7 @@ bool cmQtAutoGenInitializer::InitScanFiles()
       if (this->MultiConfig && !this->GlobalGen->IsXcode() &&
           this->UseBetterGraph) {
         qrc.OutputFile = cmStrCat(this->Dir.Build, '/', qrc.QrcPathChecksum,
-                                  "_$<CONFIG>", "/qrc_", qrc.QrcName, ".cpp");
+                                  "_$<CONFIG>/qrc_", qrc.QrcName, ".cpp");
       } else {
         qrc.OutputFile = cmStrCat(this->Dir.Build, '/', qrc.QrcPathChecksum,
                                   "/qrc_", qrc.QrcName, ".cpp");
@@ -1534,7 +1592,7 @@ bool cmQtAutoGenInitializer::InitAutogenTarget()
           cmStrCat(this->Dir.Build, "/deps_");
         std::string const timestampFileName =
           timestampFileWithoutConfig + configView;
-        outputFile = cmStrCat(this->Dir.Build, "/", timestampFileName);
+        outputFile = cmStrCat(this->Dir.Build, '/', timestampFileName);
         auto const depFileWithConfig =
           cmStrCat(depFileWithoutConfig, configView);
         depFile = depFileWithConfig;
@@ -1547,18 +1605,18 @@ bool cmQtAutoGenInitializer::InitAutogenTarget()
           auto tempDepFile = depFileWithoutConfig + config;
           outputFileWithConfig.Config[config] = tempTimestampFileName;
           this->AutogenTarget.DepFileRuleName.Config[config] =
-            cmStrCat(this->Dir.RelativeBuild, "/", tempTimestampFileName);
+            cmStrCat(this->Dir.RelativeBuild, '/', tempTimestampFileName);
           this->AutogenTarget.DepFile.Config[config] = tempDepFile;
         }
         this->AddGeneratedSource(outputFileWithConfig, this->Moc);
       } else {
         cm::string_view const timestampFileName = "timestamp";
-        outputFile = cmStrCat(this->Dir.Build, "/", timestampFileName);
+        outputFile = cmStrCat(this->Dir.Build, '/', timestampFileName);
         this->AutogenTarget.DepFile.Default =
           cmStrCat(this->Dir.Build, "/deps");
         depFile = this->AutogenTarget.DepFile.Default;
         this->AutogenTarget.DepFileRuleName.Default =
-          cmStrCat(this->Dir.RelativeBuild, "/", timestampFileName);
+          cmStrCat(this->Dir.RelativeBuild, '/', timestampFileName);
         commandLines.push_back(cmMakeCommandLine(
           { cmSystemTools::GetCMakeCommand(), "-E", "touch", outputFile }));
         this->AddGeneratedSource(outputFile, this->Moc);
@@ -1734,7 +1792,7 @@ bool cmQtAutoGenInitializer::InitRccTargets()
             auto resourceFilesWithConfig = cmStrCat(
               "$<$<CONFIG:", config,
               ">:", cmList{ qrc.Resources.Config.at(config) }.to_string(),
-              ">");
+              '>');
             ccDepends.emplace_back(std::move(resourceFilesWithConfig));
           }
         } else {
@@ -1920,25 +1978,24 @@ bool cmQtAutoGenInitializer::SetupWriteAutogenInfo()
     if (this->MultiConfig) {
       for (auto const& cfg : this->ConfigsList) {
         if (!cfg.empty()) {
+          cm::GenEx::Context context(this->LocalGen, cfg, "CXX");
           cmGeneratorExpressionDAGChecker dagChecker{
-            this->GenTarget, "AUTOMOC_MACRO_NAMES", nullptr,
-            nullptr,         this->LocalGen,        cfg,
+            this->GenTarget, "AUTOMOC_MACRO_NAMES", nullptr, nullptr, context,
           };
-          AddInterfaceEntries(this->GenTarget, cfg,
-                              "INTERFACE_AUTOMOC_MACRO_NAMES", "CXX",
-                              &dagChecker, InterfaceAutoMocMacroNamesEntries,
+          AddInterfaceEntries(this->GenTarget, "INTERFACE_AUTOMOC_MACRO_NAMES",
+                              context, &dagChecker,
+                              InterfaceAutoMocMacroNamesEntries,
                               IncludeRuntimeInterface::Yes);
         }
       }
     } else {
+      cm::GenEx::Context context(this->LocalGen, this->ConfigDefault, "CXX");
       cmGeneratorExpressionDAGChecker dagChecker{
-        this->GenTarget, "AUTOMOC_MACRO_NAMES", nullptr,
-        nullptr,         this->LocalGen,        this->ConfigDefault,
+        this->GenTarget, "AUTOMOC_MACRO_NAMES", nullptr, nullptr, context,
       };
-      AddInterfaceEntries(this->GenTarget, this->ConfigDefault,
-                          "INTERFACE_AUTOMOC_MACRO_NAMES", "CXX", &dagChecker,
-                          InterfaceAutoMocMacroNamesEntries,
-                          IncludeRuntimeInterface::Yes);
+      AddInterfaceEntries(
+        this->GenTarget, "INTERFACE_AUTOMOC_MACRO_NAMES", context, &dagChecker,
+        InterfaceAutoMocMacroNamesEntries, IncludeRuntimeInterface::Yes);
     }
 
     for (auto const& entry : InterfaceAutoMocMacroNamesEntries.Entries) {
@@ -2048,6 +2105,8 @@ cmSourceFile* cmQtAutoGenInitializer::RegisterGeneratedSource(
   std::string const& filename)
 {
   cmSourceFile* gFile = this->Makefile->GetOrCreateSource(filename, true);
+  gFile->SetSpecialSourceType(
+    cmSourceFile::SpecialSourceType::QtAutogenSource);
   gFile->MarkAsGenerated();
   gFile->SetProperty("SKIP_AUTOGEN", "1");
   gFile->SetProperty("SKIP_LINTING", "ON");

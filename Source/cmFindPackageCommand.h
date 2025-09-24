@@ -37,6 +37,7 @@ class cmExecutionStatus;
 class cmMakefile;
 class cmPackageState;
 class cmSearchPath;
+class cmPackageInformation;
 
 /** \class cmFindPackageCommand
  * \brief Load settings from an external project.
@@ -184,6 +185,7 @@ private:
   {
     None,
     Module,
+    // Do not implicitly log for prior package types.
     Config,
     Cps,
     Provider,
@@ -275,6 +277,7 @@ private:
   bool PolicyScope = true;
   bool GlobalScope = false;
   bool RegistryViewDefined = false;
+  bool ScopeUnwind = false;
   std::string LibraryArchitecture;
   std::vector<std::string> Names;
   std::set<std::string> IgnoredPaths;
@@ -284,6 +287,8 @@ private:
   std::set<std::string> OptionalComponents;
   std::set<std::string> RequiredTargets;
   std::string DebugBuffer;
+  cmPackageInformation* CurrentPackageInfo;
+
   enum class SearchResult
   {
     InsufficientVersion,
@@ -333,10 +338,10 @@ private:
 
   class FlushDebugBufferOnExit;
 
-  /*! the selected sortOrder (None by default)*/
-  SortOrderType SortOrder = None;
-  /*! the selected sortDirection (Asc by default)*/
-  SortDirectionType SortDirection = Asc;
+  /*! the selected sortOrder (Natural by default)*/
+  SortOrderType SortOrder = Natural;
+  /*! the selected sortDirection (Dec by default)*/
+  SortDirectionType SortDirection = Dec;
 
   struct ConfigFileInfo
   {
@@ -365,6 +370,15 @@ private:
 
   friend struct std::hash<ConfigFileInfo>;
   friend class cmFindPackageDebugState;
+
+  enum class FindState
+  {
+    Undefined,
+    Irrelevant,
+    Found,
+    NotFound,
+  };
+  FindState InitialState = FindState::Undefined;
 };
 
 namespace std {
@@ -395,6 +409,7 @@ public:
 private:
   void FoundAtImpl(std::string const& path, std::string regexName) override;
   void FailedAtImpl(std::string const& path, std::string regexName) override;
+  bool ShouldImplicitlyLogEvents() const override;
 
   void WriteDebug() const override;
 #ifndef CMAKE_BOOTSTRAP

@@ -34,10 +34,10 @@ For example:
 
 .. code-block:: cmake
 
-  cmake_minimum_required(VERSION 3.10...4.0)
+  cmake_minimum_required(VERSION 3.10...4.1)
 
 This uses the ``<min>...<max>`` syntax to enable the ``NEW`` behaviors
-of policies introduced in CMake 4.0 and earlier while only requiring a
+of policies introduced in CMake 4.1 and earlier while only requiring a
 minimum version of CMake 3.10.  The project is expected to work with
 both the ``OLD`` and ``NEW`` behaviors of policies introduced between
 those versions.
@@ -92,12 +92,26 @@ Supported Policies
 
 The following policies are supported.
 
+Policies Introduced by CMake 4.2
+--------------------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   CMP0201: The Python::NumPy target does not depend on the Python::Module target. </policy/CMP0201>
+   CMP0200: Location and configuration selection for imported targets is more consistent. </policy/CMP0200>
+   CMP0199: $<CONFIG> only matches the configuration of the consumed target. </policy/CMP0199>
+   CMP0198: CMAKE_PARENT_LIST_FILE is not defined in CMakeLists.txt. </policy/CMP0198>
+
 Policies Introduced by CMake 4.1
 --------------------------------
 
 .. toctree::
    :maxdepth: 1
 
+   CMP0197: MSVC link -machine: flag is not in CMAKE_*_LINKER_FLAGS. </policy/CMP0197>
+   CMP0196: The CMakeDetermineVSServicePack module is removed. </policy/CMP0196>
+   CMP0195: Swift modules in build trees use the Swift module directory structure. </policy/CMP0195>
    CMP0194: MSVC is not an assembler for language ASM. </policy/CMP0194>
    CMP0193: GNUInstallDirs caches CMAKE_INSTALL_* with leading 'usr/' for install prefix '/'. </policy/CMP0193>
    CMP0192: GNUInstallDirs uses absolute SYSCONFDIR, LOCALSTATEDIR, and RUNSTATEDIR in special prefixes. </policy/CMP0192>

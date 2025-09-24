@@ -101,6 +101,13 @@ void SetVT100Attrs(std::ostream& os, TermAttrSet const& attrs)
 }
 
 auto const TermEnv = []() -> cm::optional<TermKind> {
+  /* Disable color according to https://bixense.com/clicolors/ convention. */
+  if (cm::optional<std::string> noColor =
+        cmSystemTools::GetEnvVar("NO_COLOR")) {
+    if (!noColor->empty() && *noColor != "0"_s) {
+      return TermKind::None;
+    }
+  }
   /* Force color according to https://bixense.com/clicolors/ convention.  */
   if (cm::optional<std::string> cliColorForce =
         cmSystemTools::GetEnvVar("CLICOLOR_FORCE")) {
@@ -134,9 +141,13 @@ void Print(OStream& os, TermAttrSet const& attrs,
       f(os.IOS());
       break;
     case TermKind::VT100:
-      SetVT100Attrs(os.IOS(), attrs);
-      f(os.IOS());
-      SetVT100Attrs(os.IOS(), TermAttr::Normal);
+      if (!attrs.empty()) {
+        SetVT100Attrs(os.IOS(), attrs);
+        f(os.IOS());
+        SetVT100Attrs(os.IOS(), TermAttr::Normal);
+      } else {
+        f(os.IOS());
+      }
       break;
 #ifdef _WIN32
     case TermKind::Console: {

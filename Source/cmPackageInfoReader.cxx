@@ -2,11 +2,13 @@
    file LICENSE.rst or https://cmake.org/licensing for details.  */
 #include "cmPackageInfoReader.h"
 
+#include <algorithm>
 #include <initializer_list>
 #include <limits>
 #include <unordered_map>
 #include <utility>
 
+#include <cmext/algorithm>
 #include <cmext/string_view>
 
 #include <cm3p/json/reader.h>
@@ -17,12 +19,14 @@
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmExecutionStatus.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
+#include "cmValue.h"
 
 namespace {
 
@@ -180,7 +184,7 @@ std::string DeterminePrefix(std::string const& filepath,
 }
 
 // Extract key name from value iterator as string_view.
-cm::string_view IterKey(Json::Value::const_iterator const& iter)
+cm::string_view IterKey(Json::Value::const_iterator iter)
 {
   char const* end;
   char const* const start = iter.memberName(&end);
@@ -227,15 +231,14 @@ void AppendProperty(cmMakefile* makefile, cmTarget* target,
                     cm::string_view property, cm::string_view configuration,
                     std::string const& value)
 {
-  std::string fullprop;
-  if (configuration.empty()) {
-    fullprop = cmStrCat("INTERFACE_"_s, property);
+  std::string const fullprop = cmStrCat("INTERFACE_", property);
+  if (!configuration.empty()) {
+    std::string const genexValue =
+      cmStrCat("$<$<CONFIG:", configuration, ">:", value, '>');
+    target->AppendProperty(fullprop, genexValue, makefile->GetBacktrace());
   } else {
-    fullprop = cmStrCat("INTERFACE_"_s, property, '_',
-                        cmSystemTools::UpperCase(configuration));
+    target->AppendProperty(fullprop, value, makefile->GetBacktrace());
   }
-
-  target->AppendProperty(fullprop, value, makefile->GetBacktrace());
 }
 
 template <typename Transform>
@@ -479,6 +482,14 @@ std::unique_ptr<cmPackageInfoReader> cmPackageInfoReader::Read(
     }
   }
 
+  // Check for a default license.
+  Json::Value const& defaultLicense = reader->Data["default_license"];
+  if (!defaultLicense.isNull()) {
+    reader->DefaultLicense = defaultLicense.asString();
+  } else if (parent) {
+    reader->DefaultLicense = parent->DefaultLicense;
+  }
+
   return reader;
 }
 
@@ -564,6 +575,49 @@ std::string cmPackageInfoReader::ResolvePath(std::string path) const
   return path;
 }
 
+void cmPackageInfoReader::AddTargetConfiguration(
+  cmTarget* target, cm::string_view configuration) const
+{
+  static std::string const icProp = "IMPORTED_CONFIGURATIONS";
+
+  std::string const& configUpper = cmSystemTools::UpperCase(configuration);
+
+  // Get existing list of imported configurations.
+  cmList configs;
+  if (cmValue v = target->GetProperty(icProp)) {
+    configs.assign(cmSystemTools::UpperCase(*v));
+  } else {
+    // If the existing list is empty, just add the new one and return.
+    target->SetProperty(icProp, configUpper);
+    return;
+  }
+
+  if (cm::contains(configs, configUpper)) {
+    // If the configuration is already listed, we don't need to do anything.
+    return;
+  }
+
+  // Add the new configuration.
+  configs.append(configUpper);
+
+  // Rebuild the configuration list by extracting any configuration in the
+  // default configurations and reinserting it at the beginning of the list
+  // according to the order of the default configurations.
+  std::vector<std::string> newConfigs;
+  for (std::string const& c : this->DefaultConfigurations) {
+    auto ci = std::find(configs.begin(), configs.end(), c);
+    if (ci != configs.end()) {
+      newConfigs.emplace_back(std::move(*ci));
+      configs.erase(ci);
+    }
+  }
+  for (std::string& c : configs) {
+    newConfigs.emplace_back(std::move(c));
+  }
+
+  target->SetProperty("IMPORTED_CONFIGURATIONS", cmJoin(newConfigs, ";"_s));
+}
+
 void cmPackageInfoReader::SetImportProperty(cmTarget* target,
                                             cm::string_view property,
                                             cm::string_view configuration,
@@ -582,12 +636,14 @@ void cmPackageInfoReader::SetImportProperty(cmTarget* target,
   }
 }
 
-void cmPackageInfoReader::SetMetaProperty(cmTarget* target,
-                                          cm::string_view property,
-                                          Json::Value const& value) const
+void cmPackageInfoReader::SetMetaProperty(
+  cmTarget* target, cm::string_view property, Json::Value const& value,
+  std::string const& defaultValue) const
 {
   if (!value.isNull()) {
     target->SetProperty(property.data(), value.asString());
+  } else if (!defaultValue.empty()) {
+    target->SetProperty(property.data(), defaultValue);
   }
 }
 
@@ -597,9 +653,7 @@ void cmPackageInfoReader::SetTargetProperties(
 {
   // Add configuration (if applicable).
   if (!configuration.empty()) {
-    target->AppendProperty("IMPORTED_CONFIGURATIONS",
-                           cmSystemTools::UpperCase(configuration),
-                           makefile->GetBacktrace());
+    this->AddTargetConfiguration(target, configuration);
   }
 
   // Add compile and link features.
@@ -671,7 +725,8 @@ void cmPackageInfoReader::SetTargetProperties(
 
   // Add other information.
   if (configuration.empty()) {
-    this->SetMetaProperty(target, "SPDX_LICENSE"_s, data["license"]);
+    this->SetMetaProperty(target, "SPDX_LICENSE"_s, data["license"],
+                          this->DefaultLicense);
   }
 }
 
@@ -681,12 +736,7 @@ cmTarget* cmPackageInfoReader::AddLibraryComponent(
 {
   // Create the imported target.
   cmTarget* const target = makefile->AddImportedTarget(name, type, false);
-
-  // Set default configurations.
-  if (!this->DefaultConfigurations.empty()) {
-    target->SetProperty("IMPORTED_CONFIGURATIONS",
-                        cmJoin(this->DefaultConfigurations, ";"_s));
-  }
+  target->SetOrigin(cmTarget::Origin::Cps);
 
   // Set target properties.
   this->SetTargetProperties(makefile, target, data, package, {});
@@ -707,7 +757,7 @@ bool cmPackageInfoReader::ImportTargets(cmMakefile* makefile,
   Json::Value const& components = this->Data["components"];
 
   for (auto ci = components.begin(), ce = components.end(); ci != ce; ++ci) {
-    cm::string_view const& name = IterKey(ci);
+    cm::string_view const name = IterKey(ci);
     std::string const& type =
       cmSystemTools::LowerCase((*ci)["type"].asString());
 
@@ -786,7 +836,7 @@ bool cmPackageInfoReader::ImportTargetConfigurations(
 
   for (auto ci = components.begin(), ce = components.end(); ci != ce; ++ci) {
     // Get component name and look up target.
-    cm::string_view const& name = IterKey(ci);
+    cm::string_view const name = IterKey(ci);
     auto const& ti = this->ComponentTargets.find(std::string{ name });
     if (ti == this->ComponentTargets.end()) {
       status.SetError(cmStrCat("component "_s, name, " was not found"_s));

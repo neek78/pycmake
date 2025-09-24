@@ -204,6 +204,12 @@ void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
     objectDir = this->LocalGenerator->ConvertToOutputFormat(
       this->LocalGenerator->MaybeRelativeToCurBinDir(objectDir),
       cmOutputConverter::SHELL);
+    std::string targetSupportDir =
+      this->GeneratorTarget->GetCMFSupportDirectory();
+
+    targetSupportDir = this->LocalGenerator->ConvertToOutputFormat(
+      this->LocalGenerator->MaybeRelativeToTopBinDir(targetSupportDir),
+      cmOutputConverter::SHELL);
 
     std::string target = this->LocalGenerator->ConvertToOutputFormat(
       this->LocalGenerator->MaybeRelativeToCurBinDir(targetOutput),
@@ -219,6 +225,7 @@ void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
     vars.Objects = buildObjs.c_str();
     vars.ObjectDir = objectDir.c_str();
     vars.Target = target.c_str();
+    vars.TargetSupportDir = targetSupportDir.c_str();
     vars.LinkLibraries = linkLibs.c_str();
     vars.LanguageCompileFlags = langFlags.c_str();
     vars.LinkFlags = linkFlags.c_str();
@@ -234,8 +241,7 @@ void cmMakefileExecutableTargetGenerator::WriteNvidiaDeviceExecutableRule(
     }
 
     auto rulePlaceholderExpander =
-      this->LocalGenerator->CreateRulePlaceholderExpander(
-        cmBuildStep::Link, this->GeneratorTarget, linkLanguage);
+      this->LocalGenerator->CreateRulePlaceholderExpander(cmBuildStep::Link);
 
     // Expand placeholders in the commands.
     rulePlaceholderExpander->SetTargetImpLib(targetOutput);
@@ -371,6 +377,8 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
   std::string linkFlags;
 
   // Add flags to create an executable.
+  this->LocalGenerator->AppendTargetCreationLinkFlags(
+    linkFlags, this->GeneratorTarget, linkLanguage);
   this->LocalGenerator->AddConfigVariableFlags(
     linkFlags, "CMAKE_EXE_LINKER_FLAGS", this->GeneratorTarget,
     cmBuildStep::Link, linkLanguage, this->GetConfigName());
@@ -421,7 +429,7 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
 
     this->LocalGenerator->AppendModuleDefinitionFlag(
       linkFlags, this->GeneratorTarget, linkLineComputer.get(),
-      this->GetConfigName());
+      this->GetConfigName(), linkLanguage);
   }
 
   this->LocalGenerator->AppendIPOLinkerFlags(
@@ -549,6 +557,13 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
       this->LocalGenerator->MaybeRelativeToCurBinDir(objectDir),
       cmOutputConverter::SHELL);
     vars.ObjectDir = objectDir.c_str();
+    std::string targetSupportDir =
+      this->GeneratorTarget->GetCMFSupportDirectory();
+
+    targetSupportDir = this->LocalGenerator->ConvertToOutputFormat(
+      this->LocalGenerator->MaybeRelativeToTopBinDir(targetSupportDir),
+      cmOutputConverter::SHELL);
+    vars.TargetSupportDir = targetSupportDir.c_str();
     std::string target = this->LocalGenerator->ConvertToOutputFormat(
       this->LocalGenerator->MaybeRelativeToCurBinDir(targetFullPathReal),
       cmOutputConverter::SHELL, useWatcomQuote);
@@ -608,8 +623,7 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
     }
 
     auto rulePlaceholderExpander =
-      this->LocalGenerator->CreateRulePlaceholderExpander(
-        cmBuildStep::Link, this->GeneratorTarget, linkLanguage);
+      this->LocalGenerator->CreateRulePlaceholderExpander(cmBuildStep::Link);
 
     // Expand placeholders in the commands.
     rulePlaceholderExpander->SetTargetImpLib(targetOutPathImport);

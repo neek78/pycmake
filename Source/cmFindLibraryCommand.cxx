@@ -44,7 +44,8 @@ bool cmFindLibraryCommand::InitialPass(std::vector<std::string> const& argsIn)
     return false;
   }
 
-  if (this->ComputeIfDebugModeWanted(this->VariableName)) {
+  this->FullDebugMode = this->ComputeIfDebugModeWanted(this->VariableName);
+  if (this->FullDebugMode || !this->ComputeIfImplicitDebugModeSuppressed()) {
     this->DebugState = cm::make_unique<cmFindBaseDebugState>(this);
   }
 
@@ -93,7 +94,7 @@ void cmFindLibraryCommand::AddArchitecturePaths(char const* suffix)
       std::string msg = cmStrCat(
         "find_library(", this->VariableName, ") removed original suffix ", o,
         " from PATH_SUFFIXES while adding architecture paths for suffix '",
-        suffix, "'");
+        suffix, '\'');
       this->DebugMessage(msg);
     }
   }
@@ -160,7 +161,7 @@ void cmFindLibraryCommand::AddArchitecturePath(
       if (this->DebugModeEnabled()) {
         std::string msg = cmStrCat(
           "find_library(", this->VariableName, ") added replacement path ",
-          dirX, " to PATH_SUFFIXES for architecture suffix '", suffix, "'");
+          dirX, " to PATH_SUFFIXES for architecture suffix '", suffix, '\'');
         this->DebugMessage(msg);
       }
       this->SearchPaths.push_back(std::move(dirX));
@@ -171,7 +172,7 @@ void cmFindLibraryCommand::AddArchitecturePath(
       if (this->DebugModeEnabled()) {
         std::string msg = cmStrCat(
           "find_library(", this->VariableName, ") added replacement path ",
-          dir, " to PATH_SUFFIXES for architecture suffix '", suffix, "'");
+          dir, " to PATH_SUFFIXES for architecture suffix '", suffix, '\'');
         this->DebugMessage(msg);
       }
     }

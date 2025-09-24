@@ -8,6 +8,13 @@ run_cmake(ConfigureLog)
 # Two tests because the stderr regex otherwise takes way too long to load.
 run_cmake(ConfigureLogParameters1)
 run_cmake(ConfigureLogParameters2)
+run_cmake(ConfigureLogTransitionsConfig) # with `CONFIG`
+run_cmake(ConfigureLogTransitionsConfigSuppressed)
+run_cmake(ConfigureLogTransitionsConfig2) # without `CONFIG`, finding config
+run_cmake(ConfigureLogTransitionsConfig2Suppressed)
+run_cmake(ConfigureLogTransitionsModule) # with `MODULE`
+run_cmake(ConfigureLogTransitionsModule2) # without `MODULE`, finding module
+run_cmake(ConfigureLogTransitionsModule2Suppressed)
 run_cmake(EmptyRoots)
 run_cmake(FromPATHEnv)
 run_cmake_with_options(FromPATHEnvDebugPkg --debug-find-pkg=Resolved)
@@ -41,6 +48,14 @@ run_cmake(RequiredVarOptional)
 run_cmake(RequiredVarNested)
 run_cmake(FindRootPathAndPrefixPathAreEqual)
 run_cmake(SetFoundFALSE)
+run_cmake(UnwindIncludeBlock)
+run_cmake(UnwindIncludeFunction)
+run_cmake(UnwindIncludeInvalidContext)
+run_cmake(UnwindIncludeInvalidFindPackage)
+run_cmake(UnwindIncludeInvalidInclude)
+run_cmake(UnwindIncludeNoUnwind)
+run_cmake(UnwindIncludeOnly)
+run_cmake(UnwindIncludeSecondary)
 run_cmake(WrongVersion)
 run_cmake(WrongVersionConfig)
 run_cmake(CMP0084-OLD)

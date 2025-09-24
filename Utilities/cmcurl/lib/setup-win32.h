@@ -30,10 +30,10 @@
 /* ---------------------------------------------------------------- */
 #ifdef USE_WATT32
 #  include <tcp.h>
+#  include <sys/socket.h>
 #  undef byte
 #  undef word
 #  define HAVE_SYS_IOCTL_H
-#  define HAVE_SYS_SOCKET_H
 #  define HAVE_NETINET_IN_H
 #  define HAVE_NETDB_H
 #  define HAVE_ARPA_INET_H
@@ -82,9 +82,6 @@
 #  include <windows.h>
 #  include <winerror.h>
 #  include <tchar.h>
-#  ifdef UNICODE
-     typedef wchar_t *(*curl_wcsdup_callback)(const wchar_t *str);
-#  endif
 #endif
 
 /*
@@ -93,12 +90,6 @@
  * newer symbols.
  */
 
-#ifndef _WIN32_WINNT_NT4
-#define _WIN32_WINNT_NT4            0x0400   /* Windows NT 4.0 */
-#endif
-#ifndef _WIN32_WINNT_WIN2K
-#define _WIN32_WINNT_WIN2K          0x0500   /* Windows 2000 */
-#endif
 #ifndef _WIN32_WINNT_WINXP
 #define _WIN32_WINNT_WINXP          0x0501   /* Windows XP */
 #endif

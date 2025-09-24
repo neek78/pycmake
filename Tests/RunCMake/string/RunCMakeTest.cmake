@@ -6,6 +6,7 @@ run_cmake(JSONNoJson)
 run_cmake(JSONWrongMode)
 run_cmake(JSONOneArg)
 run_cmake(JSONNoArgs)
+run_cmake(JSONBadJson)
 
 run_cmake(Append)
 run_cmake(AppendNoArgs)
@@ -23,9 +24,7 @@ run_cmake(JoinNoVar)
 run_cmake(Timestamp)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "AIX" # FIXME: Needs 64-bit build
     AND NOT CMAKE_SYSTEM_NAME STREQUAL "SunOS" # FIXME: Needs 64-bit build
-    AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
-    CMAKE_SYSTEM_PROCESSOR MATCHES "^(hppa|parisc|parisc64|sparc|sparc64)$" # FIXME: 32-bit time_t?
-             )
+    AND NOT CMake_TEST_NO_64BIT_TIME
     )
   run_cmake(Timestamp2038)
 endif()
@@ -58,3 +57,5 @@ run_cmake(RepeatNegativeCount)
 run_cmake(Hex)
 run_cmake(HexTooManyArgs)
 run_cmake(HexNotEnoughArgs)
+
+run_cmake(GenexpStrip)

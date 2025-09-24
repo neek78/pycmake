@@ -32,6 +32,7 @@ Environment Variables that Change Behavior
    /envvar/CMAKE_PROGRAM_PATH
    /envvar/CMAKE_TLS_VERIFY
    /envvar/CMAKE_TLS_VERSION
+   /envvar/NO_COLOR
    /envvar/SSL_CERT_DIR
    /envvar/SSL_CERT_FILE
 
@@ -43,6 +44,7 @@ Environment Variables that Control the Build
 
    /envvar/ADSP_ROOT
    /envvar/CMAKE_APPLE_SILICON_PROCESSOR
+   /envvar/CMAKE_AUTOGEN_INTERMEDIATE_DIR_STRATEGY
    /envvar/CMAKE_BUILD_PARALLEL_LEVEL
    /envvar/CMAKE_BUILD_TYPE
    /envvar/CMAKE_COLOR_DIAGNOSTICS
@@ -52,6 +54,7 @@ Environment Variables that Control the Build
    /envvar/CMAKE_CROSSCOMPILING_EMULATOR
    /envvar/CMAKE_EXPORT_BUILD_DATABASE
    /envvar/CMAKE_EXPORT_COMPILE_COMMANDS
+   /envvar/CMAKE_FASTBUILD_VERBOSE_GENERATOR
    /envvar/CMAKE_GENERATOR
    /envvar/CMAKE_GENERATOR_INSTANCE
    /envvar/CMAKE_GENERATOR_PLATFORM
@@ -64,6 +67,7 @@ Environment Variables that Control the Build
    /envvar/CMAKE_LANG_IMPLICIT_LINK_LIBRARIES_EXCLUDE
    /envvar/CMAKE_LANG_LINKER_LAUNCHER
    /envvar/CMAKE_MSVCIDE_RUN_PATH
+   /envvar/CMAKE_INTERMEDIATE_DIR_STRATEGY
    /envvar/CMAKE_NO_VERBOSE
    /envvar/CMAKE_OSX_ARCHITECTURES
    /envvar/CMAKE_TEST_LAUNCHER

@@ -412,14 +412,9 @@ std::string cmNinjaTargetGenerator::GetCompiledSourceNinjaPath(
 std::string cmNinjaTargetGenerator::GetObjectFileDir(
   std::string const& config) const
 {
-  std::string path = this->LocalGenerator->GetHomeRelativeOutputPath();
-  if (!path.empty()) {
-    path += '/';
-  }
-  path +=
-    cmStrCat(this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-             this->GetGlobalGenerator()->ConfigDirectory(config));
-  return path;
+  return this->LocalGenerator->MaybeRelativeToTopBinDir(
+    cmStrCat(this->GeneratorTarget->GetSupportDirectory(),
+             this->GetGlobalGenerator()->GetConfigDirectory(config)));
 }
 
 std::string cmNinjaTargetGenerator::GetObjectFilePath(
@@ -450,18 +445,11 @@ std::string cmNinjaTargetGenerator::GetClangTidyReplacementsFilePath(
   std::string const& directory, cmSourceFile const& source,
   std::string const& config) const
 {
-  auto path = this->LocalGenerator->GetHomeRelativeOutputPath();
-  if (!path.empty()) {
-    path += '/';
-  }
-  path = cmStrCat(directory, '/', path);
   auto const& objectName = this->GeneratorTarget->GetObjectName(&source);
-  path =
-    cmStrCat(std::move(path),
-             this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-             this->GetGlobalGenerator()->ConfigDirectory(config), '/',
-             objectName, ".yaml");
-  return path;
+  return cmStrCat(directory, '/',
+                  this->LocalGenerator->CreateSafeObjectFileName(
+                    this->GetObjectFileDir(config)),
+                  '/', objectName, ".yaml");
 }
 
 std::string cmNinjaTargetGenerator::GetPreprocessedFilePath(
@@ -490,38 +478,21 @@ std::string cmNinjaTargetGenerator::GetPreprocessedFilePath(
   std::string const ppName =
     cmStrCat(objName.substr(0, objName.size() - objExt.size()), "-pp.", ppExt);
 
-  std::string path = this->LocalGenerator->GetHomeRelativeOutputPath();
-  if (!path.empty()) {
-    path += '/';
-  }
-  path +=
-    cmStrCat(this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-             this->GetGlobalGenerator()->ConfigDirectory(config), '/', ppName);
-  return path;
+  return cmStrCat(this->GetObjectFileDir(config), '/', ppName);
 }
 
 std::string cmNinjaTargetGenerator::GetDyndepFilePath(
   std::string const& lang, std::string const& config) const
 {
-  std::string path = this->LocalGenerator->GetHomeRelativeOutputPath();
-  if (!path.empty()) {
-    path += '/';
-  }
-  path += cmStrCat(
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-    this->GetGlobalGenerator()->ConfigDirectory(config), '/', lang, ".dd");
-  return path;
+  return cmStrCat(this->GetObjectFileDir(config), '/', lang, ".dd");
 }
 
 std::string cmNinjaTargetGenerator::GetTargetDependInfoPath(
   std::string const& lang, std::string const& config) const
 {
-  std::string path =
-    cmStrCat(this->Makefile->GetCurrentBinaryDirectory(), '/',
-             this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-             this->GetGlobalGenerator()->ConfigDirectory(config), '/', lang,
-             "DependInfo.json");
-  return path;
+  return cmStrCat(this->GeneratorTarget->GetSupportDirectory(),
+                  this->GetGlobalGenerator()->ConfigDirectory(config), '/',
+                  lang, "DependInfo.json");
 }
 
 std::string cmNinjaTargetGenerator::GetTargetOutputDir(
@@ -594,8 +565,10 @@ std::string GetScanCommand(
   cm::optional<cm::string_view> srcOrigFile = cm::nullopt)
 {
   return cmStrCat(cmakeCmd, " -E cmake_ninja_depends --tdi=", tdi,
-                  " --lang=", lang, " --src=", srcFile, " --out=$out",
-                  " --dep=$DEP_FILE --obj=$OBJ_FILE --ddi=", ddiFile,
+                  " --lang=", lang, " --src=", srcFile,
+                  " --out=$out"
+                  " --dep=$DEP_FILE --obj=$OBJ_FILE --ddi=",
+                  ddiFile,
                   srcOrigFile ? cmStrCat(" --src-orig=", *srcOrigFile) : "");
 }
 
@@ -693,6 +666,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
   vars.TargetPDB = "$TARGET_PDB";
   vars.TargetCompilePDB = "$TARGET_COMPILE_PDB";
   vars.ObjectDir = "$OBJECT_DIR";
+  vars.TargetSupportDir = "$TARGET_SUPPORT_DIR";
   vars.ObjectFileDir = "$OBJECT_FILE_DIR";
   vars.CudaCompileMode = "$CUDA_COMPILE_MODE";
   vars.ISPCHeader = "$ISPC_HEADER_FILE";
@@ -928,7 +902,7 @@ void cmNinjaTargetGenerator::WriteCompileRule(std::string const& lang,
           "CUDA_SEPARABLE_COMPILATION")) {
       std::string const& rdcFlag =
         this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_RDC_FLAG");
-      cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, " ");
+      cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, ' ');
     }
     static std::array<cm::string_view, 4> const compileModes{
       { "PTX"_s, "CUBIN"_s, "FATBIN"_s, "OPTIX"_s }
@@ -1127,9 +1101,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
         tgtDir = ".";
       } else {
         // Any path that always exists will work here.
-        tgtDir = cmStrCat(
-          this->LocalGenerator->GetCurrentBinaryDirectory(), '/',
-          this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget));
+        tgtDir = this->GetObjectFileDir(config);
       }
       orderOnlyDeps.push_back(this->ConvertToNinjaPath(tgtDir));
     }
@@ -1231,10 +1203,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
     cmNinjaBuild build(this->LanguageDyndepRule(language, config));
     build.Outputs.push_back(this->GetDyndepFilePath(language, config));
     build.ImplicitOuts.emplace_back(
-      cmStrCat(this->Makefile->GetCurrentBinaryDirectory(), '/',
-               this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-               this->GetGlobalGenerator()->ConfigDirectory(config), '/',
-               language, "Modules.json"));
+      cmStrCat(this->GetObjectFileDir(config), '/', language, "Modules.json"));
     build.ImplicitDeps.emplace_back(
       this->GetTargetDependInfoPath(language, config));
     {
@@ -1267,11 +1236,11 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatements(
       this->GetLinkedTargetDirectories(language, config);
     for (std::string const& l : linked_directories.Direct) {
       build.ImplicitDeps.emplace_back(
-        cmStrCat(l, '/', language, "Modules.json"));
+        this->ConvertToNinjaPath(cmStrCat(l, '/', language, "Modules.json")));
     }
     for (std::string const& l : linked_directories.Forward) {
       build.ImplicitDeps.emplace_back(
-        cmStrCat(l, '/', language, "Modules.json"));
+        this->ConvertToNinjaPath(cmStrCat(l, '/', language, "Modules.json")));
     }
 
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
@@ -1299,7 +1268,8 @@ void cmNinjaTargetGenerator::GenerateSwiftOutputFileMap(
   }();
 
   std::string mapFilePath =
-    cmStrCat(this->GeneratorTarget->GetSupportDirectory(), '/', config, '/',
+    cmStrCat(this->GeneratorTarget->GetSupportDirectory(), '/', config,
+             "/"
              "output-file-map.json");
 
   // build the global target dependencies
@@ -1408,9 +1378,10 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 {
   std::string const language = source->GetLanguage();
   std::string const sourceFilePath = this->GetCompiledSourceNinjaPath(source);
-  std::string const objectDir = this->ConvertToNinjaPath(
-    cmStrCat(this->GeneratorTarget->GetSupportDirectory(),
-             this->GetGlobalGenerator()->ConfigDirectory(config)));
+  std::string const targetSupportDir =
+    this->ConvertToNinjaPath(this->GeneratorTarget->GetCMFSupportDirectory());
+  std::string const objectDir =
+    this->ConvertToNinjaPath(this->GetObjectFileDir(config));
   std::string const objectFileName =
     this->ConvertToNinjaPath(this->GetObjectFilePath(source, config));
   std::string const objectFileDir =
@@ -1443,11 +1414,21 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
   vars["DEFINES"] = this->ComputeDefines(source, language, config);
   vars["INCLUDES"] = this->ComputeIncludes(source, language, config);
   vars["CONFIG"] = config;
+  if (this->GetGeneratorTarget()->GetUseShortObjectNames()) {
+    vars.emplace(
+      "description",
+      cmStrCat("Compiling object ", objectFileName, " from source ",
+               this->GetLocalGenerator()->GetRelativeSourceFileName(*source)));
+  }
 
   auto compilerLauncher = this->GetCompilerLauncher(language, config);
 
-  cmValue const skipCodeCheck = source->GetProperty("SKIP_LINTING");
-  if (!skipCodeCheck.IsOn()) {
+  cmValue const srcSkipCodeCheckVal = source->GetProperty("SKIP_LINTING");
+  bool const skipCodeCheck = srcSkipCodeCheckVal.IsSet()
+    ? srcSkipCodeCheckVal.IsOn()
+    : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING");
+
+  if (!skipCodeCheck) {
     auto const cmakeCmd = this->GetLocalGenerator()->ConvertToOutputFormat(
       cmSystemTools::GetCMakeCommand(), cmLocalGenerator::SHELL);
     vars["CODE_CHECK"] =
@@ -1492,8 +1473,8 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
   if (firstForConfig) {
     this->ExportObjectCompileCommand(
-      language, sourceFilePath, objectDir, objectFileName, objectFileDir,
-      vars["FLAGS"], vars["DEFINES"], vars["INCLUDES"],
+      language, sourceFilePath, objectDir, targetSupportDir, objectFileName,
+      objectFileDir, vars["FLAGS"], vars["DEFINES"], vars["INCLUDES"],
       vars["TARGET_COMPILE_PDB"], vars["TARGET_PDB"], config, withScanning);
   }
 
@@ -1638,7 +1619,7 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
     }
 
     this->addPoolNinjaVariable("JOB_POOL_COMPILE", this->GetGeneratorTarget(),
-                               ppBuild.Variables);
+                               source, ppBuild.Variables);
 
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
                                            ppBuild, commandLineLengthLimit);
@@ -1667,17 +1648,20 @@ void cmNinjaTargetGenerator::WriteObjectBuildStatement(
 
   vars["OBJECT_DIR"] = this->GetLocalGenerator()->ConvertToOutputFormat(
     objectDir, cmOutputConverter::SHELL);
+  vars["TARGET_SUPPORT_DIR"] =
+    this->GetLocalGenerator()->ConvertToOutputFormat(targetSupportDir,
+                                                     cmOutputConverter::SHELL);
   vars["OBJECT_FILE_DIR"] = this->GetLocalGenerator()->ConvertToOutputFormat(
     objectFileDir, cmOutputConverter::SHELL);
 
   this->addPoolNinjaVariable("JOB_POOL_COMPILE", this->GetGeneratorTarget(),
-                             vars);
+                             source, vars);
 
   if (!pchSources.empty() && !source->GetProperty("SKIP_PRECOMPILE_HEADERS")) {
     auto pchIt = pchSources.find(source->GetFullPath());
     if (pchIt != pchSources.end()) {
       this->addPoolNinjaVariable("JOB_POOL_PRECOMPILE_HEADER",
-                                 this->GetGeneratorTarget(), vars);
+                                 this->GetGeneratorTarget(), nullptr, vars);
     }
   }
 
@@ -1780,6 +1764,8 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
   }
 
   std::string const sourceFilePath = this->GetCompiledSourceNinjaPath(source);
+  std::string const targetSupportDir =
+    this->ConvertToNinjaPath(this->GeneratorTarget->GetCMFSupportDirectory());
   std::string const bmiDir = this->ConvertToNinjaPath(
     cmStrCat(this->GeneratorTarget->GetSupportDirectory(),
              this->GetGlobalGenerator()->ConfigDirectory(config)));
@@ -1831,9 +1817,10 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
 
   if (firstForConfig) {
     this->ExportObjectCompileCommand(
-      language, sourceFilePath, bmiDir, bmiFileName, bmiFileDir, vars["FLAGS"],
-      vars["DEFINES"], vars["INCLUDES"], vars["TARGET_COMPILE_PDB"],
-      vars["TARGET_PDB"], config, WithScanning::Yes);
+      language, sourceFilePath, bmiDir, targetSupportDir, bmiFileName,
+      bmiFileDir, vars["FLAGS"], vars["DEFINES"], vars["INCLUDES"],
+      vars["TARGET_COMPILE_PDB"], vars["TARGET_PDB"], config,
+      WithScanning::Yes);
   }
 
   bmiBuild.Outputs.push_back(bmiFileName);
@@ -1868,7 +1855,7 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
     }
 
     this->addPoolNinjaVariable("JOB_POOL_COMPILE", this->GetGeneratorTarget(),
-                               ppBuild.Variables);
+                               source, ppBuild.Variables);
 
     this->GetGlobalGenerator()->WriteBuild(this->GetImplFileStream(fileConfig),
                                            ppBuild, commandLineLengthLimit);
@@ -1892,11 +1879,14 @@ void cmNinjaTargetGenerator::WriteCxxModuleBmiBuildStatement(
 
   vars["OBJECT_DIR"] = this->GetLocalGenerator()->ConvertToOutputFormat(
     bmiDir, cmOutputConverter::SHELL);
+  vars["TARGET_SUPPORT_DIR"] =
+    this->GetLocalGenerator()->ConvertToOutputFormat(targetSupportDir,
+                                                     cmOutputConverter::SHELL);
   vars["OBJECT_FILE_DIR"] = this->GetLocalGenerator()->ConvertToOutputFormat(
     bmiFileDir, cmOutputConverter::SHELL);
 
   this->addPoolNinjaVariable("JOB_POOL_COMPILE", this->GetGeneratorTarget(),
-                             vars);
+                             source, vars);
 
   bmiBuild.RspFile = cmStrCat(bmiFileName, ".rsp");
 
@@ -2235,11 +2225,12 @@ void cmNinjaTargetGenerator::EmitSwiftDependencyInfo(
 
 void cmNinjaTargetGenerator::ExportObjectCompileCommand(
   std::string const& language, std::string const& sourceFileName,
-  std::string const& objectDir, std::string const& objectFileName,
-  std::string const& objectFileDir, std::string const& flags,
-  std::string const& defines, std::string const& includes,
-  std::string const& targetCompilePdb, std::string const& targetPdb,
-  std::string const& outputConfig, WithScanning withScanning)
+  std::string const& objectDir, std::string const& targetSupportDir,
+  std::string const& objectFileName, std::string const& objectFileDir,
+  std::string const& flags, std::string const& defines,
+  std::string const& includes, std::string const& targetCompilePdb,
+  std::string const& targetPdb, std::string const& outputConfig,
+  WithScanning withScanning)
 {
   if (!this->GeneratorTarget->GetPropertyAsBool("EXPORT_COMPILE_COMMANDS")) {
     return;
@@ -2286,6 +2277,7 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
                                                 cmOutputConverter::SHELL);
   compileObjectVars.Object = escapedObjectFileName.c_str();
   compileObjectVars.ObjectDir = objectDir.c_str();
+  compileObjectVars.TargetSupportDir = targetSupportDir.c_str();
   compileObjectVars.ObjectFileDir = objectFileDir.c_str();
   compileObjectVars.Flags = fullFlags.c_str();
   compileObjectVars.Defines = defines.c_str();
@@ -2300,7 +2292,7 @@ void cmNinjaTargetGenerator::ExportObjectCompileCommand(
           "CUDA_SEPARABLE_COMPILATION")) {
       std::string const& rdcFlag =
         this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_RDC_FLAG");
-      cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, " ");
+      cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, ' ');
     }
     static std::array<cm::string_view, 4> const compileModes{
       { "PTX"_s, "CUBIN"_s, "FATBIN"_s, "OPTIX"_s }
@@ -2526,9 +2518,18 @@ void cmNinjaTargetGenerator::RemoveDepfileBinding(cmNinjaVars& vars) const
 
 void cmNinjaTargetGenerator::addPoolNinjaVariable(
   std::string const& pool_property, cmGeneratorTarget* target,
-  cmNinjaVars& vars)
+  cmSourceFile const* source, cmNinjaVars& vars)
 {
-  cmValue pool = target->GetProperty(pool_property);
+  // First check the current source properties, then if not found, its target
+  // ones. Allows to override a target-wide compile pool with a source-specific
+  // one.
+  cmValue pool = {};
+  if (source) {
+    pool = source->GetProperty(pool_property);
+  }
+  if (!pool) {
+    pool = target->GetProperty(pool_property);
+  }
   if (pool) {
     vars["pool"] = *pool;
   }

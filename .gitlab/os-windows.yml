@@ -31,29 +31,35 @@
         CMAKE_CI_BUILD_TYPE: Release
         CTEST_NO_WARNINGS_ALLOWED: 1
 
-.windows_vcvarsall_vs2022_x64:
+.windows_vcvarsall_vs2022_x64_msvc14.43:
     variables:
         VCVARSALL: "${VS170COMNTOOLS}\\..\\..\\VC\\Auxiliary\\Build\\vcvarsall.bat"
         VCVARSPLATFORM: "x64"
         VCVARSVERSION: "14.43.34808"
 
+.windows_vcvarsall_vs2022_x64:
+    variables:
+        VCVARSALL: "${VS170COMNTOOLS}\\..\\..\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+        VCVARSPLATFORM: "x64"
+        VCVARSVERSION: "14.44.35207"
+
 .windows_vcvarsall_vs2022_x86:
     variables:
         VCVARSALL: "${VS170COMNTOOLS}\\..\\..\\VC\\Auxiliary\\Build\\vcvarsall.bat"
         VCVARSPLATFORM: "x86"
-        VCVARSVERSION: "14.43.34808"
+        VCVARSVERSION: "14.44.35207"
 
 .windows_vcvarsall_vs2022_x64_arm64:
     variables:
         VCVARSALL: "${VS170COMNTOOLS}\\..\\..\\VC\\Auxiliary\\Build\\vcvarsall.bat"
         VCVARSPLATFORM: "x64_arm64"
-        VCVARSVERSION: "14.43.34808"
+        VCVARSVERSION: "14.44.35207"
 
 .windows_arm64_vcvarsall_vs2022:
     variables:
         VCVARSALL: "${VS170COMNTOOLS}\\..\\..\\VC\\Auxiliary\\Build\\vcvarsall.bat"
         VCVARSPLATFORM: "arm64"
-        VCVARSVERSION: "14.43.34808"
+        VCVARSVERSION: "14.44.35207"
 
 .windows_vs2022_x64_pch:
     extends:
@@ -119,7 +125,7 @@
         CMAKE_CONFIGURATION: windows_vs2022_x64
         CMAKE_GENERATOR: "Visual Studio 17 2022"
         CMAKE_GENERATOR_PLATFORM: "x64"
-        CMAKE_GENERATOR_TOOLSET: "v143,version=14.43.34808"
+        CMAKE_GENERATOR_TOOLSET: "v143,version=14.44.35207"
         CMAKE_CI_NIGHTLY_IGNORE_DEPS: "true"
 
 .windows_vs2019_x64:
@@ -183,6 +189,14 @@
         CMAKE_CI_BUILD_TYPE: Release
         CMAKE_CI_NIGHTLY_IGNORE_DEPS: "true"
 
+.windows_fastbuild:
+    extends: .windows
+
+    variables:
+        CMAKE_GENERATOR: "FASTBuild"
+        CMAKE_CI_BUILD_TYPE: Release
+        CMAKE_CI_NIGHTLY_IGNORE_DEPS: "true"
+
 .windows_vs2022_x64_nmake:
     extends:
         - .windows_nmake
@@ -206,6 +220,14 @@
 
     variables:
         CMAKE_CONFIGURATION: windows_vs2022_x64_ninja_multi
+
+.windows_vs2022_x64_fastbuild:
+    extends:
+        - .windows_fastbuild
+        - .windows_vcvarsall_vs2022_x64
+
+    variables:
+        CMAKE_CONFIGURATION: windows_vs2022_x64_fastbuild
 
 .windows_clang_ninja:
     extends:
@@ -232,7 +254,7 @@
 .windows_intelclassic_ninja:
     extends:
         - .windows_ninja
-        - .windows_vcvarsall_vs2022_x64
+        - .windows_vcvarsall_vs2022_x64_msvc14.43
 
     variables:
         CMAKE_CONFIGURATION: windows_intelclassic_ninja
@@ -282,7 +304,7 @@
         CMAKE_CONFIGURATION: windows_arm64_vs2022
         CMAKE_GENERATOR: "Visual Studio 17 2022"
         CMAKE_GENERATOR_PLATFORM: "ARM64"
-        CMAKE_GENERATOR_TOOLSET: "v143,version=14.43.34808"
+        CMAKE_GENERATOR_TOOLSET: "v143,version=14.44.35207"
         CMAKE_CI_NIGHTLY_IGNORE_DEPS: "true"
 
 .mingw_osdn_io:
@@ -324,7 +346,7 @@
         - windows-x86_64
         - shell
         - vs2022
-        - msvc-14.43
+        - msvc-14.44
         - nonconcurrent
 
 .windows_x86_64_tags_nonconcurrent_vs2022_arm64:
@@ -333,10 +355,19 @@
         - windows-x86_64
         - shell
         - vs2022
-        - msvc-14.43-arm64
+        - msvc-14.44-arm64
         - nonconcurrent
 
 .windows_x86_64_tags_concurrent_vs2022:
+    tags:
+        - cmake # Since this is a bare runner, pin to a project.
+        - windows-x86_64
+        - shell
+        - vs2022
+        - msvc-14.44
+        - concurrent
+
+.windows_x86_64_tags_concurrent_vs2022_msvc14.43:
     tags:
         - cmake # Since this is a bare runner, pin to a project.
         - windows-x86_64
@@ -352,7 +383,7 @@
         - shell
         - vs2022
         - vs17-android
-        - msvc-14.43
+        - msvc-14.44
         - concurrent
 
 .windows_x86_64_tags_concurrent_vs2019_android:
@@ -378,7 +409,7 @@
         - windows-arm64
         - shell
         - vs2022
-        - msvc-14.43
+        - msvc-14.44
         - nonconcurrent
 
 .windows_arm64_tags_concurrent_vs2022:
@@ -387,7 +418,7 @@
         - windows-arm64
         - shell
         - vs2022
-        - msvc-14.43
+        - msvc-14.44
         - concurrent
 
 ## Windows-specific scripts

@@ -218,6 +218,7 @@ function(run_cmake test)
     "|[^\n]*xcodebuild[^\n]*DVTCoreDeviceEnabledState: DVTCoreDeviceEnabledState_Disabled set via user default"
     "|[^\n]*xcodebuild[^\n]*DVTPlugInManager"
     "|[^\n]*xcodebuild[^\n]*DVTSDK: Warning: SDK path collision for path"
+    "|[^\n]*xcodebuild[^\n]*IDERunDestination: Supported platforms for the buildables in the current scheme is empty"
     "|[^\n]*xcodebuild[^\n]*Requested but did not find extension point with identifier"
     "|[^\n]*xcodebuild[^\n]*nil host used in call to allows.*HTTPSCertificateForHost"
     "|[^\n]*xcodebuild[^\n]*warning: file type[^\n]*is based on missing file type"
@@ -340,6 +341,31 @@ function(ensure_files_match expected_file actual_file)
       ${actual_file_content}\n
     ")
   endif()
+endfunction()
+
+function(RunCMake_check_file type file expect_content)
+  if(EXISTS "${file}")
+    file(READ "${file}" actual_content)
+    string(REPLACE "\r\n" "\n" actual_content "${actual_content}")
+    string(REGEX REPLACE "\n+$" "" actual_content "${actual_content}")
+    string(REPLACE "\t" "  " actual_content "${actual_content}")
+    if(NOT actual_content MATCHES "${expect_content}")
+      string(REPLACE "\n" "\n expect-${type}> " expect_content " expect-${type}> ${expect_content}")
+      string(REPLACE "\n" "\n actual-${type}> " actual_content " actual-${type}> ${actual_content}")
+      string(APPEND RunCMake_TEST_FAILED "${type} does not match that expected.\n"
+        "Expected ${type} to match:\n${expect_content}\n"
+        "Actual ${type}:\n${actual_content}\n"
+      )
+    endif()
+  else()
+    string(APPEND RunCMake_TEST_FAILED "${type} file does not exist:\n ${file}\n")
+  endif()
+  return(PROPAGATE RunCMake_TEST_FAILED)
+endfunction()
+
+function(RunCMake_check_slnx slnx_file expect_slnx)
+  RunCMake_check_file("slnx" "${slnx_file}" "${expect_slnx}")
+  return(PROPAGATE RunCMake_TEST_FAILED)
 endfunction()
 
 # Get the user id on unix if possible.

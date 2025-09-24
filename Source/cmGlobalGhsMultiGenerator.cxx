@@ -69,9 +69,7 @@ void cmGlobalGhsMultiGenerator::ComputeTargetObjectDirectory(
   cmGeneratorTarget* gt) const
 {
   // Compute full path to object file directory for this target.
-  std::string dir =
-    cmStrCat(gt->LocalGenerator->GetCurrentBinaryDirectory(), '/',
-             gt->LocalGenerator->GetTargetDirectory(gt), '/');
+  std::string dir = cmStrCat(gt->GetSupportDirectory(), '/');
   gt->ObjectDirectory = dir;
 }
 
@@ -101,11 +99,14 @@ bool cmGlobalGhsMultiGenerator::SetGeneratorToolset(std::string const& ts,
 
   /* check if the toolset changed from last generate */
   if (cmNonempty(prevTool) && !cmSystemTools::ComparePath(gbuild, *prevTool)) {
-    std::string const& e = cmStrCat(
-      "toolset build tool: ", gbuild, '\n',
-      "Does not match the previously used build tool: ", *prevTool, '\n',
-      "Either remove the CMakeCache.txt file and CMakeFiles "
-      "directory or choose a different binary directory.");
+    std::string const& e =
+      cmStrCat("toolset build tool: ", gbuild,
+               "\n"
+               "Does not match the previously used build tool: ",
+               *prevTool,
+               "\n"
+               "Either remove the CMakeCache.txt file and CMakeFiles "
+               "directory or choose a different binary directory.");
     mf->IssueMessage(MessageType::FATAL_ERROR, e);
     return false;
   }
@@ -377,7 +378,7 @@ void cmGlobalGhsMultiGenerator::WriteTargets(cmLocalGenerator* root)
 
     // create target build file
     std::string name = cmStrCat(target->GetName(), ".tgt", FILE_EXTENSION);
-    std::string fname = cmStrCat(rootBinaryDir, "/", name);
+    std::string fname = cmStrCat(rootBinaryDir, '/', name);
     cmGeneratedFileStream fbld(fname);
     fbld.SetCopyIfDifferent(true);
     this->WriteFileHeader(fbld);
@@ -438,9 +439,8 @@ void cmGlobalGhsMultiGenerator::OutputTopLevelProject(
 
   // Collect all targets under this root generator and the transitive
   // closure of their dependencies.
-  TargetDependSet projectTargets;
-  TargetDependSet originalTargets;
-  this->GetTargetSets(projectTargets, originalTargets, root, generators);
+  TargetDependSet const projectTargets =
+    this->GetTargetsForProject(root, generators);
   OrderedTargetDependSet sortedProjectTargets(projectTargets, "");
   this->ProjectTargets.clear();
   for (cmGeneratorTarget const* t : sortedProjectTargets) {
@@ -469,8 +469,7 @@ cmGlobalGhsMultiGenerator::GenerateBuildCommand(
   std::string const& makeProgram, std::string const& projectName,
   std::string const& projectDir, std::vector<std::string> const& targetNames,
   std::string const& /*config*/, int jobs, bool verbose,
-  cmBuildOptions const& /*buildOptions*/,
-  std::vector<std::string> const& makeOptions)
+  cmBuildOptions /*buildOptions*/, std::vector<std::string> const& makeOptions)
 {
   GeneratedMakeCommand makeCommand;
 

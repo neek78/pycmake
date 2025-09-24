@@ -47,6 +47,8 @@ set(module_symbols
   mymodule_MP_mysub       # NAG
   _QMmy_modulePmy_sub     # LLVMFlang
   _QMmymodulePmysub       # LLVMFlang
+  __module_my_module_my_sub # LFortran
+  __module_mymodule_mysub   # LFortran
   ${FortranCInterface_MODULE_SYMBOLS}
   )
 list(REMOVE_DUPLICATES module_symbols)
@@ -102,7 +104,12 @@ target_link_libraries(symbols PUBLIC myfort)
 set_property(TARGET symbols PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran")
-  add_compile_options(--implicit-interface --generate-object-code)
+  if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL "0.55")
+    set(_LFORTRAN_SC_FLAG --separate-compilation)
+  else()
+    set(_LFORTRAN_SC_FLAG --generate-object-code)
+  endif()
+  add_compile_options(--implicit-interface ${_LFORTRAN_SC_FLAG})
 endif()
 
 # Require symbols through Fortran.

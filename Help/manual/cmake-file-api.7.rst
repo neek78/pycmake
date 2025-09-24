@@ -125,6 +125,10 @@ query it writes to build trees to request newer object versions.
 This can be used to avoid asking CMake to generate multiple object
 versions unnecessarily.
 
+.. versionadded:: 4.1
+  The ``query.json`` file is described in machine-readable form by
+  :download:`this JSON schema </manual/file_api/schema_stateful_query.json>`.
+
 A ``query.json`` file must contain a JSON object:
 
 .. code-block:: json
@@ -199,6 +203,10 @@ is given a new name and any old one is deleted.  During the short
 time between these steps there may be multiple index files present;
 the one with the largest name in lexicographic order is the current
 index file.
+
+.. versionadded:: 4.1
+  The reply index file is described in machine-readable form by
+  :download:`this JSON schema </manual/file_api/schema_index.json>`.
 
 The reply index file contains a JSON object:
 
@@ -471,6 +479,10 @@ There is only one ``codemodel`` object major version, version 2.
 Version 1 does not exist to avoid confusion with that from
 :manual:`cmake-server(7)` mode.
 
+.. versionadded:: 4.1
+  The ``codemodel`` object kind reply is described in machine-readable form
+  by :download:`this JSON schema </manual/file_api/schema_codemodel.json>`.
+
 "codemodel" version 2
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -700,9 +712,26 @@ The members specific to ``codemodel`` objects are:
 "codemodel" version 2 "directory" object
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+.. versionadded:: 4.1
+  The ``directory`` object reply is described in machine-readable form by
+  :download:`this JSON schema </manual/file_api/schema_directory.json>`.
+
 A codemodel "directory" object is referenced by a `"codemodel" version 2`_
 object's ``directories`` array.  Each "directory" object is a JSON object
 with members:
+
+``codemodelVersion``
+  This specifies the codemodel version this file is part of.  It will match
+  the ``version`` field of the codemodel object kind that references this file.
+  It is a JSON object with the following members:
+
+  ``major``
+    The codemodel major version.
+
+  ``minor``
+    The codemodel minor version.
+
+  This field was added in codemodel version 2.9.
 
 ``paths``
   A JSON object containing members:
@@ -822,6 +851,13 @@ with members:
 
       This type was added in codemodel version 2.4.
 
+    ``cxxModuleBmi``
+      An :command:`install(TARGETS)` call with ``CXX_MODULES_BMI``.
+      The ``destination`` member is populated and the ``isOptional`` member
+      may exist.  This type has an additional ``cxxModuleBmiTarget`` member.
+
+      This type was added in codemodel version 2.5.
+
   ``isExcludeFromAll``
     Optional member that is present with boolean value ``true`` when
     :command:`install` is called with the ``EXCLUDE_FROM_ALL`` option.
@@ -934,6 +970,21 @@ with members:
 
     This field was added in codemodel version 2.4.
 
+  ``cxxModuleBmiTarget``
+    Optional member that is present when ``type`` is ``cxxModuleBmi``.
+    The value is a JSON object with members:
+
+    ``id``
+      A string uniquely identifying the target.  This matches
+      the ``id`` member of the target in the main "codemodel"
+      object's ``targets`` array.
+
+    ``index``
+      An unsigned integer 0-based index into the main "codemodel"
+      object's ``targets`` array for the target.
+
+    This field was added in codemodel version 2.5.
+
   ``scriptFile``
     Optional member that is present when ``type`` is ``script``.
     The value is a string specifying the path to the script file on disk,
@@ -954,9 +1005,26 @@ with members:
 "codemodel" version 2 "target" object
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+.. versionadded:: 4.1
+  The ``target`` object reply is described in machine-readable form by
+  :download:`this JSON schema </manual/file_api/schema_target.json>`.
+
 A codemodel "target" object is referenced by a `"codemodel" version 2`_
 object's ``targets`` array.  Each "target" object is a JSON object
 with members:
+
+``codemodelVersion``
+  This specifies the codemodel version this file is part of.  It will match
+  the ``version`` field of the codemodel object kind that references this file.
+  It is a JSON object with the following members:
+
+  ``major``
+    The codemodel major version.
+
+  ``minor``
+    The codemodel minor version.
+
+  This field was added in codemodel version 2.9.
 
 ``name``
   A string specifying the logical name of the target.
@@ -1156,10 +1224,10 @@ with members:
   This field was added in codemodel version 2.8.
 
   ``workingDirectory``
-    Optional member that is present when the DEBUGGER_WORKING_DIRECTORY
-    target property is set.
-    The member will also be present in Visual Studio Generator
-    scenarios when VS_DEBUGGER_WORKING_DIRECTORY is set.
+    Optional member that is present when the
+    :prop_tgt:`DEBUGGER_WORKING_DIRECTORY` target property is set.
+    The member will also be present in :ref:`Visual Studio Generators`
+    when :prop_tgt:`VS_DEBUGGER_WORKING_DIRECTORY` is set.
 
     This field was added in codemodel version 2.8.
 
@@ -1180,8 +1248,9 @@ with members:
     the ``backtraceGraph`` member's ``nodes`` array.
 
 ``fileSets``
-  A JSON array of entries corresponding to the target's file sets. Each entry
-  is a JSON object with members:
+  An optional member that is present when a target defines one or more
+  file sets.  The value is a JSON array of entries corresponding to the
+  target's file sets.  Each entry is a JSON object with members:
 
   ``name``
     A string specifying the name of the file set.
@@ -1300,6 +1369,12 @@ with members:
     ``fragment``
       A string specifying a fragment of the compile command line invocation.
       The value is encoded in the build system's native shell format.
+
+    ``backtrace``
+      Optional member that is present when a CMake language backtrace to
+      the command invocation that added this fragment is available.
+      The value is an unsigned integer 0-based index into the
+      ``backtraceGraph`` member's ``nodes`` array.
 
   ``includes``
     Optional member that is present when there are include directories.
@@ -1442,6 +1517,10 @@ a :manual:`cmake-configure-log(7)` file.
 
 There is only one ``configureLog`` object major version, version 1.
 
+.. versionadded:: 4.1
+  The ``configureLog`` object kind reply is described in machine-readable form
+  by :download:`this JSON schema </manual/file_api/schema_configureLog.json>`.
+
 "configureLog" version 1
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1481,6 +1560,10 @@ The ``cache`` object kind lists cache entries.  These are the
 There is only one ``cache`` object major version, version 2.
 Version 1 does not exist to avoid confusion with that from
 :manual:`cmake-server(7)` mode.
+
+.. versionadded:: 4.1
+  The ``cache`` object kind reply is described in machine-readable form by
+  :download:`this JSON schema </manual/file_api/schema_cache.json>`.
 
 "cache" version 2
 ^^^^^^^^^^^^^^^^^
@@ -1553,6 +1636,10 @@ configuring and generating the build system.  These include the
 ``CMakeLists.txt`` files as well as included ``.cmake`` files.
 
 There is only one ``cmakeFiles`` object major version, version 1.
+
+.. versionadded:: 4.1
+  The ``cmakeFiles`` object kind reply is described in machine-readable form
+  by :download:`this JSON schema </manual/file_api/schema_cmakeFiles.json>`.
 
 "cmakeFiles" version 1
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -1682,6 +1769,10 @@ The ``toolchains`` object kind lists properties of the toolchains used during
 the build.  These include the language, compiler path, ID, and version.
 
 There is only one ``toolchains`` object major version, version 1.
+
+.. versionadded:: 4.1
+  The ``toolchains`` object kind reply is described in machine-readable form
+  by :download:`this JSON schema </manual/file_api/schema_toolchains.json>`.
 
 "toolchains" version 1
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -1828,6 +1919,6 @@ The members specific to ``toolchains`` objects are:
   ``sourceFileExtensions``
     Optional member that is present when the
     :variable:`CMAKE_<LANG>_SOURCE_FILE_EXTENSIONS` variable is defined for
-    the current language. Its value is a JSON array of JSON strings where each
+    the current language. Its value is a JSON array of JSON strings where
     each string holds a file extension (without the leading dot) for the
     language.

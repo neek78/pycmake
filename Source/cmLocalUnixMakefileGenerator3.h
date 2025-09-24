@@ -14,6 +14,7 @@
 #include "cmDepends.h"
 #include "cmGeneratorOptions.h"
 #include "cmLocalCommonGenerator.h"
+#include "cmStateTypes.h"
 
 class cmCustomCommand;
 class cmCustomCommandGenerator;
@@ -42,6 +43,10 @@ public:
    * Generate the makefile for this directory.
    */
   void Generate() override;
+
+  std::string GetObjectOutputRoot(
+    cmStateEnums::IntermediateDirKind kind =
+      cmStateEnums::IntermediateDirKind::ObjectFiles) const override;
 
   // this returns the relative path between the HomeOutputDirectory and this
   // local generators StartOutputDirectory
@@ -122,9 +127,6 @@ public:
   /** Get whether the makefile is to have color.  */
   bool GetColorMakefile() const { return this->ColorMakefile; }
 
-  std::string GetTargetDirectory(
-    cmGeneratorTarget const* target) const override;
-
   // create a command that cds to the start dir then runs the commands
   void CreateCDCommand(std::vector<std::string>& commands,
                        std::string const& targetDir,
@@ -138,7 +140,8 @@ public:
 
   /** Called from command-line hook to bring dependencies up to date
       for a target.  */
-  bool UpdateDependencies(std::string const& tgtInfo, bool verbose,
+  bool UpdateDependencies(std::string const& tgtInfo,
+                          std::string const& targetName, bool verbose,
                           bool color) override;
 
   /** Called from command-line hook to clear dependencies.  */

@@ -5,27 +5,50 @@
 CheckIncludeFiles
 -----------------
 
-Provides a macro to check if a list of one or more header files can
-be included together.
+This module provides a command to check one or more C/C++ header files.
+
+Load this module in a CMake project with:
+
+.. code-block:: cmake
+
+  include(CheckIncludeFiles)
+
+Commands
+^^^^^^^^
+
+This module provides the following command:
 
 .. command:: check_include_files
 
+  Checks once whether one or more header files exist and can be included
+  together in C or C++ code:
+
   .. code-block:: cmake
 
-    check_include_files("<includes>" <variable> [LANGUAGE <language>])
+    check_include_files(<includes> <variable> [LANGUAGE <language>])
 
-  Check if the given ``<includes>`` list may be included together
-  in a source file and store the result in an internal cache
-  entry named ``<variable>``.  Specify the ``<includes>`` argument
-  as a :ref:`;-list <CMake Language Lists>` of header file names.
+  .. rubric:: The arguments are:
 
-  If ``LANGUAGE`` is set, the specified compiler will be used to perform the
-  check. Acceptable values are ``C`` and ``CXX``. If not set, the C compiler
-  will be used if enabled. If the C compiler is not enabled, the C++
-  compiler will be used if enabled.
+  ``<includes>``
+    A :ref:`semicolon-separated list <CMake Language Lists>` of header
+    files to be checked.
 
-The following variables may be set before calling this macro to modify
-the way the check is run:
+  ``<variable>``
+    The name of the variable to store the result of the check.  This
+    variable will be created as an internal cache variable.
+
+  ``LANGUAGE <language>``
+    .. versionadded:: 3.11
+
+    If set, the specified ``<language>`` compiler will be used to perform
+    the check.  Acceptable values are ``C`` and ``CXX``.  If this option is
+    not given, the C compiler will be used if enabled.  If the C compiler
+    is not enabled, the C++ compiler will be used if enabled.
+
+  .. rubric:: Variables Affecting the Check
+
+  The following variables may be set before calling this command to modify
+  the way the check is run:
 
   .. include:: /module/include/CMAKE_REQUIRED_FLAGS.rst
 
@@ -41,11 +64,15 @@ the way the check is run:
 
   .. include:: /module/include/CMAKE_REQUIRED_QUIET.rst
 
+  .. versionadded:: 3.12
+    The ``CMAKE_REQUIRED_LIBRARIES`` variable, if policy :policy:`CMP0075` is
+    set to ``NEW``.
+
 Examples
 ^^^^^^^^
 
-Checking whether one or more ``C`` headers exist and storing the check result
-in cache variables:
+Checking one or more C headers and storing the check result in cache
+variables:
 
 .. code-block:: cmake
 
@@ -74,8 +101,8 @@ languages are enabled in the project:
 See Also
 ^^^^^^^^
 
-* The :module:`CheckIncludeFile` module to check for single ``C`` header.
-* The :module:`CheckIncludeFileCXX` module to check for single ``C++`` header.
+* The :module:`CheckIncludeFile` module to check for a single C header.
+* The :module:`CheckIncludeFileCXX` module to check for a single C++ header.
 #]=======================================================================]
 
 include_guard(GLOBAL)

@@ -178,6 +178,8 @@ endif()
 if(CMake_TEST_FindPython3_CPython)
   run_cmake(Python3-BadComponent)
   run_cmake(DifferentComponents)
+  run_python(SpecifyABI TYPE Python3 VARIANT Python3)
+  run_python(SpecifyABI TYPE Python VARIANT Python.V3 OPTIONS -DPython_REQUESTED_VERSION=3)
   run_python(Python3Module ACTION RUN)
   if(NOT CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 4.8)
     run_python(Python3Embedded ACTION RUN)
@@ -320,6 +322,7 @@ if(CMake_TEST_FindPython_Various)
     run_python(ArtifactsInteractive VARIANT "OFF"
                                     OPTIONS -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy}
                                             -DPython3_ARTIFACTS_INTERACTIVE=OFF)
+    run_python(Android OPTIONS "-DCMAKE_TOOLCHAIN_FILE=${RunCMake_SOURCE_DIR}/android_toolchain.cmake")
   endif()
 
   if(CMake_TEST_FindPython2 OR CMake_TEST_FindPython3)
@@ -350,14 +353,23 @@ if(CMake_TEST_FindPython_Various)
   endif()
 
   if(CMake_TEST_FindPython2_NumPy OR CMake_TEST_FindPython3_NumPy)
-    run_python(NumPy ACTION RUN
-                     OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
-                             -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
-    run_python(NumPyOnly ACTION RUN
-                         OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
-                                 -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
-    if(CMake_TEST_FindPython3_NumPy)
-      custom_failure_message_check("NumPy" "Interpreter:Development:NumPy" -DPython3_NumPy_INCLUDE_DIR=/not/found/numpy/include)
+    run_python(NumPy-CMP0201-OLD ACTION RUN
+                                 OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
+                                         -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
+    run_python(NumPy-CMP0201-NEW ACTION RUN
+                                 OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
+                                         -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
+    run_python(NumPyOnly-CMP0201-OLD ACTION RUN
+                                     OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
+                                             -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
+     run_python(NumPyOnly-CMP0201-NEW ACTION RUN
+                                      OPTIONS -DCMake_TEST_FindPython2_NumPy=${CMake_TEST_FindPython2_NumPy}
+                                              -DCMake_TEST_FindPython3_NumPy=${CMake_TEST_FindPython3_NumPy})
+   if(CMake_TEST_FindPython3_NumPy)
+     if(CMake_TEST_FindPython3_SABIModule)
+       run_python(NumPySABIModule ACTION RUN)
+     endif()
+     custom_failure_message_check("NumPy" "Interpreter:Development:NumPy" -DPython3_NumPy_INCLUDE_DIR=/not/found/numpy/include)
     endif()
   endif()
 

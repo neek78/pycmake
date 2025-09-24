@@ -33,7 +33,14 @@ namespace StdIo {
 
 namespace {
 
-#ifndef _WIN32
+#ifdef _WIN32
+#  ifndef ENABLE_VIRTUAL_TERMINAL_INPUT
+#    define ENABLE_VIRTUAL_TERMINAL_INPUT 0x0200
+#  endif
+#  ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#    define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#  endif
+#else
 // List of known `TERM` names that support VT100 escape sequences.
 // Order by `LC_COLLATE=C sort` to search using `std::lower_bound`.
 std::array<cm::string_view, 56> const kVT100Names{ {
@@ -115,17 +122,16 @@ Stream::Stream(std::ios& s, FILE* file, Direction direction)
   , FD_(cm_fileno(file))
 {
 #ifdef _WIN32
-  DWORD mode;
   auto h = reinterpret_cast<HANDLE>(_get_osfhandle(this->FD_));
-  if (GetConsoleMode(h, &mode)) {
+  if (GetConsoleMode(h, &this->ConsoleOrigMode_)) {
     this->Console_ = h;
-    DWORD vtMode = mode |
+    DWORD vtMode = this->ConsoleOrigMode_ |
       (direction == Direction::In ? ENABLE_VIRTUAL_TERMINAL_INPUT
                                   : ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     if (SetConsoleMode(this->Console_, vtMode)) {
       this->Kind_ = TermKind::VT100;
     } else {
-      SetConsoleMode(this->Console_, mode);
+      SetConsoleMode(this->Console_, this->ConsoleOrigMode_);
       this->Kind_ = TermKind::Console;
     }
   }
@@ -136,6 +142,18 @@ Stream::Stream(std::ios& s, FILE* file, Direction direction)
   }
 #endif
 }
+
+#ifdef _WIN32
+Stream::~Stream()
+{
+  if (this->Console_) {
+    this->IOS_.rdbuf()->pubsync();
+    SetConsoleMode(this->Console_, this->ConsoleOrigMode_);
+  }
+}
+#else
+Stream::~Stream() = default;
+#endif
 
 IStream::IStream(std::istream& is, FILE* file)
   : Stream(is, file, Direction::In)

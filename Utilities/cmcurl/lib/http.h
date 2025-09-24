@@ -25,10 +25,6 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#if defined(USE_MSH3) && !defined(_WIN32)
-#include <pthread.h>
-#endif
-
 #include "bufq.h"
 #include "dynhds.h"
 #include "ws.h"
@@ -53,10 +49,16 @@ typedef enum {
   FOLLOW_REDIR /* a full true redirect */
 } followtype;
 
+#define CURL_HTTP_V1x   (1 << 0)
+#define CURL_HTTP_V2x   (1 << 1)
+#define CURL_HTTP_V3x   (1 << 2)
+/* bitmask of CURL_HTTP_V* values */
+typedef unsigned char http_majors;
+
 
 #ifndef CURL_DISABLE_HTTP
 
-#if defined(USE_HTTP3)
+#ifdef USE_HTTP3
 #include <stdint.h>
 #endif
 
@@ -67,6 +69,18 @@ extern const struct Curl_handler Curl_handler_https;
 #endif
 
 struct dynhds;
+
+struct http_negotiation {
+  unsigned char rcvd_min; /* minimum version seen in responses, 09, 10, 11 */
+  http_majors wanted;  /* wanted major versions when talking to server */
+  http_majors allowed; /* allowed major versions when talking to server */
+  BIT(h2_upgrade);  /* Do HTTP Upgrade from 1.1 to 2 */
+  BIT(h2_prior_knowledge); /* Directly do HTTP/2 without ALPN/SSL */
+  BIT(accept_09); /* Accept an HTTP/0.9 response */
+  BIT(only_10); /* When using major version 1x, use only 1.0 */
+};
+
+void Curl_http_neg_init(struct Curl_easy *data, struct http_negotiation *neg);
 
 CURLcode Curl_bump_headersize(struct Curl_easy *data,
                               size_t delta,
@@ -92,7 +106,7 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data, bool is_connect,
 CURLcode Curl_dynhds_add_custom(struct Curl_easy *data, bool is_connect,
                                 struct dynhds *hds);
 
-void Curl_http_method(struct Curl_easy *data, struct connectdata *conn,
+void Curl_http_method(struct Curl_easy *data,
                       const char **method, Curl_HttpReq *);
 
 /* protocol-specific functions set up to be called by the main engine */
@@ -101,8 +115,8 @@ CURLcode Curl_http_setup_conn(struct Curl_easy *data,
 CURLcode Curl_http(struct Curl_easy *data, bool *done);
 CURLcode Curl_http_done(struct Curl_easy *data, CURLcode, bool premature);
 CURLcode Curl_http_connect(struct Curl_easy *data, bool *done);
-int Curl_http_getsock_do(struct Curl_easy *data, struct connectdata *conn,
-                         curl_socket_t *socks);
+CURLcode Curl_http_do_pollset(struct Curl_easy *data,
+                              struct easy_pollset *ps);
 CURLcode Curl_http_write_resp(struct Curl_easy *data,
                               const char *buf, size_t blen,
                               bool is_eos);
@@ -113,6 +127,7 @@ CURLcode Curl_http_write_resp_hd(struct Curl_easy *data,
 /* These functions are in http.c */
 CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
                               const char *auth);
+
 CURLcode Curl_http_auth_act(struct Curl_easy *data);
 
 /* follow a redirect or not */
@@ -155,6 +170,10 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
    version. This count includes CONNECT response headers. */
 #define MAX_HTTP_RESP_HEADER_SIZE (300*1024)
 
+/* MAX_HTTP_RESP_HEADER_COUNT is the maximum number of response headers that
+   libcurl allows for a single HTTP response, including CONNECT and
+   redirects. */
+#define MAX_HTTP_RESP_HEADER_COUNT 5000
 
 #endif /* CURL_DISABLE_HTTP */
 
@@ -199,12 +218,12 @@ CURLcode Curl_http_decode_status(int *pstatus, const char *s, size_t len);
  * All about a core HTTP request, excluding body and trailers
  */
 struct httpreq {
-  char method[24];
+  struct dynhds headers;
+  struct dynhds trailers;
   char *scheme;
   char *authority;
   char *path;
-  struct dynhds headers;
-  struct dynhds trailers;
+  char method[1];
 };
 
 /**

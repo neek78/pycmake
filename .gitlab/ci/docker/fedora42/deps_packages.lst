@@ -38,6 +38,7 @@ texinfo
 
 # Install lint tools.
 clang-analyzer
+clazy
 codespell
 
 # Tools needed for the test suite.
@@ -55,6 +56,8 @@ mercurial
 subversion
 
 # Packages needed to test CPack.
+appstream
+patchelf
 rpm-build
 
 # Packages needed to test find modules.

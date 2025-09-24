@@ -173,7 +173,7 @@ void cmExportCMakeConfigGenerator::GeneratePolicyHeaderCode(std::ostream& os)
   // Isolate the file policy level.
   // Support CMake versions as far back as the
   // RequiredCMakeVersion{Major,Minor,Patch}, but also support using NEW
-  // policy settings for up to CMake 3.31 (this upper limit may be reviewed
+  // policy settings for up to CMake 4.0 (this upper limit may be reviewed
   // and increased from time to time). This reduces the opportunity for CMake
   // warnings when an older export file is later used with newer CMake
   // versions.
@@ -182,7 +182,7 @@ void cmExportCMakeConfigGenerator::GeneratePolicyHeaderCode(std::ostream& os)
         "cmake_policy(VERSION "
      << this->RequiredCMakeVersionMajor << '.'
      << this->RequiredCMakeVersionMinor << '.'
-     << this->RequiredCMakeVersionPatch << "...3.31)\n";
+     << this->RequiredCMakeVersionPatch << "...4.0)\n";
   /* clang-format on */
 }
 
@@ -451,16 +451,27 @@ void cmExportCMakeConfigGenerator::GenerateFindDependencyCalls(
       return lhs.second.FindPackageIndex < rhs.second.FindPackageIndex;
     });
 
+  // Unwinding is only valid in a find_package() context
+  os << "if(DEFINED CMAKE_FIND_PACKAGE_NAME)\n"
+     << "  set(_cmake_unwind_arg UNWIND_INCLUDE)\n"
+     << "endif()\n\n";
+
   for (auto const& it : packageDependenciesSorted) {
     if (it.second.Enabled == cmExportSet::PackageDependencyExportEnabled::On) {
-      os << "find_dependency(" << it.first;
+      os << "__find_dependency_no_return(" << it.first;
       for (auto const& arg : it.second.ExtraArguments) {
         os << ' ' << cmOutputConverter::EscapeForCMake(arg);
       }
-      os << ")\n";
+      os << " ${_cmake_unwind_arg})\n";
+      os << "if(NOT " << it.first << "_FOUND)\n"
+         << "  unset(_cmake_unwind_arg)\n"
+         << "  cmake_policy(POP)\n"
+         << "  return()\n"
+         << "endif()\n\n";
     }
   }
-  os << "\n\n";
+
+  os << "unset(_cmake_unwind_arg)\n\n\n";
 }
 
 void cmExportCMakeConfigGenerator::GenerateMissingTargetsCheckCode(

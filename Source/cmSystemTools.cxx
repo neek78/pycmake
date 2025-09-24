@@ -378,22 +378,14 @@ extern char** environ; // NOLINT(readability-redundant-declaration)
 #if !defined(CMAKE_BOOTSTRAP)
 static std::string cm_archive_entry_pathname(struct archive_entry* entry)
 {
-#  if cmsys_STL_HAS_WSTRING
   return cmsys::Encoding::ToNarrow(archive_entry_pathname_w(entry));
-#  else
-  return archive_entry_pathname(entry);
-#  endif
 }
 
 static int cm_archive_read_open_file(struct archive* a, char const* file,
                                      int block_size)
 {
-#  if cmsys_STL_HAS_WSTRING
   std::wstring wfile = cmsys::Encoding::ToWide(file);
   return archive_read_open_filename_w(a, wfile.c_str(), block_size);
-#  else
-  return archive_read_open_filename(a, file, block_size);
-#  endif
 }
 #endif
 
@@ -1075,7 +1067,7 @@ std::string cmSystemTools::FileExistsInParentDirectories(
   cmSystemTools::ConvertToUnixSlashes(dir);
   std::string prevDir;
   while (dir != prevDir) {
-    std::string path = cmStrCat(dir, "/", file);
+    std::string path = cmStrCat(dir, '/', file);
     if (cmSystemTools::FileExists(path)) {
       return path;
     }
@@ -1579,6 +1571,18 @@ cmSystemTools::CopyResult cmSystemTools::CopySingleFile(
         return CopyResult::Success;
       }
       break;
+    case CopyWhen::OnlyIfNewer: {
+      if (!SystemTools::FileExists(newname)) {
+        break;
+      }
+      int timeResult = 0;
+      cmsys::Status timeStatus =
+        cmsys::SystemTools::FileTimeCompare(oldname, newname, &timeResult);
+      if (timeStatus.IsSuccess() && timeResult <= 0) {
+        return CopyResult::Success;
+      }
+      break;
+    }
   }
 
   mode_t perm = 0;
@@ -1638,6 +1642,20 @@ cmSystemTools::CopyResult cmSystemTools::CopySingleFile(
     }
   }
   return CopyResult::Success;
+}
+
+bool cmSystemTools::CopyFileIfNewer(std::string const& source,
+                                    std::string const& destination)
+{
+  return cmsys::SystemTools::CopyFileIfNewer(source, destination).IsSuccess();
+}
+
+bool cmSystemTools::CopyADirectory(std::string const& source,
+                                   std::string const& destination,
+                                   CopyWhen when)
+{
+  return cmsys::SystemTools::CopyADirectory(source, destination, when)
+    .IsSuccess();
 }
 
 bool cmSystemTools::RenameFile(std::string const& oldname,
@@ -2291,6 +2309,41 @@ cmSystemTools::SaveRestoreEnvironment::~SaveRestoreEnvironment()
   cmSystemTools::AppendEnv(this->Env);
 }
 #endif
+
+cmSystemTools::ScopedEnv::ScopedEnv(cm::string_view var)
+{
+  std::string::size_type pos = var.find('=');
+  if (pos != std::string::npos) {
+    this->Key = std::string{ var.substr(0, pos) };
+    this->Original = cmSystemTools::GetEnvVar(this->Key);
+
+    cm::string_view value = var.substr(pos + 1);
+
+    if (!this->Original && value.empty()) {
+      // nothing to do if the environment variable wasn't already set and the
+      // new value is also empty. clear the Key member so the destructor also
+      // does nothing.
+      this->Key.clear();
+    } else {
+      if (value.empty()) {
+        cmSystemTools::UnPutEnv(this->Key);
+      } else {
+        cmSystemTools::PutEnv(cmStrCat(this->Key, '=', value));
+      }
+    }
+  }
+}
+
+cmSystemTools::ScopedEnv::~ScopedEnv()
+{
+  if (!this->Key.empty()) {
+    if (this->Original) {
+      cmSystemTools::PutEnv(cmStrCat(this->Key, '=', *this->Original));
+    } else {
+      cmSystemTools::UnPutEnv(Key);
+    }
+  }
+}
 
 void cmSystemTools::EnableVSConsoleOutput()
 {
@@ -3304,8 +3357,8 @@ bool cmSystemTools::GuessLibraryInstallName(std::string const& fullPath,
   return false;
 }
 
-static std::string::size_type cmSystemToolsFindRPath(
-  cm::string_view const& have, cm::string_view const& want)
+static std::string::size_type cmSystemToolsFindRPath(cm::string_view have,
+                                                     cm::string_view want)
 {
   std::string::size_type pos = 0;
   while (pos < have.size()) {
@@ -4173,7 +4226,7 @@ std::string cmSystemTools::EncodeURL(std::string const& in, bool escapeSlashes)
       case ' ':
       case '=':
       case '%':
-        snprintf(hexCh, sizeof(hexCh), "%%%02X", static_cast<int>(c));
+        snprintf(hexCh, sizeof(hexCh), "%%%02X", static_cast<unsigned int>(c));
         break;
       case '/':
         if (escapeSlashes) {

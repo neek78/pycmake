@@ -41,7 +41,7 @@ void WriteTryRunEvent(cmConfigureLog& log, cmMakefile const& mf,
                       cmTryRunResult const& runResult)
 {
   // Keep in sync with cmFileAPIConfigureLog's DumpEventKindNames.
-  static std::vector<unsigned long> const LogVersionsWithTryRunV1{ 1 };
+  static std::vector<unsigned int> const LogVersionsWithTryRunV1{ 1 };
 
   if (log.IsAnyLogVersionEnabled(LogVersionsWithTryRunV1)) {
     log.BeginEvent("try_run-v1", mf);
@@ -176,7 +176,7 @@ bool TryRunCommandImpl::TryRunCode(std::vector<std::string> const& argv)
     } else {
       std::string runArgs;
       if (arguments.RunArgs) {
-        runArgs = cmStrCat(" ", cmJoin(*arguments.RunArgs, " "));
+        runArgs = cmStrCat(' ', cmJoin(*arguments.RunArgs, " "));
       }
 
       // "run" it and capture the output

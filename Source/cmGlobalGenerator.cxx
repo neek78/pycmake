@@ -61,6 +61,7 @@
 #include "cmValue.h"
 #include "cmVersion.h"
 #include "cmWorkingDirectory.h"
+#include "cmXcFramework.h"
 #include "cmake.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -139,6 +140,7 @@ cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
   cm->GetState()->SetWindowsShell(false);
   cm->GetState()->SetWindowsVSIDE(false);
 
+  cm->GetState()->SetFastbuildMake(false);
 #if !defined(CMAKE_BOOTSTRAP)
   Json::StreamWriterBuilder wbuilder;
   wbuilder["indentation"] = "\t";
@@ -387,38 +389,15 @@ bool cmGlobalGenerator::CheckTargetsForType() const
   return failed;
 }
 
-bool cmGlobalGenerator::CheckTargetsForPchCompilePdb() const
+void cmGlobalGenerator::MarkTargetsForPchReuse() const
 {
-  if (!this->GetLanguageEnabled("C") && !this->GetLanguageEnabled("CXX")) {
-    return false;
-  }
-  bool failed = false;
   for (auto const& generator : this->LocalGenerators) {
     for (auto const& target : generator->GetGeneratorTargets()) {
-      if (!target->CanCompileSources() ||
-          target->GetProperty("ghs_integrity_app").IsOn()) {
-        continue;
-      }
-
-      std::string const& reuseFrom =
-        target->GetSafeProperty("PRECOMPILE_HEADERS_REUSE_FROM");
-      std::string const& compilePdb =
-        target->GetSafeProperty("COMPILE_PDB_NAME");
-
-      if (!reuseFrom.empty() && reuseFrom != compilePdb) {
-        std::string const e = cmStrCat(
-          "PRECOMPILE_HEADERS_REUSE_FROM property is set on target (\"",
-          target->GetName(),
-          "\"). Reusable precompile headers requires the COMPILE_PDB_NAME"
-          " property to have the value \"",
-          reuseFrom, "\"\n");
-        this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e,
-                                               target->GetBacktrace());
-        failed = true;
+      if (auto* reuseTarget = target->GetPchReuseTarget()) {
+        reuseTarget->MarkAsPchReused();
       }
     }
   }
-  return failed;
 }
 
 bool cmGlobalGenerator::IsExportedTargetsFile(
@@ -1463,6 +1442,37 @@ bool cmGlobalGenerator::Compute()
     return false;
   }
 
+  if (cmValue v = this->CMakeInstance->GetCacheDefinition(
+        "CMAKE_INTERMEDIATE_DIR_STRATEGY")) {
+    this->GetCMakeInstance()->MarkCliAsUsed("CMAKE_INTERMEDIATE_DIR_STRATEGY");
+    if (*v == "FULL") {
+      this->IntDirStrategy = IntermediateDirStrategy::Full;
+    } else if (*v == "SHORT") {
+      this->IntDirStrategy = IntermediateDirStrategy::Short;
+    } else {
+      this->GetCMakeInstance()->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("Unsupported intermediate directory strategy '", *v, '\''));
+      return false;
+    }
+  }
+  if (cmValue v = this->CMakeInstance->GetCacheDefinition(
+        "CMAKE_AUTOGEN_INTERMEDIATE_DIR_STRATEGY")) {
+    this->GetCMakeInstance()->MarkCliAsUsed(
+      "CMAKE_AUTOGEN_INTERMEDIATE_DIR_STRATEGY");
+    if (*v == "FULL") {
+      this->QtAutogenIntDirStrategy = IntermediateDirStrategy::Full;
+    } else if (*v == "SHORT") {
+      this->QtAutogenIntDirStrategy = IntermediateDirStrategy::Short;
+    } else {
+      this->GetCMakeInstance()->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("Unsupported autogen intermediate directory strategy '", *v,
+                 '\''));
+      return false;
+    }
+  }
+
   // Some generators track files replaced during the Generate.
   // Start with an empty vector:
   this->FilesReplacedDuringGenerate.clear();
@@ -1550,6 +1560,8 @@ bool cmGlobalGenerator::Compute()
     localGen->AddHelperCommands();
   }
 
+  this->MarkTargetsForPchReuse();
+
   // Add automatically generated sources (e.g. unity build).
   // Add unity sources after computing compile features.  Unity sources do
   // not change the set of languages or features, but we need to know them
@@ -1594,10 +1606,6 @@ bool cmGlobalGenerator::Compute()
   this->ComputeTargetOrder();
 
   if (this->CheckTargetsForType()) {
-    return false;
-  }
-
-  if (this->CheckTargetsForPchCompilePdb()) {
     return false;
   }
 
@@ -1999,11 +2007,53 @@ void cmGlobalGenerator::ClearGeneratorMembers()
   this->ProjectMap.clear();
   this->RuleHashes.clear();
   this->DirectoryContentMap.clear();
+  this->XcFrameworkPListContentMap.clear();
   this->BinaryDirectories.clear();
   this->GeneratedFiles.clear();
   this->RuntimeDependencySets.clear();
   this->RuntimeDependencySetsByName.clear();
   this->WarnedExperimental.clear();
+}
+
+bool cmGlobalGenerator::SupportsShortObjectNames() const
+{
+  return false;
+}
+
+bool cmGlobalGenerator::UseShortObjectNames(
+  cmStateEnums::IntermediateDirKind kind) const
+{
+  IntermediateDirStrategy strategy = IntermediateDirStrategy::Full;
+  switch (kind) {
+    case cmStateEnums::IntermediateDirKind::ObjectFiles:
+      strategy = this->IntDirStrategy;
+      break;
+    case cmStateEnums::IntermediateDirKind::QtAutogenMetadata:
+      strategy = this->QtAutogenIntDirStrategy;
+      break;
+    default:
+      assert(false);
+      break;
+  }
+  return this->SupportsShortObjectNames() &&
+    strategy == IntermediateDirStrategy::Short;
+}
+
+std::string cmGlobalGenerator::GetShortBinaryOutputDir() const
+{
+  return ".o";
+}
+
+std::string cmGlobalGenerator::ComputeTargetShortName(
+  std::string const& bindir, std::string const& targetName) const
+{
+  auto const& rcwbd =
+    this->LocalGenerators[0]->MaybeRelativeToTopBinDir(bindir);
+  cmCryptoHash hasher(cmCryptoHash::AlgoSHA3_512);
+  constexpr size_t HASH_TRUNCATION = 4;
+  auto dirHash = hasher.HashString(rcwbd).substr(0, HASH_TRUNCATION);
+  auto tgtHash = hasher.HashString(targetName).substr(0, HASH_TRUNCATION);
+  return cmStrCat(tgtHash, dirHash);
 }
 
 void cmGlobalGenerator::ComputeTargetObjectDirectory(
@@ -2123,7 +2173,7 @@ cmGlobalGenerator::GenerateBuildCommand(
   std::string const& /*unused*/, std::string const& /*unused*/,
   std::string const& /*unused*/, std::vector<std::string> const& /*unused*/,
   std::string const& /*unused*/, int /*unused*/, bool /*unused*/,
-  cmBuildOptions const& /*unused*/, std::vector<std::string> const& /*unused*/)
+  cmBuildOptions /*unused*/, std::vector<std::string> const& /*unused*/)
 {
   GeneratedMakeCommand makeCommand;
   makeCommand.Add("cmGlobalGenerator::GenerateBuildCommand not implemented");
@@ -2141,7 +2191,7 @@ int cmGlobalGenerator::Build(
   int jobs, std::string const& /*unused*/, std::string const& bindir,
   std::string const& projectName, std::vector<std::string> const& targets,
   std::ostream& ostr, std::string const& makeCommandCSTR,
-  std::string const& config, cmBuildOptions const& buildOptions, bool verbose,
+  std::string const& config, cmBuildOptions buildOptions, bool verbose,
   cmDuration timeout, cmSystemTools::OutputOption outputMode,
   std::vector<std::string> const& nativeOptions)
 {
@@ -3389,9 +3439,12 @@ cmValue cmGlobalGenerator::GetDebuggerWorkingDirectory(
 }
 
 cmGlobalGenerator::TargetDependSet const&
-cmGlobalGenerator::GetTargetDirectDepends(cmGeneratorTarget const* target)
+cmGlobalGenerator::GetTargetDirectDepends(
+  cmGeneratorTarget const* target) const
 {
-  return this->TargetDependencies[target];
+  auto i = this->TargetDependencies.find(target);
+  assert(i != this->TargetDependencies.end());
+  return i->second;
 }
 
 bool cmGlobalGenerator::TargetOrderIndexLess(cmGeneratorTarget const* l,
@@ -3444,10 +3497,11 @@ void cmGlobalGenerator::GetFilesReplacedDuringGenerate(
             std::back_inserter(filenames));
 }
 
-void cmGlobalGenerator::GetTargetSets(
-  TargetDependSet& projectTargets, TargetDependSet& originalTargets,
-  cmLocalGenerator* root, std::vector<cmLocalGenerator*>& generators)
+cmGlobalGenerator::TargetDependSet cmGlobalGenerator::GetTargetsForProject(
+  cmLocalGenerator const* root,
+  std::vector<cmLocalGenerator*> const& generators) const
 {
+  TargetDependSet projectTargets;
   // loop over all local generators
   for (auto* generator : generators) {
     // check to make sure generator is not excluded
@@ -3460,12 +3514,11 @@ void cmGlobalGenerator::GetTargetSets(
           target->GetLocalGenerator() != root) {
         continue;
       }
-      // put the target in the set of original targets
-      originalTargets.insert(target.get());
       // Get the set of targets that depend on target
       this->AddTargetDepends(target.get(), projectTargets);
     }
   }
+  return projectTargets;
 }
 
 bool cmGlobalGenerator::IsRootOnlyTarget(cmGeneratorTarget* target) const
@@ -3475,7 +3528,7 @@ bool cmGlobalGenerator::IsRootOnlyTarget(cmGeneratorTarget* target) const
 }
 
 void cmGlobalGenerator::AddTargetDepends(cmGeneratorTarget const* target,
-                                         TargetDependSet& projectTargets)
+                                         TargetDependSet& projectTargets) const
 {
   // add the target itself
   if (projectTargets.insert(target).second) {
@@ -3636,7 +3689,7 @@ void cmGlobalGenerator::WriteSummary()
         continue;
       }
       this->WriteSummary(tgt.get());
-      fout << tgt->GetSupportDirectory() << '\n';
+      fout << tgt->GetCMFSupportDirectory() << '\n';
     }
   }
 }
@@ -3644,7 +3697,7 @@ void cmGlobalGenerator::WriteSummary()
 void cmGlobalGenerator::WriteSummary(cmGeneratorTarget* target)
 {
   // Place the labels file in a per-target support directory.
-  std::string dir = target->GetSupportDirectory();
+  std::string dir = target->GetCMFSupportDirectory();
   std::string file = cmStrCat(dir, "/Labels.txt");
   std::string json_file = cmStrCat(dir, "/Labels.json");
 
@@ -3922,4 +3975,21 @@ bool cmGlobalGenerator::ShouldWarnExperimental(cm::string_view featureName,
   return this->WarnedExperimental
     .emplace(cmStrCat(featureName, '-', featureUuid))
     .second;
+}
+
+cm::optional<cmXcFrameworkPlist> cmGlobalGenerator::GetXcFrameworkPListContent(
+  std::string const& path) const
+{
+  cm::optional<cmXcFrameworkPlist> result;
+  auto i = this->XcFrameworkPListContentMap.find(path);
+  if (i != this->XcFrameworkPListContentMap.end()) {
+    result = i->second;
+  }
+  return result;
+}
+
+void cmGlobalGenerator::SetXcFrameworkPListContent(
+  std::string const& path, cmXcFrameworkPlist const& content)
+{
+  this->XcFrameworkPListContentMap.emplace(path, content);
 }

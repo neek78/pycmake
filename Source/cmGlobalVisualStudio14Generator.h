@@ -66,11 +66,6 @@ protected:
 
   std::string GetWindows10SDKVersion(cmMakefile* mf);
 
-  void AddSolutionItems(cmLocalGenerator* root) override;
-
-  void WriteFolderSolutionItems(std::ostream& fout,
-                                cmVisualStudioFolder const& folder) override;
-
 private:
   class Factory;
   friend class Factory;

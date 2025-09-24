@@ -6,19 +6,21 @@
 
 #include <iosfwd>
 #include <map>
-#include <set>
 #include <string>
 #include <vector>
 
 #include <cm/string_view>
 
 #include "cmExportFileGenerator.h"
+#include "cmFindPackageStack.h"
 #include "cmStateTypes.h"
 
-class cmGeneratorTarget;
 namespace Json {
 class Value;
 }
+
+class cmGeneratorTarget;
+class cmPackageInfoArguments;
 
 /** \class cmExportPackageInfoGenerator
  * \brief Generate Common Package Specification package information files
@@ -32,11 +34,7 @@ class Value;
 class cmExportPackageInfoGenerator : virtual public cmExportFileGenerator
 {
 public:
-  cmExportPackageInfoGenerator(std::string packageName, std::string version,
-                               std::string versionCompat,
-                               std::string versionSchema,
-                               std::vector<std::string> defaultTargets,
-                               std::vector<std::string> defaultConfigurations);
+  cmExportPackageInfoGenerator(cmPackageInfoArguments arguments);
 
   using cmExportFileGenerator::GenerateImportFile;
 
@@ -110,9 +108,14 @@ private:
   std::string const PackageVersion;
   std::string const PackageVersionCompat;
   std::string const PackageVersionSchema;
+  std::string const PackageDescription;
+  std::string const PackageWebsite;
+  std::string const PackageLicense;
+  std::string const DefaultLicense;
+
   std::vector<std::string> DefaultTargets;
   std::vector<std::string> DefaultConfigurations;
 
   std::map<std::string, std::string> LinkTargets;
-  std::map<std::string, std::set<std::string>> Requirements;
+  std::map<std::string, cmPackageInformation> Requirements;
 };

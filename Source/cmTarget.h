@@ -51,6 +51,12 @@ public:
     Foreign,
   };
 
+  enum class Origin
+  {
+    Cps,
+    Unknown,
+  };
+
   enum class PerConfig
   {
     Yes,
@@ -69,6 +75,12 @@ public:
 
   //! Return the type of target.
   cmStateEnums::TargetType GetType() const;
+
+  //! Set the origin of the target.
+  void SetOrigin(Origin origin);
+
+  //! Return the origin of the target.
+  Origin GetOrigin() const;
 
   //! Get the cmMakefile that owns this target.
   cmMakefile* GetMakefile() const;
@@ -222,7 +234,7 @@ public:
   bool IsRuntimeBinary() const;
   bool CanCompileSources() const;
 
-  bool GetMappedConfig(std::string const& desired_config, cmValue& loc,
+  bool GetMappedConfig(std::string const& desiredConfig, cmValue& loc,
                        cmValue& imp, std::string& suffix) const;
 
   //! Return whether this target is an executable with symbol exports enabled.
@@ -260,7 +272,7 @@ public:
   void InsertPrecompileHeader(BT<std::string> const& entry);
 
   void AppendBuildInterfaceIncludes();
-  void FinalizeTargetConfiguration(cmBTStringRange const& compileDefinitions);
+  void FinalizeTargetConfiguration(cmBTStringRange compileDefinitions);
 
   std::string GetDebugGeneratorExpressions(std::string const& value,
                                            cmTargetLinkLibraryType llt) const;
@@ -269,7 +281,7 @@ public:
   std::set<std::string> const& GetSystemIncludeDirectories() const;
 
   void AddInstallIncludeDirectories(cmTargetExport const& te,
-                                    cmStringRange const& incs);
+                                    cmStringRange incs);
   cmStringRange GetInstallIncludeDirectoriesEntries(
     cmTargetExport const& te) const;
 
@@ -337,6 +349,15 @@ public:
 private:
   // Internal representation details.
   friend class cmGeneratorTarget;
+
+  bool GetMappedConfigOld(std::string const& desired_config, cmValue& loc,
+                          cmValue& imp, std::string& suffix) const;
+  bool GetMappedConfigNew(std::string desiredConfig, cmValue& loc,
+                          cmValue& imp, std::string& suffix) const;
+  cmValue GetLocation(std::string const& base,
+                      std::string const& suffix) const;
+  bool GetLocation(std::string const& config, cmValue& loc, cmValue& imp,
+                   std::string& suffix) const;
 
   char const* GetSuffixVariableInternal(
     cmStateEnums::ArtifactType artifact) const;

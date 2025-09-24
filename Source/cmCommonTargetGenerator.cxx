@@ -11,6 +11,7 @@
 #include <cmext/string_view>
 
 #include "cmComputeLinkInformation.h"
+#include "cmGenExContext.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorExpressionDAGChecker.h"
 #include "cmGeneratorTarget.h"
@@ -196,8 +197,7 @@ cmCommonTargetGenerator::GetLinkedTargetDirectories(
             ((lang == "CXX"_s && linkee->HaveCxx20ModuleSources()) ||
              (lang == "Fortran"_s && linkee->HaveFortranSources(config)))) {
           cmLocalGenerator* lg = linkee->GetLocalGenerator();
-          std::string di = cmStrCat(lg->GetCurrentBinaryDirectory(), '/',
-                                    lg->GetTargetDirectory(linkee));
+          std::string di = linkee->GetSupportDirectory();
           if (lg->GetGlobalGenerator()->IsMultiConfig()) {
             di = cmStrCat(di, '/', config);
           }
@@ -459,12 +459,13 @@ std::string cmCommonTargetGenerator::GenerateCodeCheckRules(
           this->GeneratorTarget->GetLocalGenerator()->EscapeForShell(
             cmStrCat(tidy, ";--extra-arg-before=--driver-mode=", driverMode,
                      exportFixes));
-      } else if (generatorName.find("Ninja") != std::string::npos) {
+      } else if (generatorName.find("Ninja") != std::string::npos ||
+                 generatorName.find("FASTBuild") != std::string::npos) {
         if (!clangTidyExportFixedDir.empty()) {
           this->GlobalCommonGenerator->AddClangTidyExportFixesFile(fixesFile);
           cmSystemTools::MakeDirectory(
             cmSystemTools::GetFilenamePath(fixesFile));
-          if (!pathConverter) {
+          if (pathConverter) {
             fixesFile = pathConverter(fixesFile);
           }
           exportFixes = cmStrCat(";--export-fixes=", fixesFile);
@@ -522,13 +523,13 @@ std::string cmCommonTargetGenerator::GetLinkerLauncher(
   std::string propName = lang + "_LINKER_LAUNCHER";
   cmValue launcherProp = this->GeneratorTarget->GetProperty(propName);
   if (cmNonempty(launcherProp)) {
-    cmGeneratorExpressionDAGChecker dagChecker{
-      this->GeneratorTarget,      propName, nullptr, nullptr,
-      this->LocalCommonGenerator, config,
-    };
+    cm::GenEx::Context context(this->LocalCommonGenerator, config, lang);
+    cmGeneratorExpressionDAGChecker dagChecker{ this->GeneratorTarget,
+                                                propName, nullptr, nullptr,
+                                                context };
     std::string evaluatedLinklauncher = cmGeneratorExpression::Evaluate(
-      *launcherProp, this->LocalCommonGenerator, config, this->GeneratorTarget,
-      &dagChecker, this->GeneratorTarget, lang);
+      *launcherProp, context.LG, context.Config, this->GeneratorTarget,
+      &dagChecker, this->GeneratorTarget, context.Language);
     // Convert ;-delimited list to single string
     cmList args{ evaluatedLinklauncher, cmList::EmptyElements::Yes };
     if (!args.empty()) {

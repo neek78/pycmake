@@ -13,9 +13,15 @@ FindKDE3
   `KDE documentation
   <https://develop.kde.org/docs/getting-started/building/cmake-build/>`_.
 
-This module finds KDE 3 include directories, libraries, and KDE-specific
-preprocessor tools.  It provides usage requirements for building KDE 3 software
-and defines several helper commands to simplify working with KDE 3 in CMake.
+Finds KDE 3 include directories, libraries, and KDE-specific preprocessor
+tools:
+
+.. code-block:: cmake
+
+  find_package(KDE3 [...])
+
+This module provides usage requirements for building KDE 3 software and
+defines several helper commands to simplify working with KDE 3 in CMake.
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -206,7 +212,7 @@ if(NOT UNIX AND KDE3_FIND_REQUIRED)
 endif()
 
 # If Qt4 has already been found, fail.
-if(QT4_FOUND)
+if(Qt4_FOUND)
   if(KDE3_FIND_REQUIRED)
     message( FATAL_ERROR "KDE3/Qt3 and Qt4 cannot be used together in one project.")
   else()

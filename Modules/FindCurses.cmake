@@ -5,7 +5,11 @@
 FindCurses
 ----------
 
-Finds the curses or ncurses library.
+Finds the curses or ncurses library:
+
+.. code-block:: cmake
+
+  find_package(Curses [...])
 
 Curses is a terminal control library for Unix-like systems, used to build text
 user interface (TUI) applications.  Originally developed in 1978, it has since
@@ -318,7 +322,7 @@ set(CURSES_INCLUDE_DIRS ${CURSES_INCLUDE_PATH})
 set(CURSES_INCLUDE_DIR ${CURSES_INCLUDE_PATH}) # compatibility
 
 find_package(PkgConfig QUIET)
-if(PKG_CONFIG_FOUND)
+if(PkgConfig_FOUND)
   pkg_check_modules(NCURSES QUIET ${NCURSES_LIBRARY_NAME})
   set(CURSES_CFLAGS ${NCURSES_CFLAGS_OTHER})
 endif()

@@ -4,9 +4,10 @@
 include(${CMAKE_ROOT}/Modules/CMakeDetermineCompiler.cmake)
 include(${CMAKE_ROOT}/Modules/CMakeParseImplicitLinkInfo.cmake)
 
-if(NOT ((CMAKE_GENERATOR MATCHES "Make") OR
-        (CMAKE_GENERATOR MATCHES "Ninja") OR
-        (CMAKE_GENERATOR MATCHES "Visual Studio (1|[9][0-9])")))
+if( NOT ( ("${CMAKE_GENERATOR}" MATCHES "Make") OR
+          ("${CMAKE_GENERATOR}" MATCHES "Ninja") OR
+          ("${CMAKE_GENERATOR}" MATCHES "FASTBuild") OR
+          ("${CMAKE_GENERATOR}" MATCHES "Visual Studio (1|[9][0-9])") ) )
   message(FATAL_ERROR "CUDA language not currently supported by \"${CMAKE_GENERATOR}\" generator")
 endif()
 
@@ -49,6 +50,29 @@ else()
     if(NOT EXISTS ${CMAKE_CUDA_HOST_COMPILER})
       message(FATAL_ERROR "Could not find compiler set in environment variable CUDAHOSTCXX:\n$ENV{CUDAHOSTCXX}.\n${CMAKE_CUDA_HOST_COMPILER}")
     endif()
+  elseif(CMAKE_CUDA_HOST_COMPILER)
+    # We get here if CMAKE_CUDA_HOST_COMPILER was specified by the user or toolchain file.
+    if(IS_ABSOLUTE "${CMAKE_CUDA_HOST_COMPILER}")
+      # Convert to forward slashes.
+      cmake_path(CONVERT "${CMAKE_CUDA_HOST_COMPILER}" TO_CMAKE_PATH_LIST CMAKE_CUDA_HOST_COMPILER NORMALIZE)
+    else()
+      # Convert to absolute path so changes in `PATH` do not impact CUDA compilation.
+      find_program(_CMAKE_CUDA_HOST_COMPILER_PATH NO_CACHE NAMES "${CMAKE_CUDA_HOST_COMPILER}")
+      if(_CMAKE_CUDA_HOST_COMPILER_PATH)
+        set(CMAKE_CUDA_HOST_COMPILER "${_CMAKE_CUDA_HOST_COMPILER_PATH}")
+      endif()
+      unset(_CMAKE_CUDA_HOST_COMPILER_PATH)
+    endif()
+    if(NOT EXISTS "${CMAKE_CUDA_HOST_COMPILER}")
+      message(FATAL_ERROR "Could not find compiler set in variable CMAKE_CUDA_HOST_COMPILER:\n  ${CMAKE_CUDA_HOST_COMPILER}")
+    endif()
+    # If the value was cached, update the cache entry with our modifications.
+    get_property(_CMAKE_CUDA_HOST_COMPILER_CACHED CACHE CMAKE_CUDA_HOST_COMPILER PROPERTY TYPE)
+    if(_CMAKE_CUDA_HOST_COMPILER_CACHED)
+      set_property(CACHE CMAKE_CUDA_HOST_COMPILER PROPERTY VALUE "${CMAKE_CUDA_HOST_COMPILER}")
+      mark_as_advanced(CMAKE_CUDA_HOST_COMPILER)
+    endif()
+    unset(_CMAKE_CUDA_HOST_COMPILER_CACHED)
   endif()
 endif()
 
@@ -234,21 +258,27 @@ if(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
   # _CUDA_TARGET_DIR always points to the directory containing the include directory.
   # On a scattered installation /usr, on a non-scattered something like /usr/local/cuda or /usr/local/cuda-10.2/targets/aarch64-linux.
   if(EXISTS "${_CUDA_TARGET_DIR}/include/cuda_runtime.h")
-    set(_CUDA_INCLUDE_DIR "${_CUDA_TARGET_DIR}/include")
+    set(_CUDA_INCLUDE_DIRS "${_CUDA_TARGET_DIR}/include")
   else()
-    message(FATAL_ERROR "Unable to find cuda_runtime.h in \"${_CUDA_TARGET_DIR}/include\" for _CUDA_INCLUDE_DIR.")
+    message(FATAL_ERROR "Unable to find cuda_runtime.h in \"${_CUDA_TARGET_DIR}/include\" for _CUDA_INCLUDE_DIRS.")
+  endif()
+
+  # CUDA 13 has multiple includes that are implicitly added by nvcc that we need to replicate for
+  # clang-cuda
+  if(EXISTS "${_CUDA_TARGET_DIR}/include/cccl")
+    list(APPEND _CUDA_INCLUDE_DIRS "${_CUDA_TARGET_DIR}/include/cccl")
   endif()
 
   # Clang does not add any CUDA SDK libraries or directories when invoking the host linker.
   # Add the CUDA toolkit library directory ourselves so that linking works.
   # The CUDA runtime libraries are handled elsewhere by CMAKE_CUDA_RUNTIME_LIBRARY.
-  set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${_CUDA_INCLUDE_DIR}")
+  set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${_CUDA_INCLUDE_DIRS}")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_DIRECTORIES "${_CUDA_LIBRARY_DIR}")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_LIBRARIES "")
   set(CMAKE_CUDA_HOST_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES "")
 
   # Don't leak variables unnecessarily to user code.
-  unset(_CUDA_INCLUDE_DIR)
+  unset(_CUDA_INCLUDE_DIRS)
   unset(_CUDA_LIBRARY_DIR)
   unset(_CUDA_TARGET_DIR)
 elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
@@ -283,7 +313,7 @@ endif()
 # If the user did not set CMAKE_CUDA_ARCHITECTURES, use the compiler's default.
 if("${CMAKE_CUDA_ARCHITECTURES}" STREQUAL "")
   cmake_policy(GET CMP0104 _CUDA_CMP0104)
-  if(NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" OR _CUDA_CMP0104 STREQUAL "NEW")
+  if(CMAKE_CUDA_COMPILER_ID AND (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" OR _CUDA_CMP0104 STREQUAL "NEW"))
     set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES_DEFAULT}" CACHE STRING "CUDA architectures")
     if(NOT CMAKE_CUDA_ARCHITECTURES)
       message(FATAL_ERROR "Failed to detect a default CUDA architecture.\n\nCompiler output:\n${CMAKE_CUDA_COMPILER_PRODUCED_OUTPUT}")

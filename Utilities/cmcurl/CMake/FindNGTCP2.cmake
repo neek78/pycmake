@@ -26,30 +26,38 @@
 # This module accepts optional COMPONENTS to control the crypto library (these are
 # mutually exclusive):
 #
-# - quictls:    Use `libngtcp2_crypto_quictls`.   (choose this for LibreSSL)
-# - BoringSSL:  Use `libngtcp2_crypto_boringssl`. (choose this for AWS-LC)
-# - wolfSSL:    Use `libngtcp2_crypto_wolfssl`.
+# - BoringSSL:  Use `libngtcp2_crypto_boringssl`. (also for AWS-LC)
 # - GnuTLS:     Use `libngtcp2_crypto_gnutls`.
+# - LibreSSL:   Use `libngtcp2_crypto_libressl`. (requires ngtcp2 1.15.0+)
+# - ossl:       Use `libngtcp2_crypto_ossl`.
+# - quictls:    Use `libngtcp2_crypto_quictls`. (also for LibreSSL with ngtcp2 <1.15.0)
+# - wolfSSL:    Use `libngtcp2_crypto_wolfssl`.
 #
 # Input variables:
 #
-# - `NGTCP2_INCLUDE_DIR`:   The ngtcp2 include directory.
-# - `NGTCP2_LIBRARY`:       Path to `ngtcp2` library.
+# - `NGTCP2_INCLUDE_DIR`:               The ngtcp2 include directory.
+# - `NGTCP2_LIBRARY`:                   Path to `ngtcp2` library.
+# - `NGTCP2_CRYPTO_BORINGSSL_LIBRARY`:  Path to `ngtcp2_crypto_boringssl` library.
+# - `NGTCP2_CRYPTO_GNUTLS_LIBRARY`:     Path to `ngtcp2_crypto_gnutls` library.
+# - `NGTCP2_CRYPTO_LIBRESSL_LIBRARY`:   Path to `ngtcp2_crypto_libressl` library.
+# - `NGTCP2_CRYPTO_OSSL_LIBRARY`:       Path to `ngtcp2_crypto_ossl` library.
+# - `NGTCP2_CRYPTO_QUICTLS_LIBRARY`:    Path to `ngtcp2_crypto_quictls` library.
+# - `NGTCP2_CRYPTO_WOLFSSL_LIBRARY`:    Path to `ngtcp2_crypto_wolfssl` library.
 #
 # Result variables:
 #
-# - `NGTCP2_FOUND`:         System has ngtcp2.
-# - `NGTCP2_INCLUDE_DIRS`:  The ngtcp2 include directories.
-# - `NGTCP2_LIBRARIES`:     The ngtcp2 library names.
-# - `NGTCP2_LIBRARY_DIRS`:  The ngtcp2 library directories.
-# - `NGTCP2_PC_REQUIRES`:   The ngtcp2 pkg-config packages.
-# - `NGTCP2_CFLAGS`:        Required compiler flags.
-# - `NGTCP2_VERSION`:       Version of ngtcp2.
+# - `NGTCP2_FOUND`:                     System has ngtcp2.
+# - `NGTCP2_INCLUDE_DIRS`:              The ngtcp2 include directories.
+# - `NGTCP2_LIBRARIES`:                 The ngtcp2 library names.
+# - `NGTCP2_LIBRARY_DIRS`:              The ngtcp2 library directories.
+# - `NGTCP2_PC_REQUIRES`:               The ngtcp2 pkg-config packages.
+# - `NGTCP2_CFLAGS`:                    Required compiler flags.
+# - `NGTCP2_VERSION`:                   Version of ngtcp2.
 
 if(NGTCP2_FIND_COMPONENTS)
   set(_ngtcp2_crypto_backend "")
   foreach(_component IN LISTS NGTCP2_FIND_COMPONENTS)
-    if(_component MATCHES "^(BoringSSL|quictls|wolfSSL|GnuTLS)")
+    if(_component MATCHES "^(BoringSSL|GnuTLS|LibreSSL|ossl|quictls|wolfSSL)")
       if(_ngtcp2_crypto_backend)
         message(FATAL_ERROR "NGTCP2: Only one crypto library can be selected")
       endif()
@@ -65,26 +73,20 @@ endif()
 
 set(NGTCP2_PC_REQUIRES "libngtcp2")
 if(_ngtcp2_crypto_backend)
-  set(NGTCP2_CRYPTO_PC_REQUIRES "lib${_crypto_library_lower}")
+  list(APPEND NGTCP2_PC_REQUIRES "lib${_crypto_library_lower}")
 endif()
 
+set(_tried_pkgconfig FALSE)
 if(CURL_USE_PKGCONFIG AND
    NOT DEFINED NGTCP2_INCLUDE_DIR AND
    NOT DEFINED NGTCP2_LIBRARY)
   find_package(PkgConfig QUIET)
   pkg_check_modules(NGTCP2 ${NGTCP2_PC_REQUIRES})
-  if(_ngtcp2_crypto_backend)
-    pkg_check_modules("${_crypto_library_upper}" ${NGTCP2_CRYPTO_PC_REQUIRES})
-  else()
-    set("${_crypto_library_upper}_FOUND" TRUE)
-  endif()
+  set(_tried_pkgconfig TRUE)
 endif()
 
-list(APPEND NGTCP2_PC_REQUIRES ${NGTCP2_CRYPTO_PC_REQUIRES})
-
-if(NGTCP2_FOUND AND "${${_crypto_library_upper}_FOUND}")
-  list(APPEND NGTCP2_LIBRARIES "${${_crypto_library_upper}_LIBRARIES}")
-  list(REMOVE_DUPLICATES NGTCP2_LIBRARIES)
+if(NGTCP2_FOUND)
+  set(NGTCP2_VERSION "${NGTCP2_libngtcp2_VERSION}")
   string(REPLACE ";" " " NGTCP2_CFLAGS "${NGTCP2_CFLAGS}")
   message(STATUS "Found NGTCP2 (via pkg-config): ${NGTCP2_INCLUDE_DIRS} (found version \"${NGTCP2_VERSION}\")")
 else()
@@ -127,4 +129,9 @@ else()
   endif()
 
   mark_as_advanced(NGTCP2_INCLUDE_DIR NGTCP2_LIBRARY NGTCP2_CRYPTO_LIBRARY)
+
+  if(NOT NGTCP2_FOUND AND _tried_pkgconfig)  # reset variables to allow another round of detection
+    unset(NGTCP2_INCLUDE_DIR CACHE)
+    unset(NGTCP2_LIBRARY CACHE)
+  endif()
 endif()

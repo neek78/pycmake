@@ -187,7 +187,7 @@ else()
   set(_CMAKE_TAPI_NAMES "tapi")
 
   # Prepend toolchain-specific names.
-  if("${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" STREQUAL Clang)
+  if("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" MATCHES "^x(Clang|IntelLLVM|LLVMFlang)$")
     if("x${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_SIMULATE_ID}" STREQUAL "xMSVC")
       list(PREPEND _CMAKE_LINKER_NAMES "lld-link")
     elseif(NOT APPLE)
@@ -217,6 +217,11 @@ else()
   elseif("${CMAKE_${_CMAKE_PROCESSING_LANGUAGE}_COMPILER_ID}" STREQUAL ARMClang)
     list(PREPEND _CMAKE_AR_NAMES "armar")
     list(PREPEND _CMAKE_LINKER_NAMES "armlink")
+  endif()
+
+  if(EMSCRIPTEN)
+    list(PREPEND _CMAKE_AR_NAMES "emar")
+    list(PREPEND _CMAKE_RANLIB_NAMES "emranlib")
   endif()
 
   list(APPEND _CMAKE_TOOL_VARS AR RANLIB STRIP LINKER NM OBJDUMP OBJCOPY READELF DLLTOOL ADDR2LINE TAPI)
@@ -259,8 +264,7 @@ endif()
 
 
 if(CMAKE_PLATFORM_HAS_INSTALLNAME)
-  find_program(CMAKE_INSTALL_NAME_TOOL NAMES ${_CMAKE_TOOLCHAIN_PREFIX}install_name_tool HINTS ${_CMAKE_TOOLCHAIN_LOCATION} NO_CMAKE_PATH NO_CMAKE_ENVIRONMENT_PATH)
-
+  find_program(CMAKE_INSTALL_NAME_TOOL NAMES ${_CMAKE_TOOLCHAIN_PREFIX}install_name_tool llvm-install-name-tool HINTS ${_CMAKE_TOOLCHAIN_LOCATION} NO_CMAKE_PATH NO_CMAKE_ENVIRONMENT_PATH)
   if(NOT CMAKE_INSTALL_NAME_TOOL)
     message(FATAL_ERROR "Could not find install_name_tool, please check your installation.")
   endif()

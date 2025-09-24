@@ -10,7 +10,11 @@
 class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmMakefile;
+struct cmObjectLocations;
 class cmSourceFile;
+namespace cmStateEnums {
+enum class IntermediateDirKind;
+}
 
 /** \class cmLocalGhsMultiGenerator
  * \brief Write Green Hills MULTI project files.
@@ -31,9 +35,10 @@ public:
   void Generate() override;
 
   std::string GetTargetDirectory(
-    cmGeneratorTarget const* target) const override;
+    cmGeneratorTarget const* target,
+    cmStateEnums::IntermediateDirKind kind) const override;
 
   void ComputeObjectFilenames(
-    std::map<cmSourceFile const*, std::string>& mapping,
-    cmGeneratorTarget const* gt = nullptr) override;
+    std::map<cmSourceFile const*, cmObjectLocations>& mapping,
+    std::string const& config, cmGeneratorTarget const* gt = nullptr) override;
 };

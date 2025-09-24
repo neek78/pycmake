@@ -6,9 +6,12 @@
 #include <utility>
 #include <vector>
 
+#include <cm/optional>
+
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
+#include "cmObjectLocation.h"
 #include "cmOutputConverter.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
@@ -89,16 +92,44 @@ std::string cmLocalCommonGenerator::GetTargetFortranFlags(
   return flags;
 }
 
+std::string cmLocalCommonGenerator::ComputeLongTargetDirectory(
+  cmGeneratorTarget const* target) const
+{
+  std::string dir = target->GetName();
+#if defined(__VMS)
+  dir += "_dir";
+#else
+  dir += ".dir";
+#endif
+  return dir;
+}
+
+std::string cmLocalCommonGenerator::GetTargetDirectory(
+  cmGeneratorTarget const* target,
+  cmStateEnums::IntermediateDirKind kind) const
+{
+  if (target->GetUseShortObjectNames(kind)) {
+    return this->ComputeShortTargetDirectory(target);
+  }
+  return this->ComputeLongTargetDirectory(target);
+}
+
 void cmLocalCommonGenerator::ComputeObjectFilenames(
-  std::map<cmSourceFile const*, std::string>& mapping,
-  cmGeneratorTarget const* gt)
+  std::map<cmSourceFile const*, cmObjectLocations>& mapping,
+  std::string const& config, cmGeneratorTarget const* gt)
 {
   // Determine if these object files should use a custom extension
   char const* custom_ext = gt->GetCustomObjectExtension();
   for (auto& si : mapping) {
     cmSourceFile const* sf = si.first;
     bool keptSourceExtension;
-    si.second = this->GetObjectFileNameWithoutTarget(
-      *sf, gt->ObjectDirectory, &keptSourceExtension, custom_ext);
+    bool force = true;
+    si.second.ShortLoc.emplace(this->GetObjectFileNameWithoutTarget(
+      *sf, gt->ObjectDirectory, &keptSourceExtension, custom_ext, &force));
+    force = false;
+    si.second.LongLoc.Update(this->GetObjectFileNameWithoutTarget(
+      *sf, gt->ObjectDirectory, &keptSourceExtension, custom_ext, &force));
+    this->FillCustomInstallObjectLocations(*sf, config, custom_ext,
+                                           si.second.InstallLongLoc);
   }
 }
