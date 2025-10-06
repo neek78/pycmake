@@ -602,8 +602,13 @@ class cmMakefile;
          "consistent.",                                                       \
          4, 2, 0, WARN)                                                       \
   SELECT(POLICY, CMP0201,                                                     \
-         "The Python::NumPy target does not depend on the Python::Module "    \
-         "target.",                                                           \
+         "Python::NumPy does not depend on Python::Development.Module.", 4,   \
+         2, 0, WARN)                                                          \
+  SELECT(POLICY, CMP0202,                                                     \
+         "PDB file names always include their target's per-config POSTFIX.",  \
+         4, 2, 0, WARN)                                                       \
+  SELECT(POLICY, CMP0203,                                                     \
+         "_WINDLL is defined for shared libraries targeting the MSVC ABI.",   \
          4, 2, 0, WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
@@ -654,7 +659,9 @@ class cmMakefile;
   F(CMP0182)                                                                  \
   F(CMP0195)                                                                  \
   F(CMP0199)                                                                  \
-  F(CMP0200)
+  F(CMP0200)                                                                  \
+  F(CMP0202)                                                                  \
+  F(CMP0203)
 
 #define CM_FOR_EACH_CUSTOM_COMMAND_POLICY(F)                                  \
   F(CMP0116)                                                                  \

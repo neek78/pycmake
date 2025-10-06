@@ -1202,6 +1202,9 @@ std::string GetDirectoryValueFromFileExtension(std::string const& dirExt)
   if (ext == "xcassets"_s) {
     return "folder.assetcatalog";
   }
+  if (ext == "icon"_s) {
+    return "folder.iconcomposer.icon";
+  }
   return "folder";
 }
 
@@ -1276,6 +1279,9 @@ std::string GetSourcecodeValueFromFileExtension(
   } else if (ext == "xcconfig"_s) {
     keepLastKnownFileType = true;
     sourcecode = "text.xcconfig";
+  } else if (ext == "icon"_s) {
+    keepLastKnownFileType = true;
+    sourcecode = "folder.iconcomposer.icon";
   }
   // else
   //  {
@@ -2603,6 +2609,10 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmGeneratorTarget* gtgt,
   if (std::string const* exportMacro = gtgt->GetExportMacro()) {
     // Add the export symbol definition for shared library objects.
     this->AppendDefines(ppDefs, exportMacro->c_str());
+  }
+  for (auto const& sharedLibCompileDef :
+       gtgt->GetSharedLibraryCompileDefs(configName)) {
+    this->AppendDefines(ppDefs, sharedLibCompileDef.c_str());
   }
   std::vector<std::string> targetDefines;
   if (!langForPreprocessorDefinitions.empty()) {

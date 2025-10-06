@@ -3097,8 +3097,7 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
     cmGeneratorTarget::UseTo usage = cmGeneratorTarget::UseTo::Compile;
 
     if (cm::optional<cmGeneratorTarget::TransitiveProperty> transitiveProp =
-          target->IsTransitiveProperty(propertyName, eval->Context.LG,
-                                       eval->Context.Config,
+          target->IsTransitiveProperty(propertyName, eval->Context,
                                        dagCheckerParent)) {
       interfacePropertyName = std::string(transitiveProp->InterfaceName);
       isInterfaceProperty = transitiveProp->InterfaceName == propertyName;
@@ -3114,7 +3113,8 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
           dagCheckerParent->EvaluatingLinkerLauncher()) {
         // No check required.
       } else if (evaluatingLinkLibraries) {
-        if (!interfacePropertyName.empty()) {
+        if (!interfacePropertyName.empty() &&
+            interfacePropertyName != "INTERFACE_LINK_LIBRARIES"_s) {
           reportError(
             eval, content->GetOriginalExpression(),
             "$<TARGET_PROPERTY:...> expression in link libraries "
@@ -4166,6 +4166,7 @@ static TargetFilesystemArtifact<ArtifactBundleContentDirTag,
 //
 enum class Postfix
 {
+  Unspecified,
   Exclude,
   Include
 };
@@ -4189,7 +4190,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactNameTag>
   {
     auto output = target->GetOutputName(eval->Context.Config,
                                         cmStateEnums::RuntimeBinaryArtifact);
-    return postfix == Postfix::Include
+    return postfix != Postfix::Exclude
       ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
       : output;
   }
@@ -4206,7 +4207,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactImportTag>
     if (target->HasImportLibrary(eval->Context.Config)) {
       auto output = target->GetOutputName(eval->Context.Config,
                                           cmStateEnums::ImportLibraryArtifact);
-      return postfix == Postfix::Include
+      return postfix != Postfix::Exclude
         ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
         : output;
     }
@@ -4235,7 +4236,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactLinkerTag>
       ? cmStateEnums::ImportLibraryArtifact
       : cmStateEnums::RuntimeBinaryArtifact;
     auto output = target->GetOutputName(eval->Context.Config, artifact);
-    return postfix == Postfix::Include
+    return postfix != Postfix::Exclude
       ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
       : output;
   }
@@ -4262,7 +4263,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactLinkerLibraryTag>
         target->GetType() == cmStateEnums::STATIC_LIBRARY) {
       auto output = target->GetOutputName(eval->Context.Config,
                                           cmStateEnums::ImportLibraryArtifact);
-      return postfix == Postfix::Include
+      return postfix != Postfix::Exclude
         ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
         : output;
     }
@@ -4289,7 +4290,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactLinkerImportTag>
     if (target->HasImportLibrary(eval->Context.Config)) {
       auto output = target->GetOutputName(eval->Context.Config,
                                           cmStateEnums::ImportLibraryArtifact);
-      return postfix == Postfix::Include
+      return postfix != Postfix::Exclude
         ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
         : output;
     }
@@ -4303,7 +4304,7 @@ struct TargetOutputNameArtifactResultGetter<ArtifactPdbTag>
   static std::string Get(cmGeneratorTarget* target,
                          cm::GenEx::Evaluation* eval,
                          GeneratorExpressionContent const* content,
-                         Postfix /* unused */)
+                         Postfix postfix)
   {
     if (target->IsImported()) {
       ::reportError(
@@ -4334,7 +4335,26 @@ struct TargetOutputNameArtifactResultGetter<ArtifactPdbTag>
       return std::string();
     }
 
-    return target->GetPDBOutputName(eval->Context.Config);
+    auto output = target->GetPDBOutputName(eval->Context.Config);
+
+    if (target->GetPolicyStatusCMP0202() == cmPolicies::NEW) {
+      return postfix != Postfix::Exclude
+        ? cmStrCat(output, target->GetFilePostfix(eval->Context.Config))
+        : output;
+    }
+
+    if (target->GetPolicyStatusCMP0202() == cmPolicies::WARN &&
+        postfix != Postfix::Unspecified) {
+      eval->Context.LG->GetCMakeInstance()->IssueMessage(
+        MessageType::AUTHOR_WARNING,
+        cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0202), '\n',
+                 "\"POSTFIX\" option is recognized only when the policy is "
+                 "set to NEW. Since the policy is not set, the OLD behavior "
+                 "will be used."),
+        eval->Backtrace);
+    }
+
+    return output;
   }
 };
 
@@ -4362,7 +4382,7 @@ struct TargetFileBaseNameArtifact : public TargetArtifactBase
       return std::string();
     }
 
-    Postfix postfix = Postfix::Include;
+    Postfix postfix = Postfix::Unspecified;
     if (parameters.size() == 2) {
       if (parameters[1] == "POSTFIX:INCLUDE") {
         postfix = Postfix::Include;
@@ -4384,14 +4404,6 @@ struct TargetFileBaseNameArtifact : public TargetArtifactBase
   }
 };
 
-struct TargetPdbFileBaseNameArtifact
-  : public TargetFileBaseNameArtifact<ArtifactPdbTag>
-{
-  TargetPdbFileBaseNameArtifact() {} // NOLINT(modernize-use-equals-default)
-
-  int NumExpectedParameters() const override { return 1; }
-};
-
 static TargetFileBaseNameArtifact<ArtifactNameTag> const
   targetFileBaseNameNode;
 static TargetFileBaseNameArtifact<ArtifactImportTag> const
@@ -4402,7 +4414,8 @@ static TargetFileBaseNameArtifact<ArtifactLinkerLibraryTag> const
   targetLinkerLibraryFileBaseNameNode;
 static TargetFileBaseNameArtifact<ArtifactLinkerImportTag> const
   targetLinkerImportFileBaseNameNode;
-static TargetPdbFileBaseNameArtifact const targetPdbFileBaseNameNode;
+static TargetFileBaseNameArtifact<ArtifactPdbTag> const
+  targetPdbFileBaseNameNode;
 
 class ArtifactFilePrefixTag;
 class ArtifactImportFilePrefixTag;

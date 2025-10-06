@@ -4,6 +4,10 @@
     "directorySource": "^custom$",
     "projectName": "Custom",
     "type": "UTILITY",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": true,
     "fileSets": null,
     "sources": [

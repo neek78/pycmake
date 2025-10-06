@@ -4,6 +4,10 @@
     "directorySource": "^framework$",
     "projectName": "Framework",
     "type": "SHARED_LIBRARY",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -46,6 +50,10 @@
             "includes": null,
             "frameworks": null,
             "defines": [
+                {
+                    "define": "_WINDLL",
+                    "backtrace": null
+                },
                 {
                     "define": "shared_framework_EXPORTS",
                     "backtrace": null

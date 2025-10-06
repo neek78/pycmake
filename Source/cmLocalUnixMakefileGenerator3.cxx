@@ -79,7 +79,7 @@ std::string cmSplitExtension(std::string const& in, std::string& base)
 void addInstrumentationCommand(cmInstrumentation* instrumentation,
                                std::vector<std::string>& commands)
 {
-  if (instrumentation->HasPreOrPostBuildHook()) {
+  if (instrumentation->HasQuery()) {
     std::string instrumentationCommand =
       "$(CTEST_COMMAND) --start-instrumentation $(CMAKE_BINARY_DIR)";
 #  ifndef _WIN32
@@ -699,9 +699,7 @@ void cmLocalUnixMakefileGenerator3::WriteMakeVariables(
                  << cmakeShellCommand << "\n";
 
 #ifndef CMAKE_BOOTSTRAP
-  if (this->GetCMakeInstance()
-        ->GetInstrumentation()
-        ->HasPreOrPostBuildHook() &&
+  if (this->GetCMakeInstance()->GetInstrumentation()->HasQuery() &&
       // FIXME(#27079): This does not work for MSYS Makefiles.
       this->GlobalGenerator->GetName() != "MSYS Makefiles") {
     std::string ctestShellCommand =
@@ -1057,7 +1055,6 @@ void cmLocalUnixMakefileGenerator3::AppendCustomCommand(
         vars.CMTargetName = target->GetName().c_str();
         vars.CMTargetType =
           cmState::GetTargetTypeName(target->GetType()).c_str();
-        vars.CMTargetLabels = target->GetTargetLabelsString().c_str();
         std::string output;
         std::vector<std::string> const& outputs = ccg.GetOutputs();
         for (size_t i = 0; i < outputs.size(); ++i) {
@@ -1073,6 +1070,8 @@ void cmLocalUnixMakefileGenerator3::AppendCustomCommand(
         }
         vars.Output = output.c_str();
         vars.Role = ccg.GetCC().GetRole().c_str();
+        vars.CMTargetName = ccg.GetCC().GetTarget().c_str();
+        vars.Config = ccg.GetOutputConfig().c_str();
 
         launcher = val;
         rulePlaceholderExpander->ExpandRuleVariables(this, launcher, vars);

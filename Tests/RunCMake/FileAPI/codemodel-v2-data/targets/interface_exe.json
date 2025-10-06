@@ -4,6 +4,10 @@
     "directorySource": "^\\.$",
     "projectName": "codemodel-v2",
     "type": "EXECUTABLE",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -28,7 +32,7 @@
                 },
                 {
                     "file": "^codemodel-v2\\.cmake$",
-                    "line": 7,
+                    "line": 9,
                     "command": "include",
                     "hasParent": true
                 },
@@ -91,7 +95,7 @@
                         },
                         {
                             "file": "^codemodel-v2\\.cmake$",
-                            "line": 7,
+                            "line": 9,
                             "command": "include",
                             "hasParent": true
                         },
@@ -134,7 +138,7 @@
         },
         {
             "file": "^codemodel-v2\\.cmake$",
-            "line": 7,
+            "line": 9,
             "command": "include",
             "hasParent": true
         },

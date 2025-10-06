@@ -774,6 +774,38 @@ bool cmGlobalVisualStudioGenerator::Open(std::string const& bindir,
   return std::async(std::launch::async, OpenSolution, sln).get();
 }
 
+cm::string_view cmGlobalVisualStudioGenerator::ExternalProjectTypeId(
+  std::string const& path)
+{
+  using namespace cm::VS;
+  std::string const extension = cmSystemTools::GetFilenameLastExtension(path);
+  if (extension == ".vfproj"_s) {
+    return Solution::Project::TypeIdFortran;
+  }
+  if (extension == ".vbproj"_s) {
+    return Solution::Project::TypeIdVisualBasic;
+  }
+  if (extension == ".csproj"_s) {
+    return Solution::Project::TypeIdCSharp;
+  }
+  if (extension == ".fsproj"_s) {
+    return Solution::Project::TypeIdFSharp;
+  }
+  if (extension == ".vdproj"_s) {
+    return Solution::Project::TypeIdVDProj;
+  }
+  if (extension == ".dbproj"_s) {
+    return Solution::Project::TypeIdDatabase;
+  }
+  if (extension == ".wixproj"_s) {
+    return Solution::Project::TypeIdWiX;
+  }
+  if (extension == ".pyproj"_s) {
+    return Solution::Project::TypeIdPython;
+  }
+  return Solution::Project::TypeIdDefault;
+}
+
 bool cmGlobalVisualStudioGenerator::IsDependedOn(
   TargetDependSet const& projectTargets, cmGeneratorTarget const* gtIn) const
 {
@@ -936,7 +968,7 @@ cm::VS::Solution cmGlobalVisualStudioGenerator::CreateSolution(
       if (!projectType.IsEmpty()) {
         project->TypeId = *projectType;
       } else {
-        project->TypeId = Solution::Project::TypeIdDefault;
+        project->TypeId = this->ExternalProjectTypeId(project->Path);
       }
       for (std::string const& config : solution.Configs) {
         cmList mapConfig{ gt->GetProperty(cmStrCat(
@@ -977,12 +1009,19 @@ cm::VS::Solution cmGlobalVisualStudioGenerator::CreateSolution(
         project->TypeId = Solution::Project::TypeIdDefault;
       }
 
-      project->Platform =
-        // On VS 19 and above, always map .NET SDK projects to "Any CPU".
-        (gt->IsDotNetSdkTarget() && this->Version >= VSVersion::VS16 &&
-         !cmGlobalVisualStudioGenerator::IsReservedTarget(gt->GetName()))
-        ? "Any CPU"
-        : solution.Platform;
+      if (gt->IsDotNetSdkTarget() &&
+          !cmGlobalVisualStudioGenerator::IsReservedTarget(gt->GetName())) {
+        cmValue platformTarget = gt->GetProperty("VS_GLOBAL_PlatformTarget");
+        if (!platformTarget.IsEmpty()) {
+          project->Platform = *platformTarget;
+        } else {
+          project->Platform =
+            // On VS 16 and above, always map .NET SDK projects to "Any CPU".
+            this->Version >= VSVersion::VS16 ? "Any CPU" : solution.Platform;
+        }
+      } else {
+        project->Platform = solution.Platform;
+      }
 
       // Add solution-level dependencies.
       TargetDependSet const& depends = this->GetTargetDirectDepends(gt);

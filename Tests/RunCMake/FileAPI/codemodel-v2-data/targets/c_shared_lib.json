@@ -4,6 +4,10 @@
     "directorySource": "^\\.$",
     "projectName": "codemodel-v2",
     "type": "SHARED_LIBRARY",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -16,7 +20,7 @@
             "backtrace": [
                 {
                     "file": "^codemodel-v2\\.cmake$",
-                    "line": 14,
+                    "line": 16,
                     "command": "add_library",
                     "hasParent": true
                 },
@@ -59,6 +63,10 @@
             "frameworks": null,
             "defines": [
                 {
+                    "define": "_WINDLL",
+                    "backtrace": null
+                },
+                {
                     "define": "c_shared_lib_EXPORTS",
                     "backtrace": null
                 }
@@ -69,7 +77,7 @@
     "backtrace": [
         {
             "file": "^codemodel-v2\\.cmake$",
-            "line": 14,
+            "line": 16,
             "command": "add_library",
             "hasParent": true
         },
@@ -118,7 +126,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 51,
+                        "line": 53,
                         "command": "install",
                         "hasParent": true
                     },
@@ -148,7 +156,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 51,
+                        "line": 53,
                         "command": "install",
                         "hasParent": true
                     },
@@ -178,7 +186,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 56,
+                        "line": 58,
                         "command": "install",
                         "hasParent": true
                     },

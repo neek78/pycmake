@@ -4,6 +4,10 @@
     "directorySource": "^imported$",
     "projectName": "Imported",
     "type": "EXECUTABLE",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -16,7 +20,7 @@
             "backtrace": [
                 {
                     "file": "^imported/CMakeLists\\.txt$",
-                    "line": 24,
+                    "line": 27,
                     "command": "add_executable",
                     "hasParent": true
                 },
@@ -52,7 +56,7 @@
     "backtrace": [
         {
             "file": "^imported/CMakeLists\\.txt$",
-            "line": 24,
+            "line": 27,
             "command": "add_executable",
             "hasParent": true
         },

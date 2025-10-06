@@ -20,6 +20,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmLinkItem.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmObjectLocation.h"
 #include "cmPolicies.h"
@@ -69,6 +70,7 @@ public:
   bool IsImported() const;
   bool IsImportedGloballyVisible() const;
   bool IsForeign() const;
+  bool IsSymbolic() const;
   bool CanCompileSources() const;
   bool HasKnownRuntimeArtifactLocation(std::string const& config) const;
   std::string const& GetLocation(std::string const& config) const;
@@ -382,6 +384,11 @@ public:
       If no macro should be defined null is returned.  */
   std::string const* GetExportMacro() const;
 
+  /** Get the list of preprocessor definitions, that should be defined
+      when building sources in this target.
+      If no macro should be defined the empty list is returned.  */
+  cmList const& GetSharedLibraryCompileDefs(std::string const& config) const;
+
   /** Get the soname of the target.  Allowed only for a shared library.  */
   std::string GetSOName(std::string const& config,
                         cmStateEnums::ArtifactType artifact =
@@ -528,8 +535,6 @@ public:
 
   std::vector<std::string> GetAppleArchs(std::string const& config,
                                          cm::optional<std::string> lang) const;
-
-  std::string const& GetTargetLabelsString();
 
   // The classification of the flag.
   enum class FlagClassification
@@ -1032,8 +1037,7 @@ public:
     BuiltinTransitiveProperties;
 
   cm::optional<TransitiveProperty> IsTransitiveProperty(
-    cm::string_view prop, cmLocalGenerator const* lg,
-    std::string const& config,
+    cm::string_view prop, cm::GenEx::Context const& context,
     cmGeneratorExpressionDAGChecker const* dagChecker) const;
 
   bool HaveInstallTreeRPATH(std::string const& config) const;
@@ -1168,6 +1172,7 @@ private:
   mutable std::map<std::string, std::vector<std::string>> SystemIncludesCache;
 
   mutable std::string ExportMacro;
+  mutable std::unordered_map<std::string, cmList> SharedLibraryCompileDefs;
 
   void ConstructSourceFileFlags() const;
   mutable bool SourceFileFlagsConstructed = false;

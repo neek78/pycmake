@@ -1153,6 +1153,11 @@ bool cmGeneratorTarget::IsImportedGloballyVisible() const
   return this->Target->IsImportedGloballyVisible();
 }
 
+bool cmGeneratorTarget::IsSymbolic() const
+{
+  return this->Target->IsSymbolic();
+}
+
 bool cmGeneratorTarget::IsForeign() const
 {
   return this->Target->IsForeign();
@@ -1844,6 +1849,36 @@ std::string const* cmGeneratorTarget::GetExportMacro() const
   return nullptr;
 }
 
+cmList const& cmGeneratorTarget::GetSharedLibraryCompileDefs(
+  std::string const& config) const
+{
+  {
+    auto it = this->SharedLibraryCompileDefs.find(config);
+    if (it != this->SharedLibraryCompileDefs.end()) {
+      return it->second;
+    }
+  }
+
+  auto emplaceResult =
+    this->SharedLibraryCompileDefs.emplace(config, cmList{});
+  auto& defs = emplaceResult.first->second;
+  if (this->GetType() != cmStateEnums::SHARED_LIBRARY &&
+      this->GetType() != cmStateEnums::MODULE_LIBRARY) {
+    return defs;
+  }
+
+  if (this->GetPolicyStatusCMP0203() != cmPolicies::NEW) {
+    return defs;
+  }
+
+  auto linkerLang = this->GetLinkerLanguage(config);
+  auto definitionVar =
+    cmStrCat("CMAKE_", linkerLang, "_SHARED_LIBRARY_COMPILE_DEFINITIONS");
+  defs = this->Makefile->GetSafeDefinition(definitionVar);
+
+  return defs;
+}
+
 cmGeneratorTarget::NameComponents const&
 cmGeneratorTarget::GetFullNameComponents(
   std::string const& config, cmStateEnums::ArtifactType artifact) const
@@ -2063,14 +2098,6 @@ std::vector<std::string> cmGeneratorTarget::GetAppleArchs(
       this->Makefile->GetDefinition("_CMAKE_APPLE_ARCHS_DEFAULT"));
   }
   return std::move(archList.data());
-}
-
-std::string const& cmGeneratorTarget::GetTargetLabelsString()
-{
-  this->targetLabelsString = this->GetSafeProperty("LABELS");
-  std::replace(this->targetLabelsString.begin(),
-               this->targetLabelsString.end(), ';', ',');
-  return this->targetLabelsString;
 }
 
 namespace {
@@ -2337,7 +2364,6 @@ cmGeneratorTarget::GetClassifiedFlagsForSource(cmSourceFile const* sf,
   cmRulePlaceholderExpander::RuleVariables vars;
   vars.CMTargetName = this->GetName().c_str();
   vars.CMTargetType = cmState::GetTargetTypeName(this->GetType()).c_str();
-  vars.CMTargetLabels = this->GetTargetLabelsString().c_str();
   vars.Language = lang.c_str();
 
   auto const sfPath = this->LocalGenerator->ConvertToOutputFormat(
@@ -3979,9 +4005,11 @@ std::string cmGeneratorTarget::GetPDBOutputName(
 
     // Now evaluate genex and update the previously-prepared map entry.
     if (outName.empty()) {
-      i->second =
-        this->GetOutputName(config, cmStateEnums::RuntimeBinaryArtifact) +
-        this->GetFilePostfix(config);
+      i->second = cmStrCat(
+        this->GetOutputName(config, cmStateEnums::RuntimeBinaryArtifact),
+        this->GetPolicyStatusCMP0202() != cmPolicies::NEW
+          ? this->GetFilePostfix(config)
+          : "");
     } else {
       i->second =
         cmGeneratorExpression::Evaluate(outName, this->LocalGenerator, config);
@@ -4004,7 +4032,11 @@ std::string cmGeneratorTarget::GetPDBName(std::string const& config) const
 
   std::string base = this->GetPDBOutputName(config);
 
-  return parts.prefix + base + ".pdb";
+  return cmStrCat(parts.prefix, base,
+                  this->GetPolicyStatusCMP0202() == cmPolicies::NEW
+                    ? this->GetFilePostfix(config)
+                    : "",
+                  ".pdb");
 }
 
 std::string cmGeneratorTarget::GetObjectDirectory(

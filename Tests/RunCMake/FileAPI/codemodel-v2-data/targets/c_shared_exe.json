@@ -4,6 +4,10 @@
     "directorySource": "^\\.$",
     "projectName": "codemodel-v2",
     "type": "EXECUTABLE",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -16,7 +20,7 @@
             "backtrace": [
                 {
                     "file": "^codemodel-v2\\.cmake$",
-                    "line": 15,
+                    "line": 17,
                     "command": "add_executable",
                     "hasParent": true
                 },
@@ -64,7 +68,7 @@
     "backtrace": [
         {
             "file": "^codemodel-v2\\.cmake$",
-            "line": 15,
+            "line": 17,
             "command": "add_executable",
             "hasParent": true
         },
@@ -114,7 +118,7 @@
             "backtrace": [
                 {
                     "file": "^codemodel-v2\\.cmake$",
-                    "line": 16,
+                    "line": 18,
                     "command": "target_link_libraries",
                     "hasParent": true
                 },

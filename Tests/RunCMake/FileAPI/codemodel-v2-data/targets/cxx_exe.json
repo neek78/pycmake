@@ -4,6 +4,10 @@
     "directorySource": "^cxx$",
     "projectName": "Cxx",
     "type": "EXECUTABLE",
+    "imported": null,
+    "local": null,
+    "abstract": null,
+    "symbolic": null,
     "isGeneratorProvided": null,
     "fileSets": null,
     "sources": [
@@ -47,27 +51,27 @@
             "frameworks": null,
             "defines": null,
             "precompileHeaders": [
-              {
-                "header": ".*empty\\.h$",
-                "backtrace": [
-                  {
-                    "file": "^cxx/CMakeLists\\.txt$",
-                    "line": 23,
-                    "command": "target_precompile_headers",
-                    "hasParent": true
-                  },
-                  {
-                    "file": "^cxx/CMakeLists\\.txt$",
-                    "line": null,
-                    "command": null,
-                    "hasParent": false
-                  }
-                ]
-              }
+                {
+                    "header": ".*empty\\.h$",
+                    "backtrace": [
+                        {
+                            "file": "^cxx/CMakeLists\\.txt$",
+                            "line": 23,
+                            "command": "target_precompile_headers",
+                            "hasParent": true
+                        },
+                        {
+                            "file": "^cxx/CMakeLists\\.txt$",
+                            "line": null,
+                            "command": null,
+                            "hasParent": false
+                        }
+                    ]
+                }
             ],
             "compileCommandFragments": [
                 {
-                    "fragment" : "TargetCompileOptions",
+                    "fragment": "TargetCompileOptions",
                     "backtrace": [
                         {
                             "file": "^cxx/CMakeLists\\.txt$",
@@ -76,7 +80,7 @@
                             "hasParent": true
                         },
                         {
-                            "file" : "^cxx/CMakeLists\\.txt$",
+                            "file": "^cxx/CMakeLists\\.txt$",
                             "line": null,
                             "command": null,
                             "hasParent": false
@@ -139,7 +143,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 48,
+                        "line": 50,
                         "command": "install",
                         "hasParent": true
                     },
@@ -170,8 +174,8 @@
         "lto": null,
         "commandFragments": [
             {
-                "fragment" : "TargetLinkOptions",
-                "role" : "flags",
+                "fragment": "TargetLinkOptions",
+                "role": "flags",
                 "backtrace": [
                     {
                         "file": "^cxx/CMakeLists\\.txt$",
@@ -180,7 +184,7 @@
                         "hasParent": true
                     },
                     {
-                        "file" : "^cxx/CMakeLists\\.txt$",
+                        "file": "^cxx/CMakeLists\\.txt$",
                         "line": null,
                         "command": null,
                         "hasParent": false
@@ -188,8 +192,8 @@
                 ]
             },
             {
-                "fragment" : ".*TargetLinkDir\\\"?$",
-                "role" : "libraryPath",
+                "fragment": ".*TargetLinkDir\\\"?$",
+                "role": "libraryPath",
                 "backtrace": [
                     {
                         "file": "^cxx/CMakeLists\\.txt$",
@@ -198,7 +202,7 @@
                         "hasParent": true
                     },
                     {
-                        "file" : "^cxx/CMakeLists\\.txt$",
+                        "file": "^cxx/CMakeLists\\.txt$",
                         "line": null,
                         "command": null,
                         "hasParent": false
@@ -206,8 +210,8 @@
                 ]
             },
             {
-                "fragment" : ".*cxx_lib.*",
-                "role" : "libraries",
+                "fragment": ".*cxx_lib.*",
+                "role": "libraries",
                 "backtrace": [
                     {
                         "file": "^cxx/CMakeLists\\.txt$",
@@ -216,7 +220,7 @@
                         "hasParent": true
                     },
                     {
-                        "file" : "^cxx/CMakeLists\\.txt$",
+                        "file": "^cxx/CMakeLists\\.txt$",
                         "line": null,
                         "command": null,
                         "hasParent": false

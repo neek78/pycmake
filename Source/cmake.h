@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <stack>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -531,9 +532,22 @@ public:
   void SetDebugFindOutputVars(std::string const& args);
 
   //! Do we want trace output during the cmake run.
-  bool GetTrace() const { return this->Trace; }
+  bool GetTrace() const
+  {
+    return this->Trace || !this->cmakeLangTraceCmdStack.empty();
+  }
   void SetTrace(bool b) { this->Trace = b; }
-  bool GetTraceExpand() const { return this->TraceExpand; }
+  void PushTraceCmd(bool expandFlag)
+  {
+    this->cmakeLangTraceCmdStack.emplace(expandFlag);
+  }
+  bool PopTraceCmd();
+  bool GetTraceExpand() const
+  {
+    return this->TraceExpand ||
+      (!this->cmakeLangTraceCmdStack.empty() &&
+       this->cmakeLangTraceCmdStack.top());
+  }
   void SetTraceExpand(bool b) { this->TraceExpand = b; }
   TraceFormat GetTraceFormat() const { return this->TraceFormatVar; }
   void SetTraceFormat(TraceFormat f) { this->TraceFormatVar = f; }
@@ -811,6 +825,10 @@ private:
     CommandFailureAction::FATAL_ERROR;
   bool DebugOutput = false;
   bool DebugFindOutput = false;
+  // Elements of `cmakeLangTraceCmdStack` are "trace requests" pushed
+  // by `cmake_language(TRACE ON [EXPAND])` and a boolean value is
+  // a state of a given `EXPAND` option.
+  std::stack<bool> cmakeLangTraceCmdStack;
   bool Trace = false;
   bool TraceExpand = false;
   TraceFormat TraceFormatVar = TraceFormat::Human;
@@ -898,8 +916,6 @@ private:
     cm::static_string_view type,
     std::map<std::string, cmCMakePresetsGraph::PresetPair<T>> const& presets,
     cmCMakePresetsGraph::WorkflowPreset::WorkflowStep const& step);
-
-  std::function<int()> BuildWorkflowStep(std::vector<std::string> const& args);
 #endif
 
 #if !defined(CMAKE_BOOTSTRAP)
