@@ -209,11 +209,6 @@ py::dict cmPythonFactory::cmake_version()
 {
     using namespace py::literals;
 
-    auto encoded = CMake_VERSION_ENCODE(
-        cmVersion::GetMajorVersion(), 
-        cmVersion::GetMinorVersion(), 
-        cmVersion::GetPatchVersion());
-
     return py::dict (
         "version_str"_a = cmVersion::GetCMakeVersion(),
         "major"_a = cmVersion::GetMajorVersion(),
@@ -221,8 +216,7 @@ py::dict cmPythonFactory::cmake_version()
         "patch"_a = cmVersion::GetPatchVersion(),
         "tweak"_a = cmVersion::GetTweakVersion(),
         "suffix"_a = cmVersion::GetSuffix(),
-        "isDirty"_a = cmVersion::GetVersionIsDirty(),
-        "encoded"_a = encoded
+        "isDirty"_a = cmVersion::GetVersionIsDirty()
         );
 }
 
