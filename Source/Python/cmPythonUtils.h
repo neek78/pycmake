@@ -21,7 +21,7 @@ void OutputExceptionAndSetFatal(cmMessenger& messenger, const std::string_view& 
 inline namespace literals {
 inline pybind11::str operator""_pys(const char *s, size_t size) { return {s, size}; }
 } // namespace 
- 
+
 template<typename T>
 T SinglePropExtract(const pybind11::handle& entity, const char* attrName)
 {
