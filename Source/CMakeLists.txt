@@ -701,6 +701,8 @@ add_library(
   cmRemoveDefinitionsCommand.h
   cmReturnCommand.cxx
   cmReturnCommand.h
+  cmSbomObject.h
+  cmSbomSerializer.h
   cmSearchPath.cxx
   cmSearchPath.h
   cmSeparateArgumentsCommand.cxx
@@ -721,9 +723,10 @@ add_library(
   cmSiteNameCommand.h
   cmSourceGroupCommand.cxx
   cmSourceGroupCommand.h
-  cmSPDXSerializer.cxx
-  cmSPDXSerializer.h
-  cmSPDXTypes.def
+  cmSpdx.cxx
+  cmSpdx.h
+  cmSpdxSerializer.cxx
+  cmSpdxSerializer.h
   cmString.cxx
   cmString.hxx
   cmStringReplaceHelper.cxx
@@ -1418,7 +1421,7 @@ endif()
 
 foreach(_tool IN LISTS _tools)
   CMake_OPTIONAL_COMPONENT(${_tool})
-  install(TARGETS ${_tool} DESTINATION ${CMAKE_BIN_DIR} ${COMPONENT})
+  install(TARGETS ${_tool} DESTINATION ${CMake_INSTALL_BIN_DIR} ${COMPONENT})
 endforeach()
 
 # Unset temporary variables

@@ -81,7 +81,7 @@ static void CreatePropertyGeneratorExpressions(
   bool evaluateForBuildsystem = false)
 {
   for (auto const& entry : entries) {
-    items.push_back(cmGeneratorTarget::TargetPropertyEntry::Create(
+    items.emplace_back(cmGeneratorTarget::TargetPropertyEntry::Create(
       cmakeInstance, entry, evaluateForBuildsystem));
   }
 }
@@ -2906,10 +2906,10 @@ cmGeneratorTarget const* cmGeneratorTarget::GetPchReuseTarget() const
   if (generatorTarget) {
     if (generatorTarget->GetPropertyAsBool("DISABLE_PRECOMPILE_HEADERS")) {
       this->Makefile->IssueMessage(
-        MessageType::FATAL_ERROR,
+        MessageType::WARNING,
         cmStrCat(
           "Target \"", *pchReuseFrom, "\" for the \"", this->GetName(),
-          R"(" target's "PRECOMPILE_HEADERS_REUSE_FROM" property has set "DISABLE_PRECOMPILE_HEADERS".)"));
+          R"(" target's "PRECOMPILE_HEADERS_REUSE_FROM" property has set "DISABLE_PRECOMPILE_HEADERS"; ignoring.)"));
       return nullptr;
     }
 
@@ -2959,10 +2959,10 @@ cmGeneratorTarget* cmGeneratorTarget::GetPchReuseTarget()
   if (generatorTarget) {
     if (generatorTarget->GetPropertyAsBool("DISABLE_PRECOMPILE_HEADERS")) {
       this->Makefile->IssueMessage(
-        MessageType::FATAL_ERROR,
+        MessageType::WARNING,
         cmStrCat(
           "Target \"", *pchReuseFrom, "\" for the \"", this->GetName(),
-          R"(" target's "PRECOMPILE_HEADERS_REUSE_FROM" property has set "DISABLE_PRECOMPILE_HEADERS".)"));
+          R"(" target's "PRECOMPILE_HEADERS_REUSE_FROM" property has set "DISABLE_PRECOMPILE_HEADERS"; ignoring.)"));
       return nullptr;
     }
 
@@ -4953,7 +4953,7 @@ bool cmGeneratorTarget::GetConfigCommonSourceFilesForXcode(
 }
 
 void cmGeneratorTarget::GetObjectLibrariesInSources(
-  std::vector<cmGeneratorTarget*>& objlibs) const
+  std::vector<BT<cmGeneratorTarget*>>& objlibs) const
 {
   // FIXME: This searches SOURCES for TARGET_OBJECTS for backwards
   // compatibility with the OLD behavior of CMP0026 since this
@@ -4974,7 +4974,7 @@ void cmGeneratorTarget::GetObjectLibrariesInSources(
         cmGeneratorTarget* objLib =
           this->LocalGenerator->FindGeneratorTargetToUse(objLibName);
         if (objLib) {
-          objlibs.push_back(objLib);
+          objlibs.emplace_back(objLib, entry.Backtrace);
         }
       }
     }

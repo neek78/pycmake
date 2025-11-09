@@ -1,8 +1,7 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file LICENSE.rst or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.30)
-cmake_policy(SET CMP0174 NEW)   # TODO: Remove this when we can update the above to 3.31
+cmake_minimum_required(VERSION 4.2)
 
 function(add_command name test_name)
   set(args "")
@@ -229,53 +228,51 @@ macro(parse_tests_from_json json_file)
 
   # Return if there are no testsuites
   string(JSON len_test_suites LENGTH "${test_suites_json}")
-  if(len_test_suites LESS_EQUAL 0)
-    return()
-  endif()
+  if(len_test_suites GREATER 0)
+    set(open_sb)
+    set(close_sb)
 
-  set(open_sb)
-  set(close_sb)
+    math(EXPR upper_limit_test_suite_range "${len_test_suites} - 1")
 
-  math(EXPR upper_limit_test_suite_range "${len_test_suites} - 1")
+    foreach(index_test_suite RANGE ${upper_limit_test_suite_range})
+      string(JSON test_suite_json GET "${test_suites_json}" ${index_test_suite})
 
-  foreach(index_test_suite RANGE ${upper_limit_test_suite_range})
-    string(JSON test_suite_json GET "${test_suites_json}" ${index_test_suite})
+      # "suite" is expected to be set in write_test_to_file(). When parsing the
+      # plain text output, "suite" is expected to be the original suite name
+      # before accounting for pretty names. This may be used to construct the
+      # name of XML output results files.
+      string(JSON current_test_suite GET "${test_suite_json}" "name")
+      string(JSON tests_json GET "${test_suite_json}" "testsuite")
 
-    # "suite" is expected to be set in write_test_to_file(). When parsing the
-    # plain text output, "suite" is expected to be the original suite name
-    # before accounting for pretty names. This may be used to construct the
-    # name of XML output results files.
-    string(JSON current_test_suite GET "${test_suite_json}" "name")
-    string(JSON tests_json GET "${test_suite_json}" "testsuite")
-
-    # Skip test suites without tests
-    string(JSON len_tests LENGTH "${tests_json}")
-    if(len_tests LESS_EQUAL 0)
-      continue()
-    endif()
-
-    math(EXPR upper_limit_test_range "${len_tests} - 1")
-    foreach(index_test RANGE ${upper_limit_test_range})
-      string(JSON test_json GET "${tests_json}" ${index_test})
-
-      string(JSON len_test_parameters LENGTH "${test_json}")
-      if(len_test_parameters LESS_EQUAL 0)
+      # Skip test suites without tests
+      string(JSON len_tests LENGTH "${tests_json}")
+      if(len_tests LESS_EQUAL 0)
         continue()
       endif()
 
-      get_json_member_with_default(test_json "name" current_test_name)
-      get_json_member_with_default(test_json "file" current_test_file)
-      get_json_member_with_default(test_json "line" current_test_line)
-      get_json_member_with_default(test_json "value_param" current_test_value_param)
-      get_json_member_with_default(test_json "type_param" current_test_type_param)
+      math(EXPR upper_limit_test_range "${len_tests} - 1")
+      foreach(index_test RANGE ${upper_limit_test_range})
+        string(JSON test_json GET "${tests_json}" ${index_test})
 
-      generate_testname_guards(
-        "${current_test_suite}${current_test_name}${current_test_value_param}${current_test_type_param}"
-        open_guard close_guard
-      )
-      write_test_to_file()
+        string(JSON len_test_parameters LENGTH "${test_json}")
+        if(len_test_parameters LESS_EQUAL 0)
+          continue()
+        endif()
+
+        get_json_member_with_default(test_json "name" current_test_name)
+        get_json_member_with_default(test_json "file" current_test_file)
+        get_json_member_with_default(test_json "line" current_test_line)
+        get_json_member_with_default(test_json "value_param" current_test_value_param)
+        get_json_member_with_default(test_json "type_param" current_test_type_param)
+
+        generate_testname_guards(
+          "${current_test_suite}${current_test_name}${current_test_value_param}${current_test_type_param}"
+          open_guard close_guard
+        )
+        write_test_to_file()
+      endforeach()
     endforeach()
-  endforeach()
+  endif()
 endmacro()
 
 function(gtest_discover_tests_impl)
@@ -284,6 +281,7 @@ function(gtest_discover_tests_impl)
   set(oneValueArgs
     NO_PRETTY_TYPES   # These two take a value, unlike gtest_discover_tests()
     NO_PRETTY_VALUES  #
+    TEST_TARGET
     TEST_EXECUTABLE
     TEST_WORKING_DIR
     TEST_PREFIX
@@ -344,7 +342,17 @@ function(gtest_discover_tests_impl)
     set(discovery_extra_args "[==[${discovery_extra_args}]==]")
   endif()
 
-  set(json_file "${arg_TEST_WORKING_DIR}/cmake_test_discovery.json")
+  # Avoid a potential race condition for the POST_BUILD case when multiple
+  # calls are made to gtest_discover_tests() for different targets but the same
+  # working directory. For PRE_TEST, we're always executing serially during the
+  # ctest setup phase, so there is no race condition there, but POST_BUILD can
+  # lead to this code path being run in parallel. Use a hash to avoid potential
+  # problems with very long target names.
+  string(SHA256 target_hash "${arg_TEST_TARGET}")
+  string(SUBSTRING "${target_hash}" 0 10 target_hash)
+  set(json_file
+    "${arg_TEST_WORKING_DIR}/cmake_test_discovery_${target_hash}.json"
+  )
 
   # Remove json file to make sure we don't pick up an outdated one
   file(REMOVE "${json_file}")
@@ -374,6 +382,7 @@ function(gtest_discover_tests_impl)
       "Error running test executable.\n"
       "  Path: '${path}'\n"
       "  Working directory: '${arg_TEST_WORKING_DIR}'\n"
+      "  Timeout: '${arg_TEST_DISCOVERY_TIMEOUT}'\n"
       "  Result: ${result}\n"
       "  Output:\n"
       "    ${output}\n"
@@ -412,6 +421,7 @@ if(CMAKE_SCRIPT_MODE_FILE)
   gtest_discover_tests_impl(
     NO_PRETTY_TYPES ${NO_PRETTY_TYPES}
     NO_PRETTY_VALUES ${NO_PRETTY_VALUES}
+    TEST_TARGET ${TEST_TARGET}
     TEST_EXECUTABLE ${TEST_EXECUTABLE}
     TEST_EXECUTOR "${TEST_EXECUTOR}"
     TEST_WORKING_DIR ${TEST_WORKING_DIR}

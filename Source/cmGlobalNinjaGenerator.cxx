@@ -521,6 +521,13 @@ void cmGlobalNinjaGenerator::WriteVariable(std::ostream& os,
   if (variablesShouldNotBeTrimmed.find(name) ==
       variablesShouldNotBeTrimmed.end()) {
     val = cmTrimWhitespace(value);
+    // If the value ends with `\n` and a `$` was left at the end of the trimmed
+    // value, put the newline back. Otherwise the next stanza is hidden by the
+    // trailing `$` escaping the newline.
+    if (cmSystemTools::StringEndsWith(value, "\n") &&
+        cmSystemTools::StringEndsWith(val, "$")) {
+      val += '\n';
+    }
   } else {
     val = value;
   }
@@ -1003,7 +1010,8 @@ cmGlobalNinjaGenerator::GenerateBuildCommand(
   std::string const& /*projectDir*/,
   std::vector<std::string> const& targetNames, std::string const& config,
   int jobs, bool verbose, cmBuildOptions /*buildOptions*/,
-  std::vector<std::string> const& makeOptions)
+  std::vector<std::string> const& makeOptions,
+  BuildTryCompile /*isInTryCompile*/)
 {
   GeneratedMakeCommand makeCommand;
   makeCommand.Add(this->SelectMakeProgram(makeProgram));

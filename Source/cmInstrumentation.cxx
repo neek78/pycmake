@@ -633,7 +633,6 @@ int cmInstrumentation::InstrumentCommand(
 
   // Execute Command
   int ret = callback();
-  root["result"] = ret;
 
   // Exit early if configure didn't generate a query
   if (reloadQueriesAfterCommand == LoadQueriesAfter::Yes) {
@@ -663,11 +662,16 @@ int cmInstrumentation::InstrumentCommand(
     for (auto const& item : data.value()) {
       if (item.first == "role" && !item.second.empty()) {
         command_type = item.second;
+      } else if (item.first == "showOnly") {
+        root[item.first] = item.second == "1" ? true : false;
       } else if (!item.second.empty()) {
         root[item.first] = item.second;
       }
     }
   }
+
+  // See SpawnBuildDaemon(); this data is currently meaningless for build.
+  root["result"] = command_type == "build" ? Json::nullValue : ret;
 
   // Create empty config entry if config not found
   if (!root.isMember("config") &&
@@ -743,7 +747,11 @@ std::string cmInstrumentation::GetCommandStr(
 {
   std::string command_str;
   for (size_t i = 0; i < args.size(); ++i) {
-    command_str = cmStrCat(command_str, '"', args[i], '"');
+    if (args[i].find(' ') != std::string::npos) {
+      command_str = cmStrCat(command_str, '"', args[i], '"');
+    } else {
+      command_str = cmStrCat(command_str, args[i]);
+    }
     if (i < args.size() - 1) {
       command_str = cmStrCat(command_str, ' ');
     }
@@ -852,6 +860,8 @@ int cmInstrumentation::CollectTimingAfterBuild(int ppid)
     while (0 == uv_kill(ppid, 0)) {
       cmSystemTools::Delay(100);
     };
+    // FIXME(#27331): Investigate a cross-platform solution to obtain the exit
+    // code given the `ppid` above.
     return 0;
   };
   int ret = this->InstrumentCommand(

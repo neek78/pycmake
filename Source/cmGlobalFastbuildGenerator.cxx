@@ -55,7 +55,7 @@ class cmLinkLineComputer;
 #define FASTBUILD_VS_BASE_PATH "VisualStudio/Projects"
 
 #define FASTBUILD_IDE_VS_COMMAND_PREFIX "cd ^$(SolutionDir).. && "
-#define FASTBUILD_IDE_BUILD_ARGS " -ide -cache -summary -dist "
+#define FASTBUILD_DEFAULT_IDE_BUILD_ARGS " -ide -cache -summary -dist "
 
 constexpr auto FASTBUILD_CAPTURE_SYSTEM_ENV =
   "CMAKE_FASTBUILD_CAPTURE_SYSTEM_ENV";
@@ -82,6 +82,8 @@ constexpr auto FASTBUILD_ALLOW_RESPONSE_FILE =
   "CMAKE_FASTBUILD_ALLOW_RESPONSE_FILE";
 constexpr auto FASTBUILD_FORCE_RESPONSE_FILE =
   "CMAKE_FASTBUILD_FORCE_RESPONSE_FILE";
+
+constexpr auto FASTBUILD_IDE_ARGS = "CMAKE_FASTBUILD_IDE_ARGS";
 
 static std::map<std::string, std::string> const compilerIdToFastbuildFamily = {
   { "MSVC", "msvc" }, { "Clang", "clang" },      { "AppleClang", "clang" },
@@ -349,7 +351,8 @@ cmGlobalFastbuildGenerator::GenerateBuildCommand(
   std::string const& makeProgram, std::string const& /*projectName*/,
   std::string const& projectDir, std::vector<std::string> const& targetNames,
   std::string const& /*config*/, int /*jobs*/, bool verbose,
-  cmBuildOptions /*buildOptions*/, std::vector<std::string> const& makeOptions)
+  cmBuildOptions /*buildOptions*/, std::vector<std::string> const& makeOptions,
+  BuildTryCompile isInTryCompile)
 {
   GeneratedMakeCommand makeCommand;
   this->FastbuildCommand = this->SelectMakeProgram(makeProgram);
@@ -384,8 +387,12 @@ cmGlobalFastbuildGenerator::GenerateBuildCommand(
     makeCommand.Add("-verbose");
   }
 
-  // Make "rebuild-bff" target up-to-date before running the build.
+  // Don't do extra work during "TryCompile".
+  if (isInTryCompile == BuildTryCompile::Yes) {
+    return { std::move(makeCommand) };
+  }
 
+  // Make "rebuild-bff" target up-to-date before running the build.
   std::string output;
   ExecuteFastbuildTarget(projectDir, FASTBUILD_REBUILD_BFF_TARGET_NAME, output,
                          { "-why" });
@@ -466,15 +473,22 @@ void cmGlobalFastbuildGenerator::Generate()
 
   this->RemoveUnknownClangTidyExportFixesFiles();
 
-  if (this->GetCMakeInstance()->GetRegenerateDuringBuild()) {
+  if (this->GetCMakeInstance()->GetRegenerateDuringBuild() ||
+      this->GetCMakeInstance()->GetIsInTryCompile()) {
     return;
   }
-  // TODO: figure out how to skip this in TryCompile
+  std::string const workingDir =
+    this->GetCMakeInstance()->GetHomeOutputDirectory();
   //  Make "rebuild-bff" target up-to-date after the generation.
   //  This is actually a noop, it just asks CMake to touch the generated file
   //  so FASTBuild would consider the target as up-to-date.
-  AskCMakeToMakeRebuildBFFUpToDate(
-    this->GetCMakeInstance()->GetHomeOutputDirectory());
+  AskCMakeToMakeRebuildBFFUpToDate(workingDir);
+
+  if (this->GlobalSettingIsOn("CMAKE_EXPORT_COMPILE_COMMANDS")) {
+    std::string output;
+    ExecuteFastbuildTarget(workingDir, FASTBUILD_ALL_TARGET_NAME, output,
+                           { "-compdb" });
+  }
 }
 
 void cmGlobalFastbuildGenerator::AskCMakeToMakeRebuildBFFUpToDate(
@@ -886,6 +900,10 @@ void cmGlobalFastbuildGenerator::WriteCompilers()
     }
     WriteVariable("Executable", Quote(compilerPath), 1);
     WriteVariable("CompilerFamily", Quote(compilerDef.CompilerFamily), 1);
+    if (this->GetCMakeInstance()->GetIsInTryCompile()) {
+      WriteVariable("AllowCaching", "false", 1);
+      WriteVariable("AllowDistribution", "false", 1);
+    }
 
     if (compilerDef.UseLightCache && compilerDef.CompilerFamily == "msvc") {
       WriteVariable("UseLightCache_Experimental", "true", 1);
@@ -1399,6 +1417,9 @@ void cmGlobalFastbuildGenerator::WriteTarget(FastbuildTarget const& target)
 
   // Libraries / executables.
   if (!target.LinkerNode.empty()) {
+    for (auto const& cudaDeviceLinkNode : target.CudaDeviceLinkNode) {
+      this->WriteLinker(cudaDeviceLinkNode, target.AllowDistribution);
+    }
     for (auto const& linkerNode : target.LinkerNode) {
       this->WriteLinker(linkerNode, target.AllowDistribution);
     }
@@ -1451,28 +1472,39 @@ void cmGlobalFastbuildGenerator::WriteIDEProjects()
 #endif
 }
 
+std::string cmGlobalFastbuildGenerator::GetIDEBuildArgs() const
+{
+  cmValue const ideArgs = this->GetGlobalSetting(FASTBUILD_IDE_ARGS);
+  if (ideArgs) {
+    return cmStrCat(' ', ideArgs, ' ');
+  }
+  return FASTBUILD_DEFAULT_IDE_BUILD_ARGS;
+}
+
 void cmGlobalFastbuildGenerator::WriteVSBuildCommands()
 {
-  WriteVariable("ProjectBuildCommand",
-                Quote(FASTBUILD_IDE_VS_COMMAND_PREFIX +
-                      this->FastbuildCommand +
-                      FASTBUILD_IDE_BUILD_ARGS " ^$(ProjectName)"),
-                1);
-  WriteVariable("ProjectRebuildCommand",
-                Quote(FASTBUILD_IDE_VS_COMMAND_PREFIX +
-                      this->FastbuildCommand +
-                      FASTBUILD_IDE_BUILD_ARGS "-clean ^$(ProjectName)"),
-                1);
+  std::string const ideArgs = this->GetIDEBuildArgs();
+  WriteVariable(
+    "ProjectBuildCommand",
+    Quote(cmStrCat(FASTBUILD_IDE_VS_COMMAND_PREFIX, this->FastbuildCommand,
+                   ideArgs, " ^$(ProjectName)")),
+    1);
+  WriteVariable(
+    "ProjectRebuildCommand",
+    Quote(cmStrCat(FASTBUILD_IDE_VS_COMMAND_PREFIX, this->FastbuildCommand,
+                   ideArgs, "-clean ^$(ProjectName)")),
+    1);
   WriteVariable("ProjectCleanCommand",
-                Quote(FASTBUILD_IDE_VS_COMMAND_PREFIX +
-                      this->FastbuildCommand + " -ide clean"),
+                Quote(cmStrCat(FASTBUILD_IDE_VS_COMMAND_PREFIX,
+                               this->FastbuildCommand, ideArgs, " clean")),
                 1);
 }
 void cmGlobalFastbuildGenerator::WriteXCodeBuildCommands()
 {
+  std::string const ideArgs = this->GetIDEBuildArgs();
   WriteVariable("XCodeBuildToolPath", Quote(this->FastbuildCommand), 1);
   WriteVariable("XCodeBuildToolArgs",
-                Quote(FASTBUILD_IDE_BUILD_ARGS "^$(FASTBUILD_TARGET)"), 1);
+                Quote(cmStrCat(ideArgs, "^$(FASTBUILD_TARGET)")), 1);
   WriteVariable("XCodeBuildWorkingDir",
                 Quote(this->CMakeInstance->GetHomeOutputDirectory()), 1);
 }
@@ -1543,8 +1575,8 @@ void cmGlobalFastbuildGenerator::AddGlobCheckExec()
     FastbuildExecNode globCheck;
     globCheck.Name = FASTBUILD_GLOB_CHECK_TARGET;
     globCheck.ExecExecutable = cmSystemTools::GetCMakeCommand();
-    globCheck.ExecArguments = "-P " FASTBUILD_1_INPUT_PLACEHOLDER;
-    globCheck.ExecInput = { this->ConvertToFastbuildPath(globScript) };
+    globCheck.ExecArguments =
+      cmStrCat("-P ", this->ConvertToFastbuildPath(globScript));
     globCheck.ExecAlways = false;
     globCheck.ExecUseStdOutAsOutput = false;
     auto const cache = this->GetCMakeInstance()->GetGlobCacheEntries();

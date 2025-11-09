@@ -511,7 +511,7 @@ public:
   bool IsDotNetSdkTarget() const;
 
   void GetObjectLibrariesInSources(
-    std::vector<cmGeneratorTarget*>& objlibs) const;
+    std::vector<BT<cmGeneratorTarget*>>& objlibs) const;
 
   std::string GetFullNameImported(std::string const& config,
                                   cmStateEnums::ArtifactType artifact) const;
@@ -1456,6 +1456,9 @@ private:
   cmValue GetPropertyWithPairedLanguageSupport(std::string const& lang,
                                                char const* suffix) const;
 
+  std::vector<cmLinkItem> ComputeImplicitLanguageTargets(
+    std::string const& lang, std::string const& config) const;
+
   void ComputeLinkImplementationRuntimeLibraries(
     std::string const& config, cmOptionalLinkImplementation& impl) const;
 
@@ -1538,6 +1541,17 @@ public:
   std::string BuildDatabasePath(std::string const& lang,
                                 std::string const& config) const;
 
+  enum class MsvcCharSet
+  {
+    None,
+    Unicode,
+    MultiByte,
+    SingleByte,
+  };
+
+  // Detect if the current define selects any known charset entry or not
+  static MsvcCharSet GetMsvcCharSet(std::string const& singleDefine);
+
 private:
   void BuildFileSetInfoCache(std::string const& config) const;
   struct InfoByConfig
@@ -1557,10 +1571,10 @@ private:
 class cmGeneratorTarget::TargetPropertyEntry
 {
 protected:
-  static cmLinkImplItem NoLinkImplItem;
+  static cmLinkItem NoLinkItem;
 
 public:
-  TargetPropertyEntry(cmLinkImplItem const& item);
+  TargetPropertyEntry(cmLinkItem const& item);
   virtual ~TargetPropertyEntry() = default;
 
   static std::unique_ptr<TargetPropertyEntry> Create(
@@ -1569,7 +1583,7 @@ public:
   static std::unique_ptr<TargetPropertyEntry> CreateFileSet(
     std::vector<std::string> dirs, bool contextSensitiveDirs,
     std::unique_ptr<cmCompiledGeneratorExpression> entryCge,
-    cmFileSet const* fileSet, cmLinkImplItem const& item = NoLinkImplItem);
+    cmFileSet const* fileSet, cmLinkItem const& item = NoLinkItem);
 
   virtual std::string const& Evaluate(
     cm::GenEx::Context const& context, cmGeneratorTarget const* headTarget,
@@ -1579,5 +1593,5 @@ public:
   virtual std::string const& GetInput() const = 0;
   virtual bool GetHadContextSensitiveCondition() const;
 
-  cmLinkImplItem const& LinkImplItem;
+  cmLinkItem const& LinkItem;
 };

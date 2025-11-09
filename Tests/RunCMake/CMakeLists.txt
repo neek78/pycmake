@@ -407,7 +407,7 @@ add_RunCMake_test(Configure -DMSVC_IDE=${MSVC_IDE})
 add_RunCMake_test(CpsExportImportBuild)
 add_RunCMake_test(CpsExportImportInstall)
 add_RunCMake_test(DisallowedCommands)
-if("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
+if("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja|FASTBuild")
   add_RunCMake_test(ExportCompileCommands)
 endif()
 add_RunCMake_test(ExcludeFromAll)
@@ -526,8 +526,13 @@ add_RunCMake_test(GenEx-TARGET_RUNTIME_DLLS)
 add_RunCMake_test(GenEx-PATH)
 add_RunCMake_test(GenEx-PATH_EQUAL)
 add_RunCMake_test(GenEx-LIST)
-add_RunCMake_test(GeneratorExpression -DCMake_TEST_OBJC=${CMake_TEST_OBJC} -DCMake_TEST_Fortran=${CMake_TEST_Fortran}
-                                      -DCMake_TEST_CUDA=${CMake_TEST_CUDA} -DCMake_TEST_HIP=${CMake_TEST_HIP})
+add_RunCMake_test(GeneratorExpression
+  -DCMake_TEST_OBJC=${CMake_TEST_OBJC}
+  -DCMake_TEST_Fortran=${CMake_TEST_Fortran}
+  -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+  -DCMake_TEST_HIP=${CMake_TEST_HIP}
+  -DCMAKE_C_OUTPUT_EXTENSION=${CMAKE_C_OUTPUT_EXTENSION}
+)
 add_RunCMake_test(GeneratorExpressionShortCircuit)
 add_RunCMake_test(GeneratorInstance)
 add_RunCMake_test(GeneratorPlatform)
@@ -714,6 +719,7 @@ foreach(var
     list(APPEND file-DOWNLOAD_ARGS -D${var}=${${var}})
   endif()
 endforeach()
+add_RunCMake_test(file-CREATE_LINK)
 add_RunCMake_test(file-DOWNLOAD)
 add_RunCMake_test(file-MAKE_DIRECTORY)
 add_RunCMake_test(file-RPATH
@@ -1009,7 +1015,8 @@ add_RunCMake_test(target_link_libraries-LINKER-prefix -DCMAKE_SYSTEM_NAME=${CMAK
                                                       -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                                       -DCMAKE_C_COMPILER_FRONTEND_VARIANT=${CMAKE_C_COMPILER_FRONTEND_VARIANT})
 add_RunCMake_test(add_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID})
-add_RunCMake_test(target_link_options -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
+add_RunCMake_test(target_link_options -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                                      -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
                                       -DCMake_TEST_CUDA=${CMake_TEST_CUDA})
 set_property(TEST RunCMake.target_link_options APPEND
   PROPERTY LABELS "CUDA")
@@ -1438,11 +1445,12 @@ if(CMake_TEST_Emscripten_TOOLCHAINS)
   set_property(TEST RunCMake.Emscripten APPEND PROPERTY LABELS "Emscripten")
 endif()
 
-if (CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-  add_RunCMake_test(SharedLibraryDefines
-    -DCMAKE_C_COMPILER_ID=${CMAKE_C_COMPILER_ID}
-    -DCMAKE_C_SIMULATE_ID=${CMAKE_C_SIMULATE_ID}
-    -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
-  )
-  set_property(TEST RunCMake.SharedLibraryDefines APPEND PROPERTY LABELS "CUDA")
-endif()
+add_RunCMake_test(SharedLibraryDefines
+  -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+)
+set_property(TEST RunCMake.SharedLibraryDefines APPEND PROPERTY LABELS "CUDA")
+
+add_RunCMake_test(MsvcCharsetDefines
+  -DCMake_TEST_CUDA=${CMake_TEST_CUDA}
+)
+set_property(TEST RunCMake.MsvcCharsetDefines APPEND PROPERTY LABELS "CUDA")

@@ -431,7 +431,7 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(PreOrder PreOrder)
   ADD_TEST_MACRO(MissingSourceFile MissingSourceFile)
   set_tests_properties(MissingSourceFile PROPERTIES
-    PASS_REGULAR_EXPRESSION "CMake Error at CMakeLists.txt:3 \\(add_executable\\):[ \r\n]*Cannot find source file:[ \r\n]*DoesNotExist/MissingSourceFile.c")
+    PASS_REGULAR_EXPRESSION "CMake Error at CMakeLists\.txt:3 \\(add_executable\\):[ \r\n]*Cannot find source file:[ \r\n]*DoesNotExist/MissingSourceFile.c")
   if(CMake_TEST_Swift)
     ADD_TEST_MACRO(SwiftOnly SwiftOnly)
     ADD_TEST_MACRO(SwiftMixPCH SwiftMixPCH)
@@ -3282,6 +3282,11 @@ if(BUILD_TESTING)
 
     set(JavaExportImport_BUILD_OPTIONS -DCMake_TEST_NESTED_MAKE_PROGRAM:FILEPATH=${CMake_TEST_EXPLICIT_MAKE_PROGRAM})
     ADD_TEST_MACRO(JavaExportImport JavaExportImport)
+
+    if("${Java_VERSION}" VERSION_GREATER_EQUAL 9)
+      set(JavaModExportImport_BUILD_OPTIONS -DCMake_TEST_NESTED_MAKE_PROGRAM:FILEPATH=${CMake_TEST_EXPLICIT_MAKE_PROGRAM})
+      ADD_TEST_MACRO(JavaModExportImport JavaModExportImport)
+    endif()
 
     get_filename_component(JAVACPATH ${Java_JAVAC_EXECUTABLE} REALPATH)
     get_filename_component(JNIPATH ${JAVACPATH} PATH)

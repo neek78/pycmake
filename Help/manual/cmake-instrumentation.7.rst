@@ -344,7 +344,8 @@ and contain the following data:
     The working directory in which the ``command`` was executed.
 
   ``result``
-    The exit-value of the command, an integer.
+    The exit code of the command, an integer. This will be ``null`` when
+    ``role`` is ``build``.
 
   ``role``
     The type of command executed, which will be one of the following values:
@@ -419,9 +420,13 @@ and contain the following data:
       be determined.
 
   ``cmakeContent``
-    The path to a `v1 CMake Content` file located under ``data``, which
+    The path to a `v1 CMake Content File`_ located under ``data``, which
     contains information about the CMake configure and generate steps
     responsible for generating the ``command`` in this snippet.
+
+  ``showOnly``
+    A boolean representing whether the ``--show-only`` option was passed to
+    ``ctest``. Only included when ``role`` is ``ctest``.
 
 Example:
 

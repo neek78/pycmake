@@ -51,6 +51,10 @@
             "frameworks": null,
             "defines": [
                 {
+                    "define": "_MBCS",
+                    "backtrace": null
+                },
+                {
                     "define": "_WINDLL",
                     "backtrace": null
                 },
@@ -106,5 +110,11 @@
             "id": "^ZERO_CHECK::@217a96c3a62328a73ef4$",
             "backtrace": null
         }
-    ]
+    ],
+    "linkLibraries": null,
+    "interfaceLinkLibraries": null,
+    "compileDependencies": null,
+    "interfaceCompileDependencies": null,
+    "objectDependencies": null,
+    "orderDependencies": null
 }

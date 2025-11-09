@@ -34,10 +34,10 @@ For example:
 
 .. code-block:: cmake
 
-  cmake_minimum_required(VERSION 3.10...4.1)
+  cmake_minimum_required(VERSION 3.10...4.2)
 
 This uses the ``<min>...<max>`` syntax to enable the ``NEW`` behaviors
-of policies introduced in CMake 4.1 and earlier while only requiring a
+of policies introduced in CMake 4.2 and earlier while only requiring a
 minimum version of CMake 3.10.  The project is expected to work with
 both the ``OLD`` and ``NEW`` behaviors of policies introduced between
 those versions.
@@ -92,12 +92,21 @@ Supported Policies
 
 The following policies are supported.
 
+Policies Introduced by CMake 4.3
+--------------------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   CMP0205: file(CREATE_LINK) with COPY_ON_ERROR copies directory content. </policy/CMP0205>
+
 Policies Introduced by CMake 4.2
 --------------------------------
 
 .. toctree::
    :maxdepth: 1
 
+   CMP0204: A character set is always defined when targeting the MSVC ABI. </policy/CMP0204>
    CMP0203: _WINDLL is defined for shared libraries targeting the MSVC ABI. </policy/CMP0203>
    CMP0202: PDB file names always include their target's per-config POSTFIX. </policy/CMP0202>
    CMP0201: Python::NumPy does not depend on Python::Development.Module. </policy/CMP0201>

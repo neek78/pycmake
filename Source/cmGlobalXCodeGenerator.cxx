@@ -546,7 +546,8 @@ cmGlobalXCodeGenerator::GenerateBuildCommand(
   std::string const& /*projectDir*/,
   std::vector<std::string> const& targetNames, std::string const& config,
   int jobs, bool /*verbose*/, cmBuildOptions /*buildOptions*/,
-  std::vector<std::string> const& makeOptions)
+  std::vector<std::string> const& makeOptions,
+  BuildTryCompile /*isInTryCompile */)
 {
   std::string const xcodebuild =
     this->SelectMakeProgram(makeProgram, this->GetXcodeBuildCommand());
@@ -4551,6 +4552,21 @@ bool cmGlobalXCodeGenerator::CreateGroups(
       }
     }
   }
+
+  // Sort all children of each target group by name alphabetically.
+  auto const getName = [](cmXCodeObject* obj) -> cm::string_view {
+    cmXCodeObject* name = obj->GetAttribute("name");
+    return name ? name->GetString() : cm::string_view{ ""_s };
+  };
+  for (auto& group : this->TargetGroup) {
+    if (cmXCodeObject* children = group.second->GetAttribute("children")) {
+      children->SortObjectList(getName);
+    }
+  }
+  // Also sort the-top level group.  Special groups like Products,
+  // Frameworks, and Resources are added later to the end of the list.
+  this->MainGroupChildren->SortObjectList(getName);
+
   return true;
 }
 
@@ -5053,10 +5069,10 @@ void cmGlobalXCodeGenerator::CreateXCodeDependHackMakefile(
           }
         }
 
-        std::vector<cmGeneratorTarget*> objlibs;
+        std::vector<BT<cmGeneratorTarget*>> objlibs;
         gt->GetObjectLibrariesInSources(objlibs);
-        for (auto* objLib : objlibs) {
-          makefileStream << this->PostBuildMakeTarget(objLib->GetName(),
+        for (auto const& objLib : objlibs) {
+          makefileStream << this->PostBuildMakeTarget(objLib.Value->GetName(),
                                                       configName)
                          << ": " << trel << '\n';
         }
@@ -5074,9 +5090,9 @@ void cmGlobalXCodeGenerator::CreateXCodeDependHackMakefile(
           }
         }
 
-        for (auto* objLib : objlibs) {
+        for (auto const& objLib : objlibs) {
 
-          std::string const objLibName = objLib->GetName();
+          std::string const& objLibName = objLib.Value->GetName();
           std::string d = cmStrCat(this->GetTargetTempDir(gt, configName),
                                    "/lib", objLibName, ".a");
 
