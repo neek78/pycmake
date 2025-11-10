@@ -294,6 +294,7 @@ public:
                        bool immediate, bool system);
 
   void Configure();
+  void ConfigureListFile(const std::string& currentStart);
 
   /**
    * Configure a subdirectory
