@@ -6,13 +6,21 @@
 
 #include <iosfwd>
 #include <string>
-#include <vector>
+
+#include <cm/optional>
 
 #include "cmExportInstallFileGenerator.h"
 #include "cmExportPackageInfoGenerator.h"
 
+class cmFileSet;
 class cmGeneratorTarget;
 class cmInstallExportGenerator;
+class cmPackageInfoArguments;
+class cmTargetExport;
+
+namespace Json {
+class Value;
+}
 
 /** \class cmExportInstallPackageInfoGenerator
  * \brief Generate files exporting targets from an install tree.
@@ -35,17 +43,16 @@ class cmExportInstallPackageInfoGenerator
 public:
   /** Construct with the export installer that will install the
       files.  */
-  cmExportInstallPackageInfoGenerator(
-    cmInstallExportGenerator* iegen, std::string packageName,
-    std::string version, std::string versionCompat, std::string versionSchema,
-    std::vector<std::string> defaultTargets,
-    std::vector<std::string> defaultConfigurations);
+  cmExportInstallPackageInfoGenerator(cmInstallExportGenerator* iegen,
+                                      cmPackageInfoArguments arguments);
 
   /** Compute the globbing expression used to load per-config import
       files from the main file.  */
   std::string GetConfigImportFileGlob() const override;
 
 protected:
+  bool RequiresConfigFiles = false;
+
   std::string const& GetExportName() const override;
 
   // Implement virtual methods from the superclass.
@@ -63,4 +70,13 @@ protected:
 
   std::string GetCxxModulesDirectory() const override;
   // TODO: Generate C++ module info in a not-CMake-specific format.
+
+  cm::optional<std::string> GetFileSetDirectory(
+    cmGeneratorTarget* gte, cmTargetExport const* te, cmFileSet* fileSet,
+    cm::optional<std::string> const& config = {});
+
+  bool GenerateFileSetProperties(Json::Value& component,
+                                 cmGeneratorTarget* gte,
+                                 cmTargetExport const* te,
+                                 cm::optional<std::string> config = {});
 };

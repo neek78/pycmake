@@ -52,7 +52,7 @@ CURLcode Curl_trc_opt(const char *config);
 
 /* the function used to output verbose information */
 void Curl_debug(struct Curl_easy *data, curl_infotype type,
-                char *ptr, size_t size);
+                const char *ptr, size_t size);
 
 /**
  * Output a failure message on registered callbacks for transfer.
@@ -80,12 +80,20 @@ void Curl_infof(struct Curl_easy *data,
  * Output an informational message when both transfer's verbose logging
  * and connection filters verbose logging are enabled.
  */
-void Curl_trc_cf_infof(struct Curl_easy *data, struct Curl_cfilter *cf,
+void Curl_trc_cf_infof(struct Curl_easy *data, const struct Curl_cfilter *cf,
                        const char *fmt, ...) CURL_PRINTF(3, 4);
+void Curl_trc_multi(struct Curl_easy *data,
+                    const char *fmt, ...) CURL_PRINTF(2, 3);
+const char *Curl_trc_mstate_name(int state);
+const char *Curl_trc_timer_name(int tid);
+void Curl_trc_multi_timeouts(struct Curl_easy *data);
+
 void Curl_trc_write(struct Curl_easy *data,
                     const char *fmt, ...) CURL_PRINTF(2, 3);
 void Curl_trc_read(struct Curl_easy *data,
                    const char *fmt, ...) CURL_PRINTF(2, 3);
+void Curl_trc_dns(struct Curl_easy *data,
+                  const char *fmt, ...) CURL_PRINTF(2, 3);
 
 #ifndef CURL_DISABLE_FTP
 extern struct curl_trc_feat Curl_trc_feat_ftp;
@@ -108,10 +116,16 @@ void Curl_trc_ws(struct Curl_easy *data,
                  const char *fmt, ...) CURL_PRINTF(2, 3);
 #endif
 
+#define CURL_TRC_M_is_verbose(data) \
+  Curl_trc_ft_is_verbose(data, &Curl_trc_feat_multi)
+
 #if defined(CURL_HAVE_C99) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
 #define infof(data, ...) \
   do { if(Curl_trc_is_verbose(data)) \
          Curl_infof(data, __VA_ARGS__); } while(0)
+#define CURL_TRC_M(data, ...) \
+  do { if(CURL_TRC_M_is_verbose(data)) \
+         Curl_trc_multi(data, __VA_ARGS__); } while(0)
 #define CURL_TRC_CF(data, cf, ...) \
   do { if(Curl_trc_cf_is_verbose(cf, data)) \
          Curl_trc_cf_infof(data, cf, __VA_ARGS__); } while(0)
@@ -121,6 +135,9 @@ void Curl_trc_ws(struct Curl_easy *data,
 #define CURL_TRC_READ(data, ...) \
   do { if(Curl_trc_ft_is_verbose(data, &Curl_trc_feat_read)) \
          Curl_trc_read(data, __VA_ARGS__); } while(0)
+#define CURL_TRC_DNS(data, ...) \
+  do { if(Curl_trc_ft_is_verbose(data, &Curl_trc_feat_dns)) \
+         Curl_trc_dns(data, __VA_ARGS__); } while(0)
 
 #ifndef CURL_DISABLE_FTP
 #define CURL_TRC_FTP(data, ...) \
@@ -146,9 +163,11 @@ void Curl_trc_ws(struct Curl_easy *data,
 #else /* CURL_HAVE_C99 */
 
 #define infof Curl_infof
+#define CURL_TRC_M  Curl_trc_multi
 #define CURL_TRC_CF Curl_trc_cf_infof
 #define CURL_TRC_WRITE Curl_trc_write
 #define CURL_TRC_READ  Curl_trc_read
+#define CURL_TRC_DNS   Curl_trc_dns
 
 #ifndef CURL_DISABLE_FTP
 #define CURL_TRC_FTP   Curl_trc_ftp
@@ -165,15 +184,18 @@ void Curl_trc_ws(struct Curl_easy *data,
 
 #endif /* !CURL_HAVE_C99 */
 
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-/* informational messages enabled */
-
 struct curl_trc_feat {
   const char *name;
   int log_level;
 };
+
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+/* informational messages enabled */
+
+extern struct curl_trc_feat Curl_trc_feat_multi;
 extern struct curl_trc_feat Curl_trc_feat_read;
 extern struct curl_trc_feat Curl_trc_feat_write;
+extern struct curl_trc_feat Curl_trc_feat_dns;
 
 #define Curl_trc_is_verbose(data) \
             ((data) && (data)->set.verbose && \
@@ -185,14 +207,22 @@ extern struct curl_trc_feat Curl_trc_feat_write;
 #define Curl_trc_ft_is_verbose(data, ft) \
             (Curl_trc_is_verbose(data) && \
              (ft)->log_level >= CURL_LOG_LVL_INFO)
+#define CURL_MSTATE_NAME(s)  Curl_trc_mstate_name((int)(s))
+#define CURL_TIMER_NAME(t)   Curl_trc_timer_name((int)(t))
+#define CURL_TRC_M_TIMEOUTS(data) \
+  do { if(CURL_TRC_M_is_verbose(data)) \
+         Curl_trc_multi_timeouts(data); } while(0)
 
-#else /* defined(CURL_DISABLE_VERBOSE_STRINGS) */
+#else /* CURL_DISABLE_VERBOSE_STRINGS */
 /* All informational messages are not compiled in for size savings */
 
 #define Curl_trc_is_verbose(d)        (FALSE)
 #define Curl_trc_cf_is_verbose(x,y)   (FALSE)
 #define Curl_trc_ft_is_verbose(x,y)   (FALSE)
+#define CURL_MSTATE_NAME(x)           ((void)(x), "-")
+#define CURL_TIMER_NAME(x)            ((void)(x), "-")
+#define CURL_TRC_M_TIMEOUTS(x)        Curl_nop_stmt
 
-#endif /* !defined(CURL_DISABLE_VERBOSE_STRINGS) */
+#endif /* !CURL_DISABLE_VERBOSE_STRINGS */
 
 #endif /* HEADER_CURL_TRC_H */

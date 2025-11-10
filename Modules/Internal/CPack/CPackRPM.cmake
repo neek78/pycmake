@@ -185,12 +185,12 @@ function(cpack_rpm_prepare_relocation_paths)
       string(SUBSTRING "${REL_PATH_}" 0 2 PREFIX_)
 
       if(NOT "${PREFIX_}" STREQUAL "..")
-        set(TPM_PATH_FOUND_ TRUE)
+        set(TMP_PATH_FOUND_ TRUE)
         break()
       endif()
     endforeach()
 
-    if(NOT TPM_PATH_FOUND_)
+    if(NOT TMP_PATH_FOUND_)
       message(AUTHOR_WARNING "CPackRPM:Warning: Path ${TMP_PATH} is not on one of the relocatable paths! Package will be partially relocatable.")
     endif()
   endforeach()
@@ -445,13 +445,13 @@ function(cpack_rpm_symlink_create_relocation_script PACKAGE_PREFIXES)
 endfunction()
 
 function(cpack_rpm_symlink_add_for_relocation_script PACKAGE_PREFIXES SYMLINK SYMLINK_RELOCATION_PATHS POINT POINT_RELOCATION_PATHS)
-  list(LENGTH SYMLINK_RELOCATION_PATHS SYMLINK_PATHS_COUTN)
+  list(LENGTH SYMLINK_RELOCATION_PATHS SYMLINK_PATHS_COUNT)
   list(LENGTH POINT_RELOCATION_PATHS POINT_PATHS_COUNT)
 
   list(APPEND _RPM_RELOCATION_SCRIPT_PAIRS "${SYMLINK}:${POINT}")
   list(LENGTH _RPM_RELOCATION_SCRIPT_PAIRS PAIR_NO)
 
-  if(SYMLINK_PATHS_COUTN)
+  if(SYMLINK_PATHS_COUNT)
     foreach(SYMLINK_RELOC_PATH IN LISTS SYMLINK_RELOCATION_PATHS)
       list(FIND PACKAGE_PREFIXES "${SYMLINK_RELOC_PATH}" SYMLINK_INDEX)
 

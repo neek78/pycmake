@@ -521,6 +521,13 @@ void cmGlobalNinjaGenerator::WriteVariable(std::ostream& os,
   if (variablesShouldNotBeTrimmed.find(name) ==
       variablesShouldNotBeTrimmed.end()) {
     val = cmTrimWhitespace(value);
+    // If the value ends with `\n` and a `$` was left at the end of the trimmed
+    // value, put the newline back. Otherwise the next stanza is hidden by the
+    // trailing `$` escaping the newline.
+    if (cmSystemTools::StringEndsWith(value, "\n") &&
+        cmSystemTools::StringEndsWith(val, "$")) {
+      val += '\n';
+    }
   } else {
     val = value;
   }
@@ -714,8 +721,9 @@ void cmGlobalNinjaGenerator::CleanMetaData()
     auto output_it = outputs.begin();
     size_t static_arg_size = ninja_tool_arg_size + this->NinjaCommand.size() +
       this->GetCMakeInstance()->GetHomeOutputDirectory().size();
-    // The Windows command-line length limit is 32768.  Leave plenty.
-    constexpr size_t maximum_arg_size = 30000;
+    // The Windows command-line length limit is 32768, but if `ninja` is
+    // wrapped by a `.bat` file, the limit is 8192.  Leave plenty.
+    constexpr size_t maximum_arg_size = 8000;
     while (output_it != outputs.end()) {
       size_t total_arg_size = static_arg_size;
       std::vector<char const*> args;
@@ -1001,8 +1009,9 @@ cmGlobalNinjaGenerator::GenerateBuildCommand(
   std::string const& makeProgram, std::string const& /*projectName*/,
   std::string const& /*projectDir*/,
   std::vector<std::string> const& targetNames, std::string const& config,
-  int jobs, bool verbose, cmBuildOptions const& /*buildOptions*/,
-  std::vector<std::string> const& makeOptions)
+  int jobs, bool verbose, cmBuildOptions /*buildOptions*/,
+  std::vector<std::string> const& makeOptions,
+  BuildTryCompile /*isInTryCompile*/)
 {
   GeneratedMakeCommand makeCommand;
   makeCommand.Add(this->SelectMakeProgram(makeProgram));
@@ -1048,13 +1057,17 @@ bool cmGlobalNinjaGenerator::HasRule(std::string const& name)
 
 // Private virtual overrides
 
+bool cmGlobalNinjaGenerator::SupportsShortObjectNames() const
+{
+  return true;
+}
+
 void cmGlobalNinjaGenerator::ComputeTargetObjectDirectory(
   cmGeneratorTarget* gt) const
 {
   // Compute full path to object file directory for this target.
-  std::string dir = cmStrCat(gt->LocalGenerator->GetCurrentBinaryDirectory(),
-                             '/', gt->LocalGenerator->GetTargetDirectory(gt),
-                             '/', this->GetCMakeCFGIntDir(), '/');
+  std::string dir =
+    cmStrCat(gt->GetSupportDirectory(), '/', this->GetCMakeCFGIntDir(), '/');
   gt->ObjectDirectory = dir;
 }
 
@@ -1773,11 +1786,8 @@ void cmGlobalNinjaGenerator::WriteBuiltinTargets(std::ostream& os)
   this->WriteTargetRebuildManifest(os);
   this->WriteTargetClean(os);
   this->WriteTargetHelp(os);
-#if !defined(CMAKE_BOOTSTRAP) && !defined(_WIN32)
-  // FIXME(#26668) This does not work on Windows
-  if (this->GetCMakeInstance()
-        ->GetInstrumentation()
-        ->HasPreOrPostBuildHook()) {
+#ifndef CMAKE_BOOTSTRAP
+  if (this->GetCMakeInstance()->GetInstrumentation()->HasQuery()) {
     this->WriteTargetInstrument(os);
   }
 #endif
@@ -1799,7 +1809,7 @@ void cmGlobalNinjaGenerator::WriteBuiltinTargets(std::ostream& os)
     build.Outputs.emplace_back(this->GetInstallParallelTargetName());
     for (auto const& mf : this->Makefiles) {
       build.ExplicitDeps.emplace_back(
-        this->ConvertToNinjaPath(cmStrCat(mf->GetCurrentBinaryDirectory(), "/",
+        this->ConvertToNinjaPath(cmStrCat(mf->GetCurrentBinaryDirectory(), '/',
                                           this->GetInstallLocalTargetName())));
     }
     WriteBuild(os, build);
@@ -1855,11 +1865,8 @@ void cmGlobalNinjaGenerator::WriteTargetRebuildManifest(std::ostream& os)
   }
   reBuild.ImplicitDeps.push_back(this->CMakeCacheFile);
 
-#if !defined(CMAKE_BOOTSTRAP) && !defined(_WIN32)
-  // FIXME(#26668) This does not work on Windows
-  if (this->GetCMakeInstance()
-        ->GetInstrumentation()
-        ->HasPreOrPostBuildHook()) {
+#ifndef CMAKE_BOOTSTRAP
+  if (this->GetCMakeInstance()->GetInstrumentation()->HasQuery()) {
     reBuild.ExplicitDeps.push_back(this->NinjaOutputPath("start_instrument"));
   }
 #endif
@@ -2098,7 +2105,7 @@ void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)
         build.Variables["TARGETS"] = cmStrCat(
           this->BuildAlias(
             this->NinjaOutputPath(GetByproductsForCleanTargetName()), config),
-          " ", this->NinjaOutputPath(GetByproductsForCleanTargetName()));
+          ' ', this->NinjaOutputPath(GetByproductsForCleanTargetName()));
       }
       build.ExplicitDeps.clear();
       if (additionalFiles) {
@@ -2209,21 +2216,22 @@ void cmGlobalNinjaGenerator::WriteTargetHelp(std::ostream& os)
   }
 }
 
-#if !defined(CMAKE_BOOTSTRAP) && !defined(_WIN32)
-// FIXME(#26668) This does not work on Windows
+#ifndef CMAKE_BOOTSTRAP
 void cmGlobalNinjaGenerator::WriteTargetInstrument(std::ostream& os)
 {
   // Write rule
   {
     cmNinjaRule rule("START_INSTRUMENT");
     rule.Command = cmStrCat(
-      "\"", cmSystemTools::GetCTestCommand(), "\" --start-instrumentation \"",
-      this->GetCMakeInstance()->GetHomeOutputDirectory(), "\"");
+      '"', cmSystemTools::GetCTestCommand(), "\" --start-instrumentation \"",
+      this->GetCMakeInstance()->GetHomeOutputDirectory(), '"');
+#  ifndef _WIN32
     /*
      * On Unix systems, Ninja will prefix the command with `/bin/sh -c`.
      * Use exec so that Ninja is the parent process of the command.
      */
     rule.Command = cmStrCat("exec ", rule.Command);
+#  endif
     rule.Description = "Collecting build metrics";
     rule.Comment = "Rule to initialize instrumentation daemon.";
     rule.Restat = "1";
@@ -2278,7 +2286,7 @@ void cmGlobalNinjaGenerator::StripNinjaOutputPathPrefixAsSuffix(
 /*
 
 We use the following approach to support Fortran.  Each target already
-has a <target>.dir/ directory used to hold intermediate files for CMake.
+has an intermediate directory used to hold intermediate files for CMake.
 For each target, a FortranDependInfo.json file is generated by CMake with
 information about include directories, module directories, and the locations
 the per-target directories for target dependencies.

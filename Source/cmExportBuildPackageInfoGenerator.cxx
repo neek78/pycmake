@@ -3,6 +3,7 @@
 #include "cmExportBuildPackageInfoGenerator.h"
 
 #include <cassert>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -10,18 +11,16 @@
 
 #include <cm3p/json/value.h>
 
+#include "cmAlgorithms.h"
 #include "cmGeneratorExpression.h"
+#include "cmList.h"
+#include "cmPackageInfoArguments.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 
 cmExportBuildPackageInfoGenerator::cmExportBuildPackageInfoGenerator(
-  std::string packageName, std::string version, std::string versionCompat,
-  std::string versionSchema, std::vector<std::string> defaultTargets,
-  std::vector<std::string> defaultConfigurations)
-  : cmExportPackageInfoGenerator(
-      std::move(packageName), std::move(version), std::move(versionCompat),
-      std::move(versionSchema), std::move(defaultTargets),
-      std::move(defaultConfigurations))
+  cmPackageInfoArguments arguments)
+  : cmExportPackageInfoGenerator(std::move(arguments))
 {
   this->SetNamespace(cmStrCat(this->GetPackageName(), "::"_s));
 }
@@ -72,6 +71,14 @@ bool cmExportBuildPackageInfoGenerator::GenerateMainFile(std::ostream& os)
       }
     }
 
+    // De-duplicate include directories prior to generation.
+    auto it = properties.find("INTERFACE_INCLUDE_DIRECTORIES");
+    if (it != properties.end()) {
+      auto list = cmList{ it->second };
+      list = cmList{ list.begin(), cmRemoveDuplicates(list) };
+      properties["INTERFACE_INCLUDE_DIRECTORIES"] = list.to_string();
+    }
+
     // Set configuration-agnostic properties for component.
     this->GenerateInterfaceProperties(*component, target, properties);
   }
@@ -107,7 +114,8 @@ void cmExportBuildPackageInfoGenerator::GenerateInterfacePropertiesConfig(
   Json::Value component =
     this->GenerateInterfaceConfigProperties(suffix, properties);
   if (!component.empty()) {
-    configurations[config] = std::move(component);
+    configurations[config.empty() ? std::string{ "noconfig" } : config] =
+      std::move(component);
   }
 }
 

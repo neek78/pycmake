@@ -10,8 +10,16 @@ default values depend on specified conditions or other options.  This helps
 maintain a clean configuration interface by only displaying options that are
 relevant to the current settings.
 
+Load this module in CMake with:
+
+.. code-block:: cmake
+
+  include(CMakeDependentOption)
+
 Commands
 ^^^^^^^^
+
+This module provides the following command:
 
 .. command:: cmake_dependent_option
 
@@ -21,9 +29,9 @@ Commands
 
     cmake_dependent_option(<variable> <help> <value> <condition> <else-value>)
 
-  This macro creates a boolean ``<variable>`` and makes it available to the user
-  in the GUI (such as :manual:`cmake-gui(1)` or :manual:`ccmake(1)`), if a set
-  of conditions evaluates to boolean true.
+  This command creates a boolean ``<variable>`` and makes it available to the
+  user in the GUI (such as :manual:`cmake-gui(1)` or :manual:`ccmake(1)`), if
+  a set of conditions evaluates to boolean true.
 
   The arguments are:
 
@@ -74,6 +82,9 @@ Commands
     The value assigned to a local variable named ``<variable>``, when
     ``<condition>`` evaluates to boolean false.
 
+  In CMake project mode, boolean cache variables are created as explained
+  above.  In CMake script mode, boolean variables are set instead.
+
 Examples
 ^^^^^^^^
 
@@ -83,7 +94,7 @@ Example: Basic Usage
 Using this module in a project to conditionally set an option:
 
 .. code-block:: cmake
-  :caption: CMakeLists.txt
+  :caption: ``CMakeLists.txt``
 
   include(CMakeDependentOption)
 
@@ -96,7 +107,7 @@ Extending the previous example, this demonstrates how the module allows
 user-configurable options based on a condition during the configuration phase:
 
 .. code-block:: cmake
-  :caption: CMakeLists.txt
+  :caption: ``CMakeLists.txt``
 
   include(CMakeDependentOption)
 
@@ -151,7 +162,7 @@ runs, the previous value of ``USE_FOO`` is preserved so that when it becomes
 available again, it retains its last set value.
 
 .. code-block:: cmake
-  :caption: CMakeLists.txt
+  :caption: ``CMakeLists.txt``
 
   include(CMakeDependentOption)
 
@@ -168,7 +179,7 @@ in the GUI.  The value of ``USE_FOO`` is preserved across configuration runs,
 similar to the previous example.
 
 .. code-block:: cmake
-  :caption: CMakeLists.txt
+  :caption: ``CMakeLists.txt``
 
   include(CMakeDependentOption)
 
@@ -178,7 +189,7 @@ Another example demonstrates how an option can be conditionally available based
 on the target system:
 
 .. code-block:: cmake
-  :caption: CMakeLists.txt
+  :caption: ``CMakeLists.txt``
 
   include(CMakeDependentOption)
 

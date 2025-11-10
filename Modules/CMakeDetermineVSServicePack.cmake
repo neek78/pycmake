@@ -5,27 +5,42 @@
 CMakeDetermineVSServicePack
 ---------------------------
 
+.. versionchanged:: 4.1
+
+  This module is available only if policy :policy:`CMP0196` is not set to ``NEW``.
+
 .. deprecated:: 3.0
 
   This module should no longer be used.  The functionality of this module has
   been superseded by the :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable that
   contains the compiler version number.
 
-This module provides a function to determine the installed Visual Studio service
-pack version for Visual Studio 2012 and earlier.
+This module provides a command to determine the installed Visual Studio
+service pack version for Visual Studio 2012 and earlier.
+
+Load this module in a CMake project with:
+
+.. code-block:: cmake
+
+  include(CMakeDetermineVSServicePack)
+
+Commands
+^^^^^^^^
+
+This module provides the following command:
 
 .. command:: DetermineVSServicePack
 
+  Determines the Visual Studio service pack version of the ``cl`` compiler
+  in use:
+
   .. code-block:: cmake
 
-    DetermineVSServicePack(<result>)
+    DetermineVSServicePack(<variable>)
 
-  Determines the Visual Studio service pack version of the ``cl`` compiler in
-  use and stores the result in the specified internal cache variable
-  ``<result>``.
-
-  The ``<result>`` variable will be set to one of the following values or an
-  empty string if the service pack cannot be determined:
+  The result is stored in the specified internal cache variable ``<variable>``,
+  which is set to one of the following values, or to an empty string if the
+  service pack cannot be determined:
 
   * ``vc80``, ``vc80sp1``
   * ``vc90``, ``vc90sp1``
@@ -47,6 +62,16 @@ Determining the Visual Studio service pack version in a project:
     endif()
   endif()
 #]=======================================================================]
+
+cmake_policy(GET CMP0196 _CMakeDetermineVSServicePack_CMP0196)
+if(_CMakeDetermineVSServicePack_CMP0196 STREQUAL "NEW")
+  message(FATAL_ERROR "The CMakeDetermineVSServicePack module has been removed by policy CMP0196.")
+endif()
+
+if(_CMakeDetermineVSServicePack_testing)
+  set(_CMakeDetermineVSServicePack_included TRUE)
+  return()
+endif()
 
 if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 2.8.8)
   message(DEPRECATION

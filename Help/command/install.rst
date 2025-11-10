@@ -648,7 +648,6 @@ Signatures
             [USE_SOURCE_PERMISSIONS] [OPTIONAL] [MESSAGE_NEVER]
             [CONFIGURATIONS <config>...]
             [COMPONENT <component>] [EXCLUDE_FROM_ALL]
-            [EXCLUDE_EMPTY_DIRECTORIES]
             [FILES_MATCHING]
             [<match-rule> <match-option>...]...
             )
@@ -750,13 +749,6 @@ Signatures
     .. versionadded:: 3.1
 
     Disable file installation status output.
-
-  ``EXCLUDE_EMPTY_DIRECTORIES``
-    .. versionadded:: 4.1
-
-    Exclude empty directories from installation.  A directory is
-    considered empty if it contains no files, no symbolic links,
-    and no non-empty subdirectories.
 
   ``FILES_MATCHING``
     This option may be given before the first ``<match-rule>`` to
@@ -992,6 +984,7 @@ Signatures
   .. code-block:: cmake
 
     install(PACKAGE_INFO <package-name> EXPORT <export-name>
+            [PROJECT <project-name>|NO_PROJECT_METADATA]
             [APPENDIX <appendix-name>]
             [DESTINATION <dir>]
             [LOWER_CASE_FILE]
@@ -1000,6 +993,10 @@ Signatures
              [VERSION_SCHEMA <string>]]
             [DEFAULT_TARGETS <target>...]
             [DEFAULT_CONFIGURATIONS <config>...]
+            [LICENSE <license-string>]
+            [DEFAULT_LICENSE <license-string>]
+            [DESCRIPTION <description-string>]
+            [HOMEPAGE_URL <url-string>]
             [PERMISSIONS <permission>...]
             [CONFIGURATIONS <config>...]
             [COMPONENT <component>]
@@ -1019,6 +1016,80 @@ Signatures
 
   If ``DESTINATION`` is not specified, a platform-specific default is used.
 
+  Several options may be used to specify package metadata:
+
+  ``VERSION <version>``
+    Version of the package.  The ``<version>`` shall conform to the specified
+    schema.  Refer to :ref:`Version Selection (CPS) <cps version selection>`
+    for more information on how the package version is used when consumers
+    request a package.
+
+  ``COMPAT_VERSION <version>``
+    Oldest version for which the package provides compatibility.
+
+    If not specified, ``COMPAT_VERSION`` is implicitly taken to equal the
+    package's ``VERSION``, which is to say that no backwards compatibility is
+    provided.
+
+  ``VERSION_SCHEMA <schema>``
+    The schema that the package's version number(s) (both ``VERSION`` and
+    ``COMPAT_VERSION``) follow.  While no schema will be written to the
+    ``.cps`` file if this option is not provided, CPS specifies that the schema
+    is assumed to be ``simple`` in such cases. Refer to |cps-version_schema|_
+    for more details and a list of officially supported schemas, but be aware
+    that the specification may include schemas that are not supported by CMake.
+    See :ref:`Version Selection (CPS) <cps version selection>` for the list of
+    schemas supported by :command:`find_package`.
+
+  ``DEFAULT_TARGETS <target>...``
+
+    Targets to be used if a consumer requests linking to the package name,
+    rather than to specific components.
+
+  ``DEFAULT_CONFIGURATIONS <config>...``
+
+    Ordered list of configurations consumers should prefer if no exact match or
+    mapping of the consumer's configuration to the package's available
+    configurations exists.  If not specified, CMake will fall back to the
+    package's available configurations in an unspecified order.
+
+  ``LICENSE <license-string>``
+    .. versionadded:: 4.2
+
+    A |SPDX|_ (SPDX) `License Expression`_ that describes the license(s) of the
+    project as a whole, including documentation, resources, or other materials
+    distributed with the project, in addition to software artifacts.  See the
+    SPDX `License List`_ for a list of commonly used licenses and their
+    identifiers.
+
+    The license of individual components is taken from the
+    :prop_tgt:`SPDX_LICENSE` property of their respective targets.
+
+  ``DEFAULT_LICENSE <license-string>``
+    .. versionadded:: 4.2
+
+    A |SPDX|_ (SPDX) `License Expression`_ that describes the license(s) of any
+    components which do not otherwise specify their license(s).
+
+  ``DESCRIPTION <description-string>``
+    .. versionadded:: 4.1
+
+    An informational description of the project.  It is recommended that this
+    description is a relatively short string, usually no more than a few words.
+
+  ``HOMEPAGE_URL <url-string>``
+    .. versionadded:: 4.1
+
+    An informational canonical home URL for the project.
+
+  By default, if the specified ``<package-name>`` matches the current CMake
+  :variable:`PROJECT_NAME`, package metadata will be inherited from the
+  project.  The ``PROJECT <project-name>`` option may be used to specify a
+  different project from which to inherit metadata.  If ``NO_PROJECT_METADATA``
+  is specified, automatic inheritance of package metadata will be disabled.
+  In any case, any metadata values specified in the ``install`` command will
+  take precedence.
+
   If ``APPENDIX`` is specified, rather than generating a top level package
   specification, the specified targets will be exported as an appendix to the
   named package.  Appendices may be used to separate less commonly used targets
@@ -1028,7 +1099,7 @@ Signatures
   artifacts produced by multiple build trees.
 
   Appendices are not permitted to change basic package metadata; therefore,
-  none of ``VERSION``, ``COMPAT_VERSION``, ``VERSION_SCHEMA``,
+  none of ``PROJECT``, ``VERSION``, ``COMPAT_VERSION``, ``VERSION_SCHEMA``,
   ``DEFAULT_TARGETS`` or ``DEFAULT_CONFIGURATIONS`` may be specified in
   combination with ``APPENDIX``.  Additionally, it is strongly recommended that
   use of ``LOWER_CASE_FILE`` should be consistent between the main package and
@@ -1229,3 +1300,12 @@ and by CPack. You can also invoke this script manually with
 
 .. _CPS: https://cps-org.github.io/cps/
 .. |CPS| replace:: Common Package Specification
+
+.. _cps-version_schema: https://cps-org.github.io/cps/schema.html#version-schema
+.. |cps-version_schema| replace:: ``version_schema``
+
+.. _SPDX: https://spdx.dev/
+.. |SPDX| replace:: System Package Data Exchange
+
+.. _License Expression: https://spdx.github.io/spdx-spec/v3.0.1/annexes/spdx-license-expressions/
+.. _License List: https://spdx.org/licenses/

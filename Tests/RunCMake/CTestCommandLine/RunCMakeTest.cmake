@@ -1,5 +1,6 @@
 include(RunCMake)
 include(RunCTest)
+cmake_policy(SET CMP0140 NEW)
 
 # Do not use any proxy for lookup of an invalid site.
 # DNS failure by proxy looks different than DNS failure without proxy.
@@ -449,6 +450,20 @@ function(show_only_json_check_python v)
   set(json_file "${RunCMake_TEST_BINARY_DIR}/ctest.json")
   file(WRITE "${json_file}" "${actual_stdout}")
   set(actual_stdout "" PARENT_SCOPE)
+
+  if(CMake_TEST_JSON_SCHEMA)
+    execute_process(
+      COMMAND ${Python_EXECUTABLE} "${RunCMake_SOURCE_DIR}/show-only_json_validate_schema.py" "${json_file}"
+      RESULT_VARIABLE result
+      OUTPUT_VARIABLE output
+      ERROR_VARIABLE output
+    )
+    if(NOT result STREQUAL 0)
+      string(REPLACE "\n" "\n  " output "${output}")
+      string(APPEND RunCMake_TEST_FAILED "Failed to validate version ${v} JSON schema for file: ${file}\nOutput:\n${output}\n")
+    endif()
+  endif()
+
   execute_process(
     COMMAND ${Python_EXECUTABLE} "${RunCMake_SOURCE_DIR}/show-only_json-v${v}_check.py" "${json_file}"
     RESULT_VARIABLE result
@@ -457,8 +472,9 @@ function(show_only_json_check_python v)
     )
   if(NOT result EQUAL 0)
     string(REPLACE "\n" "\n  " output "  ${output}")
-    set(RunCMake_TEST_FAILED "Unexpected output:\n${output}" PARENT_SCOPE)
+    string(APPEND RunCMake_TEST_FAILED "Unexpected output:\n${output}" PARENT_SCOPE)
   endif()
+  return(PROPAGATE RunCMake_TEST_FAILED)
 endfunction()
 
 function(run_ShowOnly)
@@ -560,7 +576,7 @@ run_cmake_command(EmptyDirTest-ctest
 
 run_cmake_command(EmptyDirCoverage-ctest
   # Isolate this test from any surrounding coverage tool.
-  ${CMAKE_COMMAND} -E env --unset=COVFILE
+  ${CMAKE_COMMAND} -E env COVNOSAVE=1 --unset=COVAPPDATADIR --unset=COVFILE
     ${CMAKE_CTEST_COMMAND} -C Debug -M Experimental -T Coverage
   )
 
@@ -629,6 +645,21 @@ endfunction()
 run_output_junit()
 
 run_cmake_command(invalid-ctest-argument ${CMAKE_CTEST_COMMAND} --not-a-valid-ctest-argument)
+
+block()
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/TimeoutDefault)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
+  file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+  file(WRITE "${RunCMake_TEST_BINARY_DIR}/DartConfiguration.tcl" "
+BuildDirectory: ${RunCMake_TEST_BINARY_DIR}
+")
+  file(WRITE "${RunCMake_TEST_BINARY_DIR}/CTestTestfile.cmake" "
+add_test(test1 \"${CMAKE_COMMAND}\" -E true)
+")
+  run_cmake_command(TimeoutDefault ${CMAKE_CTEST_COMMAND} -V)
+  run_cmake_command(TimeoutDefault-T-Test ${CMAKE_CTEST_COMMAND} -V -T Test)
+endblock()
 
 if(WIN32)
   block()

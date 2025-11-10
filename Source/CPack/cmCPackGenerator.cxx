@@ -3,6 +3,7 @@
 #include "cmCPackGenerator.h"
 
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <utility>
 
@@ -100,18 +101,18 @@ int cmCPackGenerator::PrepareNames()
   std::string pkgFileName =
     cmStrCat(pkgBaseFileName, this->GetOutputExtension());
   // Determine path to the package.
-  std::string pkgFilePath = cmStrCat(pkgDirectory, "/", pkgFileName);
+  std::string pkgFilePath = cmStrCat(pkgDirectory, '/', pkgFileName);
   // Determine top-level directory for packaging.
   std::string topDirectory = cmStrCat(pkgDirectory, "/_CPack_Packages/");
   {
     cmValue toplevelTag = this->GetOption("CPACK_TOPLEVEL_TAG");
     if (toplevelTag) {
-      topDirectory += cmStrCat(toplevelTag, "/");
+      topDirectory += cmStrCat(toplevelTag, '/');
     }
   }
   topDirectory += *this->GetOption("CPACK_GENERATOR");
   // Determine temporary packaging-directory.
-  std::string tmpDirectory = cmStrCat(topDirectory, "/", pkgBaseFileName);
+  std::string tmpDirectory = cmStrCat(topDirectory, '/', pkgBaseFileName);
   // Determine path to temporary package file.
   std::string tmpPkgFilePath = topDirectory + "/" + pkgFileName;
 
@@ -174,14 +175,42 @@ int cmCPackGenerator::PrepareNames()
     return 0;
   }
 
-  // Check algorithm for calculating the checksum of the package.
-  cmValue algoSignature = this->GetOption("CPACK_PACKAGE_CHECKSUM");
-  if (algoSignature) {
-    if (!cmCryptoHash::New(*algoSignature)) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR,
-                    "Cannot recognize algorithm: " << algoSignature
-                                                   << std::endl);
-      return 0;
+  // Check algorithms for calculating the checksum of the package.
+  cmValue algoSignatures = this->GetOption("CPACK_PACKAGE_CHECKSUM");
+  if (cmNonempty(algoSignatures)) {
+    cmList algoList{ algoSignatures };
+    // Workout unique algorithms and duplicates for diagnostic purposes
+    algoList.sort();
+    // Store a copy since std::unique modifies the sequence
+    cmList const sortedAlgoList = algoList;
+    auto const newEnd = std::unique(algoList.begin(), algoList.end());
+
+    if (newEnd != algoList.end()) {
+      cmList duplicatesAlgoList;
+
+      std::set_difference(sortedAlgoList.begin(), sortedAlgoList.end(),
+                          algoList.begin(), newEnd,
+                          std::back_inserter(duplicatesAlgoList));
+      // Make sure to output duplicates a single time even if these appear more
+      // than two times. Exploit the already sorted sequence to determine the
+      // unique elements.
+      duplicatesAlgoList.erase(
+        std::unique(duplicatesAlgoList.begin(), duplicatesAlgoList.end()),
+        duplicatesAlgoList.end());
+
+      cmCPackLogger(cmCPackLog::LOG_WARNING,
+                    "Algorithm specified multiple times: "
+                      << duplicatesAlgoList.join(", ") << std::endl);
+    }
+
+    algoList.erase(newEnd, algoList.end());
+
+    for (std::string const& algo : algoList) {
+      if (!cmCryptoHash::New(algo)) {
+        cmCPackLogger(cmCPackLog::LOG_ERROR,
+                      "Cannot recognize algorithm: " << algo << std::endl);
+        return 0;
+      }
     }
   }
 
@@ -982,7 +1011,7 @@ bool cmCPackGenerator::GenerateChecksumFile(cmCryptoHash& crypto,
                                             cm::string_view filename) const
 {
   std::string packageFileName =
-    cmStrCat(this->GetOption("CPACK_OUTPUT_FILE_PREFIX"), "/", filename);
+    cmStrCat(this->GetOption("CPACK_OUTPUT_FILE_PREFIX"), '/', filename);
   std::string hashFile = cmStrCat(
     packageFileName, "." + cmSystemTools::LowerCase(crypto.GetHashAlgoName()));
   cmsys::ofstream outF(hashFile.c_str());
@@ -1001,7 +1030,7 @@ bool cmCPackGenerator::CopyPackageFile(std::string const& srcFilePath,
                                        cm::string_view filename) const
 {
   std::string destFilePath =
-    cmStrCat(this->GetOption("CPACK_OUTPUT_FILE_PREFIX"), "/", filename);
+    cmStrCat(this->GetOption("CPACK_OUTPUT_FILE_PREFIX"), '/', filename);
   cmCPackLogger(cmCPackLog::LOG_DEBUG,
                 "Copy final package(s): "
                   << (!srcFilePath.empty() ? srcFilePath : "(NULL)") << " to "
@@ -1200,8 +1229,22 @@ int cmCPackGenerator::DoPackage()
   }
 
   /* Prepare checksum algorithm*/
-  cmValue algo = this->GetOption("CPACK_PACKAGE_CHECKSUM");
-  std::unique_ptr<cmCryptoHash> crypto = cmCryptoHash::New(*algo);
+  cmValue algoSignatures = this->GetOption("CPACK_PACKAGE_CHECKSUM");
+  std::vector<std::unique_ptr<cmCryptoHash>> crypto;
+
+  if (cmNonempty(algoSignatures)) {
+    cmList algoList{ algoSignatures };
+    // Keep unique algorithms since generating the same checksum multiple times
+    // is not meaningful.
+    algoList.remove_duplicates();
+    crypto.reserve(algoList.size());
+
+    for (std::string const& algo : algoList) {
+      if (std::unique_ptr<cmCryptoHash> hash = cmCryptoHash::New(algo)) {
+        crypto.push_back(std::move(hash));
+      }
+    }
+  }
 
   /*
    * Copy the generated packages to final destination
@@ -1218,9 +1261,9 @@ int cmCPackGenerator::DoPackage()
     if (!this->CopyPackageFile(pkgFileName, filename)) {
       return 0;
     }
-    /* Generate checksum file */
-    if (crypto) {
-      if (!this->GenerateChecksumFile(*crypto, filename)) {
+    /* Generate checksum files */
+    for (std::unique_ptr<cmCryptoHash> const& hash : crypto) {
+      if (!this->GenerateChecksumFile(*hash, filename)) {
         return 0;
       }
     }

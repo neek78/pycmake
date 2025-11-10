@@ -16,6 +16,7 @@
 #include "cmExportFileGenerator.h"
 #include "cmExportSet.h"
 #include "cmFileSet.h"
+#include "cmGenExContext.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
@@ -286,7 +287,8 @@ std::string cmExportInstallCMakeConfigGenerator::GetFileSetDirectories(
     gte->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 
   cmGeneratorExpression ge(*gte->Makefile->GetCMakeInstance());
-  auto cge = ge.Parse(te->FileSetGenerators.at(fileSet)->GetDestination());
+  auto cge =
+    ge.Parse(te->FileSetGenerators.at(fileSet->GetName())->GetDestination());
 
   for (auto const& config : configs) {
     auto unescapedDest = cge->Evaluate(gte->LocalGenerator, config, gte);
@@ -334,17 +336,17 @@ std::string cmExportInstallCMakeConfigGenerator::GetFileSetFiles(
   auto directoryEntries = fileSet->CompileDirectoryEntries();
 
   cmGeneratorExpression destGe(*gte->Makefile->GetCMakeInstance());
-  auto destCge =
-    destGe.Parse(te->FileSetGenerators.at(fileSet)->GetDestination());
+  auto destCge = destGe.Parse(
+    te->FileSetGenerators.at(fileSet->GetName())->GetDestination());
 
   for (auto const& config : configs) {
-    auto directories = fileSet->EvaluateDirectoryEntries(
-      directoryEntries, gte->LocalGenerator, config, gte);
+    cm::GenEx::Context context(gte->LocalGenerator, config);
+    auto directories =
+      fileSet->EvaluateDirectoryEntries(directoryEntries, context, gte);
 
     std::map<std::string, std::vector<std::string>> files;
     for (auto const& entry : fileEntries) {
-      fileSet->EvaluateFileEntry(directories, files, entry,
-                                 gte->LocalGenerator, config, gte);
+      fileSet->EvaluateFileEntry(directories, files, entry, context, gte);
     }
     auto unescapedDest = destCge->Evaluate(gte->LocalGenerator, config, gte);
     auto dest =

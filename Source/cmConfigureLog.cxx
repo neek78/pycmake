@@ -23,12 +23,12 @@
 #include "cmake.h"
 
 cmConfigureLog::cmConfigureLog(std::string logDir,
-                               std::vector<unsigned long> logVersions)
+                               std::vector<unsigned int> logVersions)
   : LogDir(std::move(logDir))
   , LogVersions(std::move(logVersions))
 {
   // Always emit events for the latest log version.
-  static unsigned long const LatestLogVersion = 1;
+  static unsigned int const LatestLogVersion = 1;
   if (!cm::contains(this->LogVersions, LatestLogVersion)) {
     this->LogVersions.emplace_back(LatestLogVersion);
   }
@@ -46,7 +46,7 @@ cmConfigureLog::~cmConfigureLog()
 }
 
 bool cmConfigureLog::IsAnyLogVersionEnabled(
-  std::vector<unsigned long> const& v) const
+  std::vector<unsigned int> const& v) const
 {
   // Both input lists are sorted.  Look for a matching element.
   auto i1 = v.cbegin();
@@ -121,6 +121,26 @@ cmsys::ofstream& cmConfigureLog::BeginLine()
 void cmConfigureLog::EndLine()
 {
   this->Stream << std::endl;
+}
+
+void cmConfigureLog::BeginArray()
+{
+  ++this->Indent;
+}
+
+void cmConfigureLog::NextArrayElement()
+{
+  assert(this->Indent);
+  --this->Indent;
+  this->BeginLine() << '-';
+  this->EndLine();
+  ++this->Indent;
+}
+
+void cmConfigureLog::EndArray()
+{
+  assert(this->Indent);
+  --this->Indent;
 }
 
 void cmConfigureLog::BeginObject(cm::string_view key)

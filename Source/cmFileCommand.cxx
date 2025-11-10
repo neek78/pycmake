@@ -418,7 +418,8 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
                 "CMAKE_POLICY_WARNING_CMP0159")) {
             status.GetMakefile().IssueMessage(
               MessageType::AUTHOR_WARNING,
-              cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0159), '\n',
+              cmStrCat(cmPolicies::GetPolicyWarning(cmPolicies::CMP0159),
+                       "\n"
                        "For compatibility, CMake is leaving CMAKE_MATCH_<n> "
                        "unchanged."));
           }
@@ -447,7 +448,7 @@ bool HandleStringsCommand(std::vector<std::string> const& args,
       arg_mode = arg_none;
     } else {
       status.SetError(
-        cmStrCat("STRINGS given unknown argument \"", args[i], "\""));
+        cmStrCat("STRINGS given unknown argument \"", args[i], '"'));
       return false;
     }
   }
@@ -2138,8 +2139,9 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
   if (!file.empty()) {
     fout.open(file.c_str(), std::ios::binary);
     if (!fout) {
-      status.SetError(cmStrCat("DOWNLOAD cannot open file for write\n",
-                               "  file: \"", file, '"'));
+      status.SetError(cmStrCat("DOWNLOAD cannot open file for write\n"
+                               "  file: \"",
+                               file, '"'));
       return false;
     }
   }
@@ -2337,8 +2339,9 @@ bool HandleDownloadCommand(std::vector<std::string> const& args,
 
     std::string actualHash = hash->HashFile(file);
     if (actualHash.empty()) {
-      status.SetError(cmStrCat("DOWNLOAD cannot compute hash on download\n",
-                               "  for file: \"", file, '"'));
+      status.SetError(cmStrCat("DOWNLOAD cannot compute hash on download\n"
+                               "  for file: \"",
+                               file, '"'));
       return false;
     }
 
@@ -2997,8 +3000,9 @@ bool HandleLockCommand(std::vector<std::string> const& args,
     } else {
       status.GetMakefile().IssueMessage(
         MessageType::FATAL_ERROR,
-        cmStrCat("expected DIRECTORY, RELEASE, GUARD, RESULT_VARIABLE or ",
-                 "TIMEOUT\nbut got: \"", args[i], "\"."));
+        cmStrCat("expected DIRECTORY, RELEASE, GUARD, RESULT_VARIABLE or "
+                 "TIMEOUT\nbut got: \"",
+                 args[i], "\"."));
       return false;
     }
   }
@@ -3224,8 +3228,13 @@ bool HandleCreateLinkCommand(std::vector<std::string> const& args,
     return false;
   }
 
+  cmPolicies::PolicyStatus const cmp0205 =
+    status.GetMakefile().GetPolicyStatus(cmPolicies::CMP0205);
+
   // Hard link requires original file to exist.
-  if (!arguments.Symbolic && !cmSystemTools::FileExists(fileName)) {
+  if (!arguments.Symbolic &&
+      (!cmSystemTools::PathExists(fileName) ||
+       (cmp0205 != cmPolicies::NEW && !cmSystemTools::FileExists(fileName)))) {
     result = "Cannot hard link \'" + fileName + "\' as it does not exist.";
     if (!arguments.Result.empty()) {
       status.GetMakefile().AddDefinition(arguments.Result, result);
@@ -3236,19 +3245,29 @@ bool HandleCreateLinkCommand(std::vector<std::string> const& args,
   }
 
   // Check if the new file already exists and remove it.
-  if (cmSystemTools::PathExists(newFileName) &&
-      !cmSystemTools::RemoveFile(newFileName)) {
-    auto err = cmStrCat("Failed to create link '", newFileName,
-                        "' because existing path cannot be removed: ",
-                        cmSystemTools::GetLastSystemError(), '\n');
-
-    if (!arguments.Result.empty()) {
-      status.GetMakefile().AddDefinition(arguments.Result, err);
-      return true;
+  if (cmSystemTools::PathExists(newFileName)) {
+    cmsys::Status rmStatus;
+    if (cmp0205 == cmPolicies::NEW &&
+        cmSystemTools::FileIsDirectory(newFileName)) {
+      rmStatus = cmSystemTools::RepeatedRemoveDirectory(newFileName);
+    } else {
+      rmStatus = cmSystemTools::RemoveFile(newFileName);
     }
-    status.SetError(err);
-    return false;
+    if (!rmStatus) {
+      std::string err = cmStrCat("Failed to create link '", newFileName,
+                                 "' because existing path cannot be removed: ",
+                                 rmStatus.GetString(), '\n');
+
+      if (!arguments.Result.empty()) {
+        status.GetMakefile().AddDefinition(arguments.Result, err);
+        return true;
+      }
+      status.SetError(err);
+      return false;
+    }
   }
+
+  bool const sourceIsDirectory = cmSystemTools::FileIsDirectory(fileName);
 
   // Whether the operation completed successfully.
   bool completed = false;
@@ -3264,20 +3283,54 @@ bool HandleCreateLinkCommand(std::vector<std::string> const& args,
                         "': ", linked.GetString());
     }
   } else {
-    cmsys::Status linked =
-      cmSystemTools::CreateLinkQuietly(fileName, newFileName);
-    if (linked) {
-      completed = true;
-    } else {
-      result = cmStrCat("failed to create link '", newFileName,
-                        "': ", linked.GetString());
+    bool needToTry = true;
+    if (sourceIsDirectory) {
+      if (cmp0205 == cmPolicies::NEW) {
+        needToTry = false;
+      } else if (cmp0205 == cmPolicies::WARN) {
+        status.GetMakefile().IssueMessage(
+          MessageType::AUTHOR_WARNING,
+          cmStrCat("Path\n  ", fileName,
+                   "\nis directory. Hardlinks creation is not supported for "
+                   "directories.\n",
+                   cmPolicies::GetPolicyWarning(cmPolicies::CMP0205)));
+      }
     }
+
+    if (needToTry) {
+      cmsys::Status linked =
+        cmSystemTools::CreateLinkQuietly(fileName, newFileName);
+      if (linked) {
+        completed = true;
+      } else {
+        result = cmStrCat("failed to create link '", newFileName,
+                          "': ", linked.GetString());
+      }
+    } else {
+      result =
+        cmStrCat("failed to create link '", newFileName, "': not supported");
+    }
+  }
+
+  if (arguments.CopyOnError && cmp0205 == cmPolicies::WARN &&
+      sourceIsDirectory) {
+    status.GetMakefile().IssueMessage(
+      MessageType::AUTHOR_WARNING,
+      cmStrCat("Path\n  ", fileName,
+               "\nis directory. It will be copied recursively when NEW policy "
+               "behavior applies for CMP0205.\n",
+               cmPolicies::GetPolicyWarning(cmPolicies::CMP0205)));
   }
 
   // Check if copy-on-error is enabled in the arguments.
   if (!completed && arguments.CopyOnError) {
-    cmsys::Status copied =
-      cmsys::SystemTools::CopyFileAlways(fileName, newFileName);
+    cmsys::Status copied;
+    if (cmp0205 == cmPolicies::NEW && sourceIsDirectory) {
+      copied = cmsys::SystemTools::CopyADirectory(fileName, newFileName);
+    } else {
+      copied = cmsys::SystemTools::CopyFileAlways(fileName, newFileName);
+    }
+
     if (copied) {
       completed = true;
     } else {
@@ -3851,7 +3904,7 @@ bool ValidateAndConvertPermissions(
   return true;
 }
 
-bool SetPermissions(std::string const& filename, mode_t const& perms,
+bool SetPermissions(std::string const& filename, mode_t perms,
                     cmExecutionStatus& status)
 {
   if (!cmSystemTools::SetPermissions(filename, perms)) {
@@ -3956,8 +4009,7 @@ bool HandleChmodCommandImpl(std::vector<std::string> const& args, bool recurse,
 
     if (cmSystemTools::FileExists(i, true)) {
       bool success = true;
-      mode_t const& filePermissions =
-        parsedArgs.FilePermissions ? fperms : perms;
+      mode_t filePermissions = parsedArgs.FilePermissions ? fperms : perms;
       if (filePermissions) {
         success = SetPermissions(i, filePermissions, status);
       }
@@ -3968,7 +4020,7 @@ bool HandleChmodCommandImpl(std::vector<std::string> const& args, bool recurse,
 
     else if (cmSystemTools::FileIsDirectory(i)) {
       bool success = true;
-      mode_t const& directoryPermissions =
+      mode_t directoryPermissions =
         parsedArgs.DirectoryPermissions ? dperms : perms;
       if (directoryPermissions) {
         success = SetPermissions(i, directoryPermissions, status);

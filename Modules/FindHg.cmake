@@ -6,18 +6,26 @@ FindHg
 ------
 
 Finds the Mercurial command-line client executable (``hg``) and provides a
-command for extracting information from a Mercurial working copy.
+command for extracting information from a Mercurial working copy:
+
+.. code-block:: cmake
+
+  find_package(Hg [<version>] [...])
 
 Result Variables
 ^^^^^^^^^^^^^^^^
 
-This module sets the following variables:
+This module defines the following variables:
 
 ``Hg_FOUND``
-  Boolean indicating whether the Mercurial client was found.  For backward
-  compatibility, the ``HG_FOUND`` variable is also set to the same value.
+  .. versionadded:: 3.3
 
-``HG_VERSION_STRING``
+  Boolean indicating whether the (requested version of) Mercurial client was
+  found.
+
+``Hg_VERSION``
+  .. versionadded:: 4.2
+
   The version of Mercurial found.
 
 Cache Variables
@@ -31,7 +39,7 @@ The following cache variables may also be set:
 Commands
 ^^^^^^^^
 
-This module defines the following command when Mercurial client (``hg``) is
+This module provides the following command when Mercurial client (``hg``) is
 found:
 
 .. command:: Hg_WC_INFO
@@ -44,7 +52,7 @@ found:
 
     Hg_WC_INFO(<dir> <var-prefix>)
 
-  This macro defines the following variables if running Mercurial client on
+  This command defines the following variables if running Mercurial client on
   working copy located at a given location ``<dir>`` succeeds; otherwise a
   ``SEND_ERROR`` message is generated:
 
@@ -52,6 +60,24 @@ found:
     Current changeset.
   ``<var-prefix>_WC_REVISION``
     Current revision.
+
+Deprecated Variables
+^^^^^^^^^^^^^^^^^^^^
+
+The following variables are provided for backward compatibility:
+
+``HG_FOUND``
+  .. deprecated:: 4.2
+    Use ``Hg_FOUND``, which has the same value.
+
+  Boolean indicating whether the (requested version of) Mercurial client was
+  found.
+
+``HG_VERSION_STRING``
+  .. deprecated:: 4.2
+    Use ``Hg_VERSION``, which has the same value.
+
+  The version of Mercurial found.
 
 Examples
 ^^^^^^^^
@@ -98,7 +124,8 @@ if(HG_EXECUTABLE)
     set_property(CACHE HG_EXECUTABLE PROPERTY VALUE "HG_EXECUTABLE-NOTFOUND")
   endif()
   if(hg_version MATCHES "^Mercurial Distributed SCM \\(version ([0-9][^)]*)\\)")
-    set(HG_VERSION_STRING "${CMAKE_MATCH_1}")
+    set(Hg_VERSION "${CMAKE_MATCH_1}")
+    set(HG_VERSION_STRING "${Hg_VERSION}")
   endif()
   unset(hg_version)
 
@@ -121,4 +148,4 @@ endif()
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Hg
                                   REQUIRED_VARS HG_EXECUTABLE
-                                  VERSION_VAR HG_VERSION_STRING)
+                                  VERSION_VAR Hg_VERSION)

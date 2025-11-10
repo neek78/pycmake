@@ -1,7 +1,7 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file LICENSE.rst or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.13...3.31 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13...4.0 FATAL_ERROR)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_C ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideC.cmake)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideCXX.cmake)
 
@@ -478,19 +478,6 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
   # build the utilities
   include(CMakeBuildUtilities)
 
-  if(BUILD_QtDialog)
-    if(APPLE)
-      set(CMAKE_BUNDLE_VERSION
-        "${CMake_VERSION_MAJOR}.${CMake_VERSION_MINOR}.${CMake_VERSION_PATCH}")
-      set(CMAKE_BUNDLE_LOCATION "${CMAKE_INSTALL_PREFIX}")
-      # make sure CMAKE_INSTALL_PREFIX ends in /
-      if(NOT CMAKE_INSTALL_PREFIX MATCHES "/$")
-        string(APPEND CMAKE_INSTALL_PREFIX "/")
-      endif()
-      string(APPEND CMAKE_INSTALL_PREFIX "CMake.app/Contents")
-    endif()
-  endif()
-
   if(UNIX)
     # Install executables with the RPATH set for libraries outside the build tree.
     # This is also suitable for binaries in the build tree.  Avoid re-link on install.
@@ -520,13 +507,21 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
         NOT "x${CMAKE_C_SIMULATE_ID}" STREQUAL "xMSVC") OR
        CMAKE_C_COMPILER_ID STREQUAL "AppleClang" OR
        CMAKE_C_COMPILER_ID STREQUAL "LCC")
-      set(C_FLAGS_LIST -Wcast-align -Werror-implicit-function-declaration -Wchar-subscripts
+      set(C_FLAGS_LIST -Wcast-align -Wchar-subscripts
                        -Wall -W -Wpointer-arith -Wwrite-strings -Wformat-security
                        -Wmissing-format-attribute -fno-common -Wundef
+                       -Werror=implicit-function-declaration
+                       -Wstrict-prototypes
       )
       set(CXX_FLAGS_LIST -Wnon-virtual-dtor -Wcast-align -Wchar-subscripts -Wall -W
                          -Wshadow -Wpointer-arith -Wformat-security -Wundef
       )
+      if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+          NOT (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11))
+        list(APPEND CXX_FLAGS_LIST
+          -Wundefined-func-template
+        )
+      endif()
 
       foreach(FLAG_LANG IN ITEMS C CXX)
         foreach(FLAG IN LISTS ${FLAG_LANG}_FLAGS_LIST)
@@ -572,12 +567,12 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
   install(FILES
     "${CMake_LICENSE_FILE}"
     "${CMake_SOURCE_DIR}/CONTRIBUTORS.rst"
-    DESTINATION ${CMAKE_DOC_DIR})
+    DESTINATION ${CMake_INSTALL_DOC_DIR})
 
   # Install script directories.
   install(
     DIRECTORY Help Modules Templates
-    DESTINATION ${CMAKE_DATA_DIR}
+    DESTINATION ${CMake_INSTALL_DATA_DIR}
     FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     DIRECTORY_PERMISSIONS OWNER_READ OWNER_EXECUTE OWNER_WRITE
                           GROUP_READ GROUP_EXECUTE

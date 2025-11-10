@@ -23,9 +23,9 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "curl_setup.h"
-#include "cfilters.h"
-#include "urldata.h"
+#include "../curl_setup.h"
+#include "../cfilters.h"
+#include "../urldata.h"
 #include "vtls.h"
 
 #ifdef USE_SSL
@@ -49,7 +49,7 @@ struct ssl_connect_data;
 #define ALPN_PROTO_BUF_MAX   (ALPN_ENTRIES_MAX * (ALPN_NAME_MAX + 1))
 
 struct alpn_spec {
-  const char entries[ALPN_ENTRIES_MAX][ALPN_NAME_MAX];
+  char entries[ALPN_ENTRIES_MAX][ALPN_NAME_MAX];
   size_t count; /* number of entries */
 };
 
@@ -62,6 +62,8 @@ CURLcode Curl_alpn_to_proto_buf(struct alpn_proto_buf *buf,
                                 const struct alpn_spec *spec);
 CURLcode Curl_alpn_to_proto_str(struct alpn_proto_buf *buf,
                                 const struct alpn_spec *spec);
+void Curl_alpn_restrict_to(struct alpn_spec *spec, const char *proto);
+void Curl_alpn_copy(struct alpn_spec *dest, const struct alpn_spec *src);
 
 CURLcode Curl_alpn_set_negotiated(struct Curl_cfilter *cf,
                                   struct Curl_easy *data,
@@ -89,7 +91,7 @@ typedef enum {
 
 typedef enum {
   ssl_earlydata_none,
-  ssl_earlydata_use,
+  ssl_earlydata_await,
   ssl_earlydata_sending,
   ssl_earlydata_sent,
   ssl_earlydata_accepted,
@@ -124,6 +126,8 @@ struct ssl_connect_data {
   int io_need;                      /* TLS signals special SEND/RECV needs */
   BIT(use_alpn);                    /* if ALPN shall be used in handshake */
   BIT(peer_closed);                 /* peer has closed connection */
+  BIT(prefs_checked);               /* SSL preferences have been checked */
+  BIT(input_pending);               /* data for SSL_read() may be available */
 };
 
 
@@ -157,16 +161,13 @@ struct Curl_ssl {
                      size_t length);
   bool (*cert_status_request)(void);
 
-  CURLcode (*connect_blocking)(struct Curl_cfilter *cf,
-                               struct Curl_easy *data);
-  CURLcode (*connect_nonblocking)(struct Curl_cfilter *cf,
-                                  struct Curl_easy *data,
-                                  bool *done);
+  CURLcode (*do_connect)(struct Curl_cfilter *cf, struct Curl_easy *data,
+                         bool *done);
 
   /* During handshake/shutdown, adjust the pollset to include the socket
    * for POLLOUT or POLLIN as needed. Mandatory. */
-  void (*adjust_pollset)(struct Curl_cfilter *cf, struct Curl_easy *data,
-                          struct easy_pollset *ps);
+  CURLcode (*adjust_pollset)(struct Curl_cfilter *cf, struct Curl_easy *data,
+                             struct easy_pollset *ps);
   void *(*get_internals)(struct ssl_connect_data *connssl, CURLINFO info);
   void (*close)(struct Curl_cfilter *cf, struct Curl_easy *data);
   void (*close_all)(struct Curl_easy *data);
@@ -175,13 +176,12 @@ struct Curl_ssl {
   CURLcode (*set_engine_default)(struct Curl_easy *data);
   struct curl_slist *(*engines_list)(struct Curl_easy *data);
 
-  bool (*false_start)(void);
   CURLcode (*sha256sum)(const unsigned char *input, size_t inputlen,
                     unsigned char *sha256sum, size_t sha256sumlen);
-  ssize_t (*recv_plain)(struct Curl_cfilter *cf, struct Curl_easy *data,
-                        char *buf, size_t len, CURLcode *code);
-  ssize_t (*send_plain)(struct Curl_cfilter *cf, struct Curl_easy *data,
-                        const void *mem, size_t len, CURLcode *code);
+  CURLcode (*recv_plain)(struct Curl_cfilter *cf, struct Curl_easy *data,
+                         char *buf, size_t len, size_t *pnread);
+  CURLcode (*send_plain)(struct Curl_cfilter *cf, struct Curl_easy *data,
+                         const void *mem, size_t len, size_t *pnwritten);
 
   CURLcode (*get_channel_binding)(struct Curl_easy *data, int sockindex,
                                   struct dynbuf *binding);
@@ -190,8 +190,9 @@ struct Curl_ssl {
 
 extern const struct Curl_ssl *Curl_ssl;
 
-void Curl_ssl_adjust_pollset(struct Curl_cfilter *cf, struct Curl_easy *data,
-                             struct easy_pollset *ps);
+CURLcode Curl_ssl_adjust_pollset(struct Curl_cfilter *cf,
+                                 struct Curl_easy *data,
+                                 struct easy_pollset *ps);
 
 /**
  * Get the SSL filter below the given one or NULL if there is none.

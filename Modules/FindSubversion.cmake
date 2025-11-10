@@ -5,8 +5,12 @@
 FindSubversion
 --------------
 
-This module finds a Subversion command-line client executable (``svn``) and
-provides macros for extracting information from a Subversion working copy.
+Finds a Subversion command-line client executable (``svn``) and provides
+commands for extracting information from a Subversion working copy:
+
+.. code-block:: cmake
+
+  find_package(Subversion [<version>] [...])
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -14,12 +18,13 @@ Result Variables
 This module defines the following variables:
 
 ``Subversion_FOUND``
-  True if the Subversion command-line client was found.  For backward
-  compatibility, the ``SUBVERSION_FOUND`` variable is also set to the same
-  value.
+  Boolean indicating whether the (requested version of) Subversion
+  command-line client was found.
 
-``Subversion_VERSION_SVN``
-  Version of the ``svn`` command-line client.
+``Subversion_VERSION``
+  .. versionadded:: 4.2
+
+  Version of the ``svn`` command-line client found.
 
 Cache Variables
 ^^^^^^^^^^^^^^^
@@ -29,11 +34,11 @@ The following cache variables may also be set:
 ``Subversion_SVN_EXECUTABLE``
   Path to the ``svn`` command-line client.
 
-Macros
-^^^^^^
+Commands
+^^^^^^^^
 
-If the Subversion command-line client is found, the following macros are
-defined:
+This module provides the following commands if the Subversion command-line
+client is found:
 
 .. command:: Subversion_WC_INFO
 
@@ -44,7 +49,7 @@ defined:
 
     Subversion_WC_INFO(<dir> <var-prefix> [IGNORE_SVN_FAILURE])
 
-  This macro defines the following variables if running Subversion's ``info``
+  This command defines the following variables if running Subversion's ``info``
   subcommand on ``<dir>`` succeeds; otherwise a ``SEND_ERROR`` message is
   generated:
 
@@ -81,7 +86,7 @@ defined:
 
     Subversion_WC_LOG(<dir> <var-prefix>)
 
-  This macro defines the following variable if running Subversion's ``log``
+  This command defines the following variable if running Subversion's ``log``
   subcommand on ``<dir>`` succeeds; otherwise a ``SEND_ERROR`` message is
   generated:
 
@@ -89,10 +94,54 @@ defined:
     Last log of the base revision of a Subversion working copy located at
     ``<dir>``.
 
+Deprecated Variables
+^^^^^^^^^^^^^^^^^^^^
+
+The following variables are provided for backward compatibility:
+
+``SUBVERSION_FOUND``
+  .. deprecated:: 4.2
+    Use ``Subversion_FOUND``, which has the same value.
+
+  Boolean indicating whether the (requested version of) Subversion
+  command-line client was found.
+
+``Subversion_VERSION_SVN``
+  .. deprecated:: 4.2
+    Use the ``Subversion_VERSION``.
+
+  Version of the ``svn`` command-line client found.
+
 Examples
 ^^^^^^^^
 
-Example usage:
+Examples: Finding Subversion
+""""""""""""""""""""""""""""
+
+Finding Subversion:
+
+.. code-block:: cmake
+
+  find_package(Subversion)
+
+Or, finding Subversion and specifying a minimum required version:
+
+.. code-block:: cmake
+
+  find_package(Subversion 1.4)
+
+Or, finding Subversion and making it required (if not found, processing stops
+with an error message):
+
+.. code-block:: cmake
+
+  find_package(Subversion REQUIRED)
+
+Example: Using Subversion
+"""""""""""""""""""""""""
+
+Finding Subversion and retrieving information about the current project's
+working copy:
 
 .. code-block:: cmake
 
@@ -103,13 +152,6 @@ Example usage:
     Subversion_WC_LOG(${PROJECT_SOURCE_DIR} Project)
     message("Last changed log is ${Project_LAST_CHANGED_LOG}")
   endif()
-
-The minimum required version of Subversion can be specified using the standard
-syntax:
-
-.. code-block:: cmake
-
-  find_package(Subversion 1.4)
 #]=======================================================================]
 
 find_program(Subversion_SVN_EXECUTABLE svn
@@ -141,6 +183,12 @@ if(Subversion_SVN_EXECUTABLE)
     if(_Subversion_VERSION_STDERR MATCHES "svn: error: The subversion command line tools are no longer provided by Xcode")
       set(Subversion_SVN_EXECUTABLE Subversion_SVN_EXECUTABLE-NOTFOUND)
     endif()
+  endif()
+
+  if(DEFINED Subversion_VERSION_SVN)
+    set(Subversion_VERSION "${Subversion_VERSION_SVN}")
+  else()
+    unset(Subversion_VERSION)
   endif()
 
   macro(Subversion_WC_INFO dir prefix)
@@ -206,7 +254,7 @@ endif()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Subversion REQUIRED_VARS Subversion_SVN_EXECUTABLE
-                                             VERSION_VAR Subversion_VERSION_SVN )
+                                             VERSION_VAR Subversion_VERSION)
 
 # for compatibility
-set(Subversion_SVN_FOUND ${SUBVERSION_FOUND})
+set(Subversion_SVN_FOUND ${Subversion_FOUND})

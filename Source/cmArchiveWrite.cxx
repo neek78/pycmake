@@ -20,7 +20,7 @@
 #include "cmsys/Encoding.hxx"
 #include "cmsys/FStream.hxx"
 
-#include "cm_get_date.h"
+#include "cm_parse_date.h"
 
 #include "cmLocale.h"
 #include "cmStringAlgorithms.h"
@@ -39,21 +39,13 @@ static std::string cm_archive_error_string(struct archive* a)
 static void cm_archive_entry_copy_pathname(struct archive_entry* e,
                                            std::string const& dest)
 {
-#if cmsys_STL_HAS_WSTRING
   archive_entry_copy_pathname_w(e, cmsys::Encoding::ToWide(dest).c_str());
-#else
-  archive_entry_copy_pathname(e, dest.c_str());
-#endif
 }
 
 static void cm_archive_entry_copy_sourcepath(struct archive_entry* e,
                                              std::string const& file)
 {
-#if cmsys_STL_HAS_WSTRING
   archive_entry_copy_sourcepath_w(e, cmsys::Encoding::ToWide(file).c_str());
-#else
-  archive_entry_copy_sourcepath(e, file.c_str());
-#endif
 }
 
 class cmArchiveWrite::Entry
@@ -353,7 +345,7 @@ bool cmArchiveWrite::AddFile(char const* file, size_t skip, char const* prefix)
   if (!this->MTime.empty()) {
     time_t now;
     time(&now);
-    time_t t = cm_get_date(now, this->MTime.c_str());
+    time_t t = cm_parse_date(now, this->MTime.c_str());
     if (t == -1) {
       this->Error = cmStrCat("unable to parse mtime '", this->MTime, '\'');
       return false;

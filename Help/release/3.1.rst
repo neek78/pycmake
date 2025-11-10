@@ -191,7 +191,7 @@ Modules
   meant for a prefix other than :variable:`CMAKE_INSTALL_PREFIX`.
 
 * The :module:`CheckFortranSourceCompiles` module was added to
-  provide a ``CHECK_Fortran_SOURCE_COMPILES`` macro.
+  provide a ``check_fortran_source_compiles()`` command.
 
 * The :module:`ExternalData` module learned to tolerate a ``DATA{}``
   reference to a missing source file with a warning instead of
@@ -235,7 +235,7 @@ Modules
 
 * The :module:`FindGLUT` module now provides imported targets.
 
-* The :module:`FindHg` module gained a new ``Hg_WC_INFO`` macro to
+* The :module:`FindHg` module gained a new ``Hg_WC_INFO`` command to
   help run ``hg`` to extract information about a Mercurial work copy.
 
 * The :module:`FindOpenCL` module was introduced.

@@ -20,6 +20,7 @@ set(targets
   darwin-C-AppleClang-8.0.0.8000042 darwin-CXX-AppleClang-8.0.0.8000042
     darwin_nostdinc-C-AppleClang-8.0.0.8000042
     darwin_nostdinc-CXX-AppleClang-8.0.0.8000042
+  emscripten-C-Clang-21.0.0 emscripten-CXX-Clang-21.0.0
   freebsd-C-Clang-3.3.0 freebsd-CXX-Clang-3.3.0 freebsd-Fortran-GNU-4.6.4
   hand-C-empty hand-CXX-empty
   hand-C-relative hand-CXX-relative
@@ -44,10 +45,13 @@ set(targets
   linux-CUDA-NVIDIA-10.1.168-CLANG linux-CUDA-NVIDIA-10.1.168-XLClang-v
     linux-CUDA-NVIDIA-9.2.148-GCC
   linux-Fortran-LLVMFlang-15.0.0
+  linux-Fortran-LLVMFlang-21.1.3
   linux-Fortran-LFortran-0.35.0-clang
   linux-Fortran-LFortran-0.35.0-gcc
   linux-Fortran-LFortran-0.41.0-clang
   linux-Fortran-LFortran-0.41.0-gcc
+  linux-Fortran-LFortran-0.55.0-clang
+  linux-Fortran-LFortran-0.55.0-gcc
   linux-custom_clang-C-Clang-13.0.0 linux-custom_clang-CXX-Clang-13.0.0
   mingw.org-C-GNU-4.9.3 mingw.org-CXX-GNU-4.9.3
   netbsd-C-GNU-4.8.5 netbsd-CXX-GNU-4.8.5

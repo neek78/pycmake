@@ -7,7 +7,6 @@
 #include <cassert>
 #include <cctype>
 #include <climits>
-#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -16,7 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include <cm/memory>
 #include <cm/optional>
 #include <cmext/algorithm>
 
@@ -24,7 +22,6 @@
 
 #include "cmBuildOptions.h"
 #include "cmCommandLineArgument.h"
-#include "cmConsoleBuf.h"
 #include "cmDocumentationEntry.h"
 #include "cmGlobalGenerator.h"
 #include "cmInstallScriptHandler.h"
@@ -35,6 +32,9 @@
 #include "cmMessageMetadata.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
+#include "cmStdIoConsole.h"
+#include "cmStdIoStream.h"
+#include "cmStdIoTerminal.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
@@ -47,7 +47,6 @@
 
 #include "cmsys/Encoding.hxx"
 #include "cmsys/RegularExpression.hxx"
-#include "cmsys/Terminal.h"
 
 #ifdef CMake_ENABLE_PYTHON
 #include "Python/cmPythonCore.h"
@@ -143,13 +142,13 @@ cmDocumentationEntry const cmDocumentationOptions[36] = {
 #endif
 
 int do_command(int ac, char const* const* av,
-               std::unique_ptr<cmConsoleBuf> consoleBuf)
+               cm::optional<cm::StdIo::Console> console)
 {
   std::vector<std::string> args;
   args.reserve(ac - 1);
   args.emplace_back(av[0]);
   cm::append(args, av + 2, av + ac);
-  return cmcmd::ExecuteCMakeCommand(args, std::move(consoleBuf));
+  return cmcmd::ExecuteCMakeCommand(args, std::move(console));
 }
 
 cmMakefile* cmakemainGetMakefile(cmake* cm)
@@ -180,20 +179,8 @@ std::string cmakemainGetStack(cmake* cm)
 void cmakemainMessageCallback(std::string const& m,
                               cmMessageMetadata const& md, cmake* cm)
 {
-#if defined(_WIN32)
-  // FIXME: On Windows we replace cerr's streambuf with a custom
-  // implementation that converts our internal UTF-8 encoding to the
-  // console's encoding.  It also does *not* replace LF with CRLF.
-  // Since stderr does not convert encoding and does convert LF, we
-  // cannot use it to print messages.  Another implementation will
-  // be needed to print colored messages on Windows.
-  static_cast<void>(md);
-  std::cerr << m << cmakemainGetStack(cm) << std::endl;
-#else
-  cmsysTerminal_cfprintf(md.desiredColor, stderr, "%s", m.c_str());
-  fflush(stderr); // stderr is buffered in some cases.
+  Print(cm::StdIo::Err(), md.attrs, m);
   std::cerr << cmakemainGetStack(cm) << std::endl;
-#endif
 }
 
 void cmakemainProgressCallback(std::string const& m, float prog, cmake* cm)
@@ -999,7 +986,8 @@ int do_install(int ac, char const* const* av)
     if (handler.IsParallel()) {
       ret_ = handler.Install(jobs, instrumentation);
     } else {
-      for (auto const& cmd : handler.GetCommands()) {
+      for (auto const& script : handler.GetScripts()) {
+        std::vector<std::string> cmd = script.command;
         cmake cm(cmake::RoleScript, cmState::Script);
         cmSystemTools::SetMessageCallback(
           [&cm](std::string const& msg, cmMessageMetadata const& md) {
@@ -1023,7 +1011,8 @@ int do_install(int ac, char const* const* av)
   cm::append(cmd, av, av + ac);
   ret = instrumentation.InstrumentCommand(
     "cmakeInstall", cmd, [doInstall]() { return doInstall(); });
-  instrumentation.CollectTimingData(cmInstrumentationQuery::Hook::PostInstall);
+  instrumentation.CollectTimingData(
+    cmInstrumentationQuery::Hook::PostCMakeInstall);
   return ret;
 #endif
 }
@@ -1163,11 +1152,7 @@ int do_open(int ac, char const* const* av)
 
 int main(int ac, char const* const* av)
 {
-  cmSystemTools::EnsureStdPipes();
-
-  // Replace streambuf so we can output Unicode to console
-  auto consoleBuf = cm::make_unique<cmConsoleBuf>();
-  consoleBuf->SetUTF8Pipes();
+  cm::optional<cm::StdIo::Console> console = cm::StdIo::Console();
 
   cmsys::Encoding::CommandLineArguments args =
     cmsys::Encoding::CommandLineArguments::Main(ac, av);
@@ -1190,7 +1175,7 @@ int main(int ac, char const* const* av)
       return do_workflow(ac, av);
     }
     if (strcmp(av[1], "-E") == 0) {
-      return do_command(ac, av, std::move(consoleBuf));
+      return do_command(ac, av, std::move(console));
     }
     if (strcmp(av[1], "--print-config-dir") == 0) {
       std::cout << cmSystemTools::ConvertToOutputPath(

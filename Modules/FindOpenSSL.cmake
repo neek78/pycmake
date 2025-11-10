@@ -5,7 +5,11 @@
 FindOpenSSL
 -----------
 
-Finds the installed OpenSSL encryption library and determines its version.
+Finds the installed OpenSSL encryption library and determines its version:
+
+.. code-block:: cmake
+
+  find_package(OpenSSL [<version>] [COMPONENTS <components>...] [...])
 
 .. versionadded:: 3.20
   Support for specifying version range when calling the :command:`find_package`
@@ -95,23 +99,35 @@ Result Variables
 This module defines the following variables:
 
 ``OpenSSL_FOUND``
-  Boolean indicating whether the OpenSSL library has been found.  For backward
-  compatibility, the ``OPENSSL_FOUND`` variable is also set to the same value.
+  .. versionadded:: 3.3
+
+  Boolean indicating whether the (requested version of) OpenSSL library was
+  found.
+
+``OpenSSL_VERSION``
+  .. versionadded:: 4.2
+
+  The OpenSSL version found.  This is set to
+  ``<major>.<minor>.<revision><patch>`` (e.g., ``0.9.8s``).
+
 ``OPENSSL_INCLUDE_DIR``
   The OpenSSL include directory.
+
 ``OPENSSL_CRYPTO_LIBRARY``
   The OpenSSL ``crypto`` library.
+
 ``OPENSSL_CRYPTO_LIBRARIES``
   The OpenSSL ``crypto`` library and its dependencies.
+
 ``OPENSSL_SSL_LIBRARY``
   The OpenSSL ``ssl`` library.
+
 ``OPENSSL_SSL_LIBRARIES``
   The OpenSSL ``ssl`` library and its dependencies.
+
 ``OPENSSL_LIBRARIES``
   All OpenSSL libraries and their dependencies.
-``OPENSSL_VERSION``
-  The OpenSSL version found.  This is set to
-  ``<major>.<minor>.<revision><patch>`` (e.g. ``0.9.8s``).
+
 ``OPENSSL_APPLINK_SOURCE``
   The sources in the target ``OpenSSL::applink`` mentioned above.  This variable
   is only defined if found OpenSSL version is at least 0.9.8 and the platform is
@@ -141,6 +157,24 @@ This module accepts the following variables to control the search behavior:
   On UNIX-like systems, ``pkg-config`` is used to locate OpenSSL.  Set the
   ``PKG_CONFIG_PATH`` environment variable to specify alternate locations, which
   is useful on systems with multiple library installations.
+
+Deprecated Variables
+^^^^^^^^^^^^^^^^^^^^
+
+The following variables are provided for backward compatibility:
+
+``OPENSSL_FOUND``
+  .. deprecated:: 4.2
+    Use ``OpenSSL_FOUND``, which has the same value.
+
+  Boolean indicating whether the (requested version of) OpenSSL library was
+  found.
+
+``OPENSSL_VERSION``
+  .. deprecated:: 4.2
+    Superseded by the ``OpenSSL_VERSION``.
+
+  The version of OpenSSL found.
 
 Examples
 ^^^^^^^^
@@ -259,7 +293,7 @@ endfunction()
 
 if (UNIX)
   find_package(PkgConfig QUIET)
-  if(PKG_CONFIG_FOUND)
+  if(PkgConfig_FOUND)
     pkg_check_modules(_OPENSSL QUIET openssl)
   endif()
 endif ()
@@ -296,9 +330,13 @@ elseif (MSVC)
     HINTS
     "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OpenSSL (32-bit)_is1;Inno Setup: App Path]"
     "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OpenSSL (64-bit)_is1;Inno Setup: App Path]"
+    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OpenSSL for ARM (64-bit)_is1;Inno Setup: App Path]"
     )
 
-  if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
+  if ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "ARM64")
+    set(_arch "Win64-ARM")
+    file(TO_CMAKE_PATH "$ENV{PROGRAMFILES}" _programfiles)
+  elseif("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
     set(_arch "Win64")
     file(TO_CMAKE_PATH "$ENV{PROGRAMFILES}" _programfiles)
   else()
@@ -365,12 +403,14 @@ if(WIN32 AND NOT CYGWIN)
     endif ()
 
     # Since OpenSSL 1.1, lib names are like libcrypto32MTd.lib and libssl32MTd.lib
-    if( "${CMAKE_SIZEOF_VOID_P}" STREQUAL "8" )
+    if ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "ARM64")
+        set(_OPENSSL_MSVC_FOLDER_SUFFIX "arm64")
+    elseif( "${CMAKE_SIZEOF_VOID_P}" STREQUAL "8" )
         set(_OPENSSL_MSVC_ARCH_SUFFIX "64")
-        set(_OPENSSL_MSVC_FOLDER_SUFFIX "64")
+        set(_OPENSSL_MSVC_FOLDER_SUFFIX "x64")
     else()
         set(_OPENSSL_MSVC_ARCH_SUFFIX "32")
-        set(_OPENSSL_MSVC_FOLDER_SUFFIX "86")
+        set(_OPENSSL_MSVC_FOLDER_SUFFIX "x86")
     endif()
 
     if(OPENSSL_USE_STATIC_LIBS)
@@ -378,13 +418,13 @@ if(WIN32 AND NOT CYGWIN)
         "_static"
       )
       set(_OPENSSL_PATH_SUFFIXES_DEBUG
-        "lib/VC/x${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}d"
+        "lib/VC/${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}d"
         "lib/VC/static"
         "VC/static"
         "lib"
         )
       set(_OPENSSL_PATH_SUFFIXES_RELEASE
-        "lib/VC/x${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}"
+        "lib/VC/${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}"
         "lib/VC/static"
         "VC/static"
         "lib"
@@ -394,13 +434,13 @@ if(WIN32 AND NOT CYGWIN)
         ""
       )
       set(_OPENSSL_PATH_SUFFIXES_DEBUG
-        "lib/VC/x${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}d"
+        "lib/VC/${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}d"
         "lib/VC"
         "VC"
         "lib"
         )
       set(_OPENSSL_PATH_SUFFIXES_RELEASE
-        "lib/VC/x${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}"
+        "lib/VC/${_OPENSSL_MSVC_FOLDER_SUFFIX}/${_OPENSSL_MSVC_RT_MODE}"
         "lib/VC"
         "VC"
         "lib"
@@ -655,7 +695,8 @@ if(OPENSSL_INCLUDE_DIR AND EXISTS "${OPENSSL_INCLUDE_DIR}/openssl/opensslv.h")
       string(ASCII "${OPENSSL_VERSION_PATCH_ASCII}" OPENSSL_VERSION_PATCH_STRING)
     endif ()
 
-    set(OPENSSL_VERSION "${OPENSSL_VERSION_MAJOR}.${OPENSSL_VERSION_MINOR}.${OPENSSL_VERSION_FIX}${OPENSSL_VERSION_PATCH_STRING}")
+    set(OpenSSL_VERSION "${OPENSSL_VERSION_MAJOR}.${OPENSSL_VERSION_MINOR}.${OPENSSL_VERSION_FIX}${OPENSSL_VERSION_PATCH_STRING}")
+    set(OPENSSL_VERSION "${OpenSSL_VERSION}")
   else ()
     # Since OpenSSL 3.0.0, the new version format is MAJOR.MINOR.PATCH and
     # a new OPENSSL_VERSION_STR macro contains exactly that
@@ -664,10 +705,11 @@ if(OPENSSL_INCLUDE_DIR AND EXISTS "${OPENSSL_INCLUDE_DIR}/openssl/opensslv.h")
     string(REGEX REPLACE "^.*OPENSSL_VERSION_STR[\t ]+\"([0-9]+\\.[0-9]+\\.[0-9]+)\".*$"
            "\\1" OPENSSL_VERSION_STR "${OPENSSL_VERSION_STR}")
 
-    set(OPENSSL_VERSION "${OPENSSL_VERSION_STR}")
+    set(OpenSSL_VERSION "${OPENSSL_VERSION_STR}")
+    set(OPENSSL_VERSION "${OpenSSL_VERSION}")
 
     # Setting OPENSSL_VERSION_MAJOR OPENSSL_VERSION_MINOR and OPENSSL_VERSION_FIX
-    string(REGEX MATCHALL "([0-9])+" OPENSSL_VERSION_NUMBER "${OPENSSL_VERSION}")
+    string(REGEX MATCHALL "([0-9])+" OPENSSL_VERSION_NUMBER "${OpenSSL_VERSION}")
     list(POP_FRONT OPENSSL_VERSION_NUMBER
       OPENSSL_VERSION_MAJOR
       OPENSSL_VERSION_MINOR
@@ -712,7 +754,7 @@ find_package_handle_standard_args(OpenSSL
     OPENSSL_CRYPTO_LIBRARY
     OPENSSL_INCLUDE_DIR
   VERSION_VAR
-    OPENSSL_VERSION
+    OpenSSL_VERSION
   HANDLE_VERSION_RANGE
   HANDLE_COMPONENTS
   FAIL_MESSAGE

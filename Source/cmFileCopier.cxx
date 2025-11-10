@@ -25,10 +25,6 @@
 
 #include <cstring>
 #include <sstream>
-#include <utility>
-
-#include <cm/string_view>
-#include <cmext/string_view>
 
 using namespace cmFSPermissions;
 
@@ -298,13 +294,6 @@ bool cmFileCopier::CheckKeyword(std::string const& arg)
       this->Doing = DoingNone;
       this->MatchlessFiles = false;
     }
-  } else if (arg == "EXCLUDE_EMPTY_DIRECTORIES") {
-    if (this->CurrentMatchRule) {
-      this->NotAfterMatch(arg);
-    } else {
-      this->Doing = DoingNone;
-      this->ExcludeEmptyDirectories = true;
-    }
   } else {
     return false;
   }
@@ -498,7 +487,7 @@ bool cmFileCopier::InstallSymlinkChain(std::string& fromFile,
   while (cmSystemTools::ReadSymlink(fromFile, newFromFile)) {
     if (!cmSystemTools::FileIsFullPath(newFromFile)) {
       std::string fromFilePath = cmSystemTools::GetFilenamePath(fromFile);
-      newFromFile = cmStrCat(fromFilePath, "/", newFromFile);
+      newFromFile = cmStrCat(fromFilePath, '/', newFromFile);
     }
 
     std::string symlinkTarget = cmSystemTools::GetFilenameName(newFromFile);
@@ -530,7 +519,7 @@ bool cmFileCopier::InstallSymlinkChain(std::string& fromFile,
     }
 
     fromFile = newFromFile;
-    toFile = cmStrCat(toFilePath, "/", symlinkTarget);
+    toFile = cmStrCat(toFilePath, '/', symlinkTarget);
   }
 
   return true;
@@ -618,7 +607,7 @@ bool cmFileCopier::InstallFile(std::string const& fromFile,
 
   // Copy the file.
   if (copy) {
-    auto copy_status = cmSystemTools::CopyAFile(fromFile, toFile, true);
+    auto copy_status = cmSystemTools::CopyAFile(fromFile, toFile);
     if (!copy_status) {
       std::ostringstream e;
       e << this->Name << " cannot copy file \"" << fromFile << "\" to \""
@@ -656,29 +645,6 @@ bool cmFileCopier::InstallFile(std::string const& fromFile,
     cmSystemTools::GetPermissions(fromFile, permissions);
   }
   return this->SetPermissions(toFile, permissions);
-}
-
-static bool IsEmptyDirectory(std::string const& path,
-                             std::unordered_map<std::string, bool>& cache)
-{
-  auto i = cache.find(path);
-  if (i == cache.end()) {
-    bool isEmpty = (!cmSystemTools::FileIsSymlink(path) &&
-                    cmSystemTools::FileIsDirectory(path));
-    if (isEmpty) {
-      cmsys::Directory d;
-      d.Load(path);
-      unsigned long numFiles = d.GetNumberOfFiles();
-      for (unsigned long fi = 0; isEmpty && fi < numFiles; ++fi) {
-        std::string const& name = d.GetFileName(fi);
-        if (name != "."_s && name != ".."_s) {
-          isEmpty = IsEmptyDirectory(d.GetFilePath(fi), cache);
-        }
-      }
-    }
-    i = cache.emplace(path, isEmpty).first;
-  }
-  return i->second;
 }
 
 bool cmFileCopier::InstallDirectory(std::string const& source,
@@ -753,11 +719,6 @@ bool cmFileCopier::InstallDirectory(std::string const& source,
           strcmp(dir.GetFile(fileNum), "..") == 0)) {
       std::string fromPath = cmStrCat(source, '/', dir.GetFile(fileNum));
       std::string toPath = cmStrCat(destination, '/', dir.GetFile(fileNum));
-      if (this->ExcludeEmptyDirectories &&
-          IsEmptyDirectory(fromPath, this->DirEmptyCache)) {
-        continue;
-      }
-
       if (!this->Install(fromPath, toPath)) {
         return false;
       }

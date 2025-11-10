@@ -8,7 +8,7 @@ preprocessor automatically, i.e.  without having to use commands like
 :module:`qt4_wrap_cpp() <FindQt4>`, `qt5_wrap_cpp()`_, etc.
 Currently, Qt versions 4 to 6 are supported.
 
-.. _qt5_wrap_cpp(): https://doc.qt.io/qt-5/qtcore-cmake-qt5-wrap-cpp.html
+.. _qt5_wrap_cpp(): https://doc.qt.io/archives/qt-5.15/qtcore-cmake-qt5-wrap-cpp.html
 
 This property is initialized by the value of the :variable:`CMAKE_AUTOMOC`
 variable if it is set when a target is created.
@@ -33,6 +33,11 @@ At configuration time, a list of header files that should be scanned by
     (``<source_base>_p.<header_extension>``)
 
   and adds these to the scan list.
+
+- The :prop_tgt:`AUTOMOC_INCLUDE_DIRECTORIES` target property may be set
+  to explicitly tell ``moc`` what include directories to search.  If not
+  set, the default is to use the include directories from the target and
+  its transitive closure of dependencies.
 
 At build time, CMake scans each unknown or modified header file from the
 list and searches for
@@ -222,6 +227,10 @@ defining file name filters in this target property.
 Compiler pre definitions for ``moc`` are written to the ``moc_predefs.h`` file.
 The generation of this file can be enabled or disabled in this target property.
 
+:prop_tgt:`AUTOMOC_INCLUDE_DIRECTORIES`:
+Specifies one or more include directories for ``AUTOMOC`` to pass explicitly to ``moc``
+instead of automatically discovering a target’s include directories.
+
 :prop_sf:`SKIP_AUTOMOC`:
 Sources and headers can be excluded from ``AUTOMOC`` processing by
 setting this source file property.
@@ -242,8 +251,8 @@ e.g.  in MSVS.
 
 :variable:`CMAKE_GLOBAL_AUTOGEN_TARGET`:
 A global ``autogen`` target, that depends on all ``AUTOMOC`` or
-:prop_tgt:`AUTOUIC` generated :ref:`<ORIGIN>_autogen` targets in the project,
-will be generated when this variable is ``ON``.
+:prop_tgt:`AUTOUIC` generated :ref:`<ORIGIN>_autogen <<ORIGIN>_autogen>`
+targets in the project, will be generated when this variable is ``ON``.
 
 :prop_tgt:`AUTOGEN_PARALLEL`:
 This target property controls the number of ``moc`` or ``uic`` processes to

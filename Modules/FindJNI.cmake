@@ -5,7 +5,11 @@
 FindJNI
 -------
 
-Finds the Java Native Interface (JNI) include directories and libraries.
+Finds the Java Native Interface (JNI) include directories and libraries:
+
+.. code-block:: cmake
+
+  find_package(JNI [<version>] [COMPONENTS <components>...] [...])
 
 JNI enables Java code running in a Java Virtual Machine (JVM) or Dalvik Virtual
 Machine (DVM) on Android to call and be called by native applications and
@@ -95,12 +99,12 @@ Result Variables
 This module defines the following variables:
 
 ``JNI_FOUND``
-  Boolean indicating whether the JNI is found.
+  Boolean indicating whether (the requested version of) JNI was found.
 
 ``JNI_<component>_FOUND``
   .. versionadded:: 3.24
 
-  Boolean indicating whether the ``<component>`` is found.
+  Boolean indicating whether the ``<component>`` was found.
 
 ``JNI_VERSION``
   Full Android NDK package version (including suffixes such as ``-beta3`` and

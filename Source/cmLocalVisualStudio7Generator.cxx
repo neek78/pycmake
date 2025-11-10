@@ -768,11 +768,13 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(
   if (std::string const* exportMacro = target->GetExportMacro()) {
     targetOptions.AddDefine(*exportMacro);
   }
+  // No need to add the SharedLibraryCompileDefs define here:
+  // it is added by VisualStudio itself
 
   // The intermediate directory name consists of a directory for the
   // target and a subdirectory for the configuration name.
-  std::string intermediateDir =
-    cmStrCat(this->GetTargetDirectory(target), '/', configName);
+  std::string intermediateDir = this->MaybeRelativeToCurBinDir(
+    cmStrCat(target->GetSupportDirectory(), '/', configName));
 
   if (target->GetType() < cmStateEnums::UTILITY) {
     std::string const& outDir =
@@ -814,11 +816,14 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(
     /* clang-format on */
   }
 
+  cm::optional<cmGeneratorTarget::MsvcCharSet> const charSet =
+    targetOptions.GetCharSet();
+
   // If unicode is enabled change the character set to unicode, if not
   // then default to MBCS.
-  if (targetOptions.UsingUnicode()) {
+  if (charSet == cmGeneratorTarget::MsvcCharSet::Unicode) {
     fout << "\t\t\tCharacterSet=\"1\">\n";
-  } else if (targetOptions.UsingSBCS()) {
+  } else if (charSet == cmGeneratorTarget::MsvcCharSet::SingleByte) {
     fout << "\t\t\tCharacterSet=\"0\">\n";
   } else {
     fout << "\t\t\tCharacterSet=\"2\">\n";
@@ -1019,9 +1024,9 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
     case cmStateEnums::UNKNOWN_LIBRARY:
       break;
     case cmStateEnums::OBJECT_LIBRARY: {
-      std::string libpath =
-        cmStrCat(this->GetTargetDirectory(target), '/', configName, '/',
-                 target->GetName(), ".lib");
+      std::string libpath = this->MaybeRelativeToCurBinDir(
+        cmStrCat(target->GetSupportDirectory(), '/', configName, '/',
+                 target->GetName(), ".lib"));
       char const* tool =
         this->FortranProject ? "VFLibrarianTool" : "VCLibrarianTool";
       fout << "\t\t\t<Tool\n"
@@ -1218,7 +1223,8 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
         fout << "\t\t\t\tSubSystem=\"8\"\n";
 
         if (!linkOptions.GetFlag("EntryPointSymbol")) {
-          char const* entryPointSymbol = targetOptions.UsingUnicode()
+          char const* entryPointSymbol = targetOptions.GetCharSet() ==
+              cmGeneratorTarget::MsvcCharSet::Unicode
             ? (isWin32Executable ? "wWinMainCRTStartup" : "mainWCRTStartup")
             : (isWin32Executable ? "WinMainCRTStartup" : "mainACRTStartup");
           fout << "\t\t\t\tEntryPointSymbol=\"" << entryPointSymbol << "\"\n";
@@ -1661,8 +1667,7 @@ std::string cmLocalVisualStudio7Generator::ComputeLongestObjectDirectory(
   // files directory for any configuration.  This is used to construct
   // object file names that do not produce paths that are too long.
   std::string dir_max =
-    cmStrCat(this->GetCurrentBinaryDirectory(), '/',
-             this->GetTargetDirectory(target), '/', config_max, '/');
+    cmStrCat(target->GetSupportDirectory(), '/', config_max, '/');
   return dir_max;
 }
 
@@ -2230,9 +2235,15 @@ void cmLocalVisualStudio7Generator::ReadAndStoreExternalGUID(
 }
 
 std::string cmLocalVisualStudio7Generator::GetTargetDirectory(
-  cmGeneratorTarget const* target) const
+  cmGeneratorTarget const* target,
+  cmStateEnums::IntermediateDirKind kind) const
 {
-  std::string dir = cmStrCat(target->GetName(), ".dir");
+  std::string dir;
+  if (target->GetUseShortObjectNames(kind)) {
+    dir = this->ComputeShortTargetDirectory(target);
+  } else {
+    dir = cmStrCat(target->GetName(), ".dir");
+  }
   return dir;
 }
 

@@ -25,6 +25,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmComputeLinkInformation.h"
+#include "cmGenExContext.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorExpressionDAGChecker.h"
 #include "cmGlobalGenerator.h"
@@ -207,7 +208,7 @@ bool cmGeneratorTarget::ComputeLinkClosure(std::string const& config,
   // secondPass);
   cmTargetCollectLinkLanguages linkLangs(this, config, languages, this,
                                          secondPass);
-  for (cmLinkImplItem const& lib : impl->Libraries) {
+  for (cmLinkItem const& lib : impl->Libraries) {
     linkLangs.Visit(lib);
   }
 
@@ -335,7 +336,7 @@ cmGeneratorTarget::GetLinkImplementationClosure(std::string const& config,
       this->GetLinkImplementationLibraries(config, usage);
     assert(impl);
 
-    for (cmLinkImplItem const& lib : impl->Libraries) {
+    for (cmLinkItem const& lib : impl->Libraries) {
       processILibs(config, this, lib,
                    this->LocalGenerator->GetGlobalGenerator(), tgts, emitted,
                    usage);
@@ -383,7 +384,7 @@ void cmGeneratorTarget::CheckLinkLibraries() const
 
   // Check link the implementation for each generated configuration.
   for (auto const& impl : this->LinkImplMap) {
-    for (cmLinkImplItem const& item : impl.second.Libraries) {
+    for (cmLinkItem const& item : impl.second.Libraries) {
       if (!this->VerifyLinkItemColons(LinkItemRole::Implementation, item)) {
         return;
       }
@@ -450,9 +451,8 @@ bool cmGeneratorTarget::VerifyLinkItemColons(LinkItemRole role,
     e = cmStrCat(e, "The link interface of target \"", this->GetName(),
                  "\" contains");
   }
-  e =
-    cmStrCat(e, ":\n  ", item.AsStr(), "\n", "but the target was not found.  ",
-             missingTargetPossibleReasons);
+  e = cmStrCat(e, ":\n  ", item.AsStr(), "\nbut the target was not found.  ",
+               missingTargetPossibleReasons);
   cmListFileBacktrace backtrace = item.Backtrace;
   if (backtrace.Empty()) {
     backtrace = this->GetBacktrace();
@@ -542,13 +542,14 @@ void cmGeneratorTarget::ExpandLinkItems(std::string const& prop,
     return;
   }
   // Keep this logic in sync with ComputeLinkImplementationLibraries.
+  cm::GenEx::Context context(this->LocalGenerator, config,
+                             headTarget->LinkerLanguage);
   cmGeneratorExpressionDAGChecker dagChecker{
     this,
     prop,
     nullptr,
     nullptr,
-    this->LocalGenerator,
-    config,
+    context,
     cmListFileBacktrace(),
     cmGeneratorExpressionDAGChecker::ComputingLinkLibraries::Yes,
   };
@@ -566,9 +567,7 @@ void cmGeneratorTarget::ExpandLinkItems(std::string const& prop,
                              entry.Backtrace);
     std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(entry.Value);
     cge->SetEvaluateForBuildsystem(true);
-    cmList libs{ cge->Evaluate(this->LocalGenerator, config, headTarget,
-                               &dagChecker, this,
-                               headTarget->LinkerLanguage) };
+    cmList libs{ cge->Evaluate(context, &dagChecker, headTarget, this) };
 
     auto linkFeature = cmLinkItem::DEFAULT;
     for (auto const& lib : libs) {
@@ -584,6 +583,7 @@ void cmGeneratorTarget::ExpandLinkItems(std::string const& prop,
         cmLinkItem item = std::move(*maybeItem);
 
         if (field == LinkInterfaceField::HeadInclude) {
+          item.InterfaceDirectFrom = this;
           iface.HeadInclude.emplace_back(std::move(item));
           continue;
         }
@@ -687,7 +687,7 @@ void cmGeneratorTarget::ComputeLinkInterface(std::string const& config,
     if (this->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
       cmLinkImplementation const* impl =
         this->GetLinkImplementation(config, UseTo::Link, secondPass);
-      for (cmLinkImplItem const& lib : impl->Libraries) {
+      for (cmLinkItem const& lib : impl->Libraries) {
         if (emitted.insert(lib).second) {
           if (lib.Target) {
             // This is a runtime dependency on another shared library.
@@ -814,53 +814,30 @@ void cmGeneratorTarget::ComputeLinkInterfaceLibraries(
                         LinkInterfaceField::HeadExclude, iface);
 }
 
-namespace {
-
-template <typename ReturnType>
-ReturnType constructItem(cmGeneratorTarget* target,
-                         cmListFileBacktrace const& bt);
-
-template <>
-inline cmLinkImplItem constructItem(cmGeneratorTarget* target,
-                                    cmListFileBacktrace const& bt)
-{
-  return cmLinkImplItem(cmLinkItem(target, false, bt));
-}
-
-template <>
-inline cmLinkItem constructItem(cmGeneratorTarget* target,
-                                cmListFileBacktrace const& bt)
-{
-  return cmLinkItem(target, false, bt);
-}
-
-template <typename ValueType>
-std::vector<ValueType> computeImplicitLanguageTargets(
-  std::string const& lang, std::string const& config,
-  cmGeneratorTarget const* currentTarget)
+std::vector<cmLinkItem> cmGeneratorTarget::ComputeImplicitLanguageTargets(
+  std::string const& lang, std::string const& config) const
 {
   cmListFileBacktrace bt;
-  std::vector<ValueType> result;
-  cmLocalGenerator* lg = currentTarget->GetLocalGenerator();
+  std::vector<cmLinkItem> result;
+  cmLocalGenerator* lg = this->GetLocalGenerator();
 
   std::string const& runtimeLibrary =
-    currentTarget->GetRuntimeLinkLibrary(lang, config);
-  if (cmValue runtimeLinkOptions = currentTarget->Makefile->GetDefinition(
+    this->GetRuntimeLinkLibrary(lang, config);
+  if (cmValue runtimeLinkOptions = this->Makefile->GetDefinition(
         "CMAKE_" + lang + "_RUNTIME_LIBRARIES_" + runtimeLibrary)) {
     cmList libsList{ *runtimeLinkOptions };
     result.reserve(libsList.size());
 
     for (auto const& i : libsList) {
       cmGeneratorTarget::TargetOrString resolved =
-        currentTarget->ResolveTargetReference(i, lg);
+        this->ResolveTargetReference(i, lg);
       if (resolved.Target) {
-        result.emplace_back(constructItem<ValueType>(resolved.Target, bt));
+        result.emplace_back(resolved.Target, false, bt);
       }
     }
   }
 
   return result;
-}
 }
 
 void cmGeneratorTarget::ComputeLinkInterfaceRuntimeLibraries(
@@ -870,9 +847,8 @@ void cmGeneratorTarget::ComputeLinkInterfaceRuntimeLibraries(
     if ((lang == "CUDA" || lang == "HIP") &&
         iface.LanguageRuntimeLibraries.find(lang) ==
           iface.LanguageRuntimeLibraries.end()) {
-      auto implicitTargets =
-        computeImplicitLanguageTargets<cmLinkItem>(lang, config, this);
-      iface.LanguageRuntimeLibraries[lang] = std::move(implicitTargets);
+      iface.LanguageRuntimeLibraries[lang] =
+        this->ComputeImplicitLanguageTargets(lang, config);
     }
   }
 }
@@ -884,9 +860,8 @@ void cmGeneratorTarget::ComputeLinkImplementationRuntimeLibraries(
     if ((lang == "CUDA" || lang == "HIP") &&
         impl.LanguageRuntimeLibraries.find(lang) ==
           impl.LanguageRuntimeLibraries.end()) {
-      auto implicitTargets =
-        computeImplicitLanguageTargets<cmLinkImplItem>(lang, config, this);
-      impl.LanguageRuntimeLibraries[lang] = std::move(implicitTargets);
+      impl.LanguageRuntimeLibraries[lang] =
+        this->ComputeImplicitLanguageTargets(lang, config);
     }
   }
 }
@@ -1094,7 +1069,7 @@ void TransitiveLinkImpl::Follow(cmGeneratorTarget const* target)
 void TransitiveLinkImpl::Compute()
 {
   // Save the original items and start with an empty list.
-  std::vector<cmLinkImplItem> original = std::move(this->Impl.Libraries);
+  std::vector<cmLinkItem> original = std::move(this->Impl.Libraries);
 
   // Avoid injecting any original items as usage requirements.
   // This gives LINK_LIBRARIES final control over the order
@@ -1102,7 +1077,7 @@ void TransitiveLinkImpl::Compute()
   this->Emitted.insert(original.cbegin(), original.cend());
 
   // Process each original item.
-  for (cmLinkImplItem& item : original) {
+  for (cmLinkItem& item : original) {
     // Inject direct dependencies listed in 'INTERFACE_LINK_LIBRARIES_DIRECT'
     // usage requirements before the item itself.
     this->Follow(item.Target);
@@ -1115,7 +1090,7 @@ void TransitiveLinkImpl::Compute()
   // usage requirements found through any dependency above.
   this->Impl.Libraries.erase(
     std::remove_if(this->Impl.Libraries.begin(), this->Impl.Libraries.end(),
-                   [this](cmLinkImplItem const& item) {
+                   [this](cmLinkItem const& item) {
                      return this->Excluded.find(item) != this->Excluded.end();
                    }),
     this->Impl.Libraries.end());
@@ -1134,6 +1109,8 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
   std::string const& config, cmOptionalLinkImplementation& impl,
   UseTo usage) const
 {
+  cm::GenEx::Context context(this->LocalGenerator, config,
+                             this->LinkerLanguage);
   cmLocalGenerator const* lg = this->LocalGenerator;
   cmMakefile const* mf = lg->GetMakefile();
   cmBTStringRange entryRange = this->Target->GetLinkImplementationEntries();
@@ -1146,8 +1123,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
       "LINK_LIBRARIES",
       nullptr,
       nullptr,
-      this->LocalGenerator,
-      config,
+      context,
       cmListFileBacktrace(),
       cmGeneratorExpressionDAGChecker::ComputingLinkLibraries::Yes,
     };
@@ -1169,9 +1145,7 @@ void cmGeneratorTarget::ComputeLinkImplementationLibraries(
     std::unique_ptr<cmCompiledGeneratorExpression> const cge =
       ge.Parse(entry.Value);
     cge->SetEvaluateForBuildsystem(true);
-    std::string const& evaluated =
-      cge->Evaluate(this->LocalGenerator, config, this, &dagChecker, nullptr,
-                    this->LinkerLanguage);
+    std::string const& evaluated = cge->Evaluate(context, &dagChecker, this);
     cmList llibs(evaluated);
     if (cge->GetHadHeadSensitiveCondition()) {
       impl.HadHeadSensitiveCondition = true;

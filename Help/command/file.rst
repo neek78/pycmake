@@ -6,17 +6,16 @@ File manipulation command.
 This command is dedicated to file and path manipulation requiring access to the
 filesystem.
 
-For other path manipulation, handling only syntactic aspects, have a look at
+For other path manipulation, handling only syntactic aspects, see the
 :command:`cmake_path` command.
 
 .. note::
 
-  The sub-commands `RELATIVE_PATH`_, `TO_CMAKE_PATH`_ and `TO_NATIVE_PATH`_ has
-  been superseded, respectively, by sub-commands
-  :ref:`RELATIVE_PATH <cmake_path-RELATIVE_PATH>`,
-  :ref:`CONVERT ... TO_CMAKE_PATH_LIST <cmake_path-TO_CMAKE_PATH_LIST>` and
-  :ref:`CONVERT ... TO_NATIVE_PATH_LIST <cmake_path-TO_NATIVE_PATH_LIST>` of
-  :command:`cmake_path` command.
+  The sub-commands `RELATIVE_PATH`_, `TO_CMAKE_PATH`_, and `TO_NATIVE_PATH`_
+  have been superseded, respectively, by the sub-commands
+  :command:`cmake_path(RELATIVE_PATH)`,
+  :command:`cmake_path(CONVERT ... TO_CMAKE_PATH_LIST)`, and
+  :command:`cmake_path(CONVERT ... TO_NATIVE_PATH_LIST)`.
 
 Synopsis
 ^^^^^^^^
@@ -619,6 +618,9 @@ Filesystem
   creating the link fails.  It can be useful for handling situations such as
   ``<original>`` and ``<linkname>`` being on different drives or mount points,
   which would make them unable to support a hard link.
+  If the source is a directory, the destination directory will be created if
+  it does not exist.  Contents of the source directory will be copied to the
+  destination directory unless policy :policy:`CMP0205` is not set to ``NEW``.
 
 .. signature::
   file(CHMOD <files>... <directories>...

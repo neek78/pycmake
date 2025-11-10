@@ -25,12 +25,6 @@ class cmake;
 template <typename T>
 class BT;
 
-struct cmVisualStudioFolder
-{
-  std::set<std::string> Projects;
-  std::set<std::string> SolutionItems;
-};
-
 /** \class cmGlobalVisualStudio7Generator
  * \brief Write a Unix makefiles.
  *
@@ -78,17 +72,9 @@ public:
     std::string const& makeProgram, std::string const& projectName,
     std::string const& projectDir, std::vector<std::string> const& targetNames,
     std::string const& config, int jobs, bool verbose,
-    cmBuildOptions const& buildOptions = cmBuildOptions(),
-    std::vector<std::string> const& makeOptions =
-      std::vector<std::string>()) override;
-
-  /**
-   * Generate the DSW workspace file.
-   */
-  virtual void OutputSLNFile();
-
-  //! Lookup a stored GUID or compute one deterministically.
-  std::string GetGUID(std::string const& name);
+    cmBuildOptions buildOptions = cmBuildOptions(),
+    std::vector<std::string> const& makeOptions = std::vector<std::string>(),
+    BuildTryCompile isInTryCompile = BuildTryCompile::No) override;
 
   /** Append the subdirectory for the given configuration.  */
   void AppendDirectoryForConfig(std::string const& prefix,
@@ -132,69 +118,9 @@ public:
 protected:
   cmGlobalVisualStudio7Generator(cmake* cm);
 
-  void Generate() override;
-
   std::string const& GetDevEnvCommand();
   virtual std::string FindDevEnvCommand();
 
-  static char const* ExternalProjectType(std::string const& location);
-
-  virtual void OutputSLNFile(cmLocalGenerator* root,
-                             std::vector<cmLocalGenerator*>& generators);
-  virtual void WriteSLNFile(std::ostream& fout, cmLocalGenerator* root,
-                            std::vector<cmLocalGenerator*>& generators) = 0;
-  virtual void WriteProject(std::ostream& fout, std::string const& name,
-                            std::string const& path,
-                            cmGeneratorTarget const* t) = 0;
-  virtual void WriteProjectDepends(std::ostream& fout, std::string const& name,
-                                   std::string const& path,
-                                   cmGeneratorTarget const* t) = 0;
-  virtual void WriteProjectConfigurations(
-    std::ostream& fout, std::string const& name,
-    cmGeneratorTarget const& target, std::vector<std::string> const& configs,
-    std::set<std::string> const& configsPartOfDefaultBuild,
-    std::string const& platformMapping = "") = 0;
-  virtual void WriteSLNGlobalSections(std::ostream& fout,
-                                      cmLocalGenerator* root);
-  virtual void WriteSLNFooter(std::ostream& fout);
-  std::string WriteUtilityDepend(cmGeneratorTarget const* target) override;
-
-  cmVisualStudioFolder* CreateSolutionFolders(std::string const& path);
-
-  virtual void WriteTargetsToSolution(
-    std::ostream& fout, cmLocalGenerator* root,
-    OrderedTargetDependSet const& projectTargets);
-  virtual void WriteTargetConfigurations(
-    std::ostream& fout, std::vector<std::string> const& configs,
-    OrderedTargetDependSet const& projectTargets);
-
-  virtual void WriteExternalProject(
-    std::ostream& fout, std::string const& name, std::string const& path,
-    cmValue typeGuid,
-    std::set<BT<std::pair<std::string, bool>>> const& dependencies) = 0;
-
-  std::string ConvertToSolutionPath(std::string const& path);
-
-  std::set<std::string> IsPartOfDefaultBuild(
-    std::vector<std::string> const& configs,
-    OrderedTargetDependSet const& projectTargets,
-    cmGeneratorTarget const* target);
-  bool IsDependedOn(OrderedTargetDependSet const& projectTargets,
-                    cmGeneratorTarget const* target);
-  std::map<std::string, std::string> GUIDMap;
-
-  virtual void WriteFolders(std::ostream& fout);
-  virtual void WriteFoldersContent(std::ostream& fout);
-
-  virtual void AddSolutionItems(cmLocalGenerator* root) = 0;
-  virtual void WriteFolderSolutionItems(
-    std::ostream& fout, cmVisualStudioFolder const& folder) = 0;
-
-  std::map<std::string, cmVisualStudioFolder> VisualStudioFolders;
-
-  // Set during OutputSLNFile with the name of the current project.
-  // There is one SLN file per project.
-  std::string CurrentProject;
   bool MarmasmEnabled;
   bool MasmEnabled;
   bool NasmEnabled;

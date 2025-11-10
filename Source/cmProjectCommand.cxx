@@ -22,6 +22,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmRange.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -35,9 +36,9 @@ void TopLevelCMakeVarCondSet(cmMakefile& mf, std::string const& name,
 
 struct ProjectArguments : ArgumentParser::ParseResult
 {
-  cm::optional<std::string> ProjectName;
   cm::optional<std::string> Version;
   cm::optional<std::string> CompatVersion;
+  cm::optional<std::string> License;
   cm::optional<std::string> Description;
   cm::optional<std::string> HomepageURL;
   cm::optional<ArgumentParser::MaybeEmpty<std::vector<std::string>>> Languages;
@@ -66,26 +67,37 @@ bool cmProjectCommand(std::vector<std::string> const& args,
   ProjectArgumentParser parser;
   parser.BindKeywordMissingValue(missingValueKeywords)
     .BindParsedKeywords(parsedKeywords)
-    .Bind(0, prArgs.ProjectName)
     .Bind("VERSION"_s, prArgs.Version)
     .Bind("DESCRIPTION"_s, prArgs.Description)
     .Bind("HOMEPAGE_URL"_s, prArgs.HomepageURL)
     .Bind("LANGUAGES"_s, prArgs.Languages);
 
   cmMakefile& mf = status.GetMakefile();
-  bool enableCompatVersion = cmExperimental::HasSupportEnabled(
+  bool enablePackageInfo = cmExperimental::HasSupportEnabled(
     mf, cmExperimental::Feature::ExportPackageInfo);
 
-  if (enableCompatVersion) {
+  if (enablePackageInfo) {
     parser.Bind("COMPAT_VERSION"_s, prArgs.CompatVersion);
+    parser.Bind("SPDX_LICENSE"_s, prArgs.License);
   }
 
-  parser.Parse(args, &unparsedArgs, 0);
-
-  if (!prArgs.ProjectName) {
+  if (args.empty()) {
     status.SetError("PROJECT called with incorrect number of arguments");
     return false;
   }
+
+  std::string const& projectName = args[0];
+  if (parser.HasKeyword(projectName)) {
+    mf.IssueMessage(
+      MessageType::AUTHOR_WARNING,
+      cmStrCat(
+        "project() called with '", projectName,
+        "' as first argument. The first parameter should be the project name, "
+        "not a keyword argument. See the cmake-commands(7) manual for correct "
+        "usage of the project() command."));
+  }
+
+  parser.Parse(cmMakeRange(args).advance(1), &unparsedArgs, 1);
 
   if (mf.IsRootMakefile() &&
       !mf.GetDefinition("CMAKE_MINIMUM_REQUIRED_VERSION")) {
@@ -100,16 +112,16 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  if (!IncludeByVariable(
-        status, "CMAKE_PROJECT_" + *prArgs.ProjectName + "_INCLUDE_BEFORE")) {
+  if (!IncludeByVariable(status,
+                         "CMAKE_PROJECT_" + projectName + "_INCLUDE_BEFORE")) {
     return false;
   }
 
-  mf.SetProjectName(*prArgs.ProjectName);
+  mf.SetProjectName(projectName);
 
   cmPolicies::PolicyStatus cmp0180 = mf.GetPolicyStatus(cmPolicies::CMP0180);
 
-  std::string varName = cmStrCat(*prArgs.ProjectName, "_BINARY_DIR"_s);
+  std::string varName = cmStrCat(projectName, "_BINARY_DIR"_s);
   bool nonCacheVarAlreadySet = mf.IsNormalDefinitionSet(varName);
   mf.AddCacheDefinition(varName, mf.GetCurrentBinaryDirectory(),
                         "Value Computed by CMake", cmStateEnums::STATIC);
@@ -117,7 +129,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     mf.AddDefinition(varName, mf.GetCurrentBinaryDirectory());
   }
 
-  varName = cmStrCat(*prArgs.ProjectName, "_SOURCE_DIR"_s);
+  varName = cmStrCat(projectName, "_SOURCE_DIR"_s);
   nonCacheVarAlreadySet = mf.IsNormalDefinitionSet(varName);
   mf.AddCacheDefinition(varName, mf.GetCurrentSourceDirectory(),
                         "Value Computed by CMake", cmStateEnums::STATIC);
@@ -128,11 +140,11 @@ bool cmProjectCommand(std::vector<std::string> const& args,
   mf.AddDefinition("PROJECT_BINARY_DIR", mf.GetCurrentBinaryDirectory());
   mf.AddDefinition("PROJECT_SOURCE_DIR", mf.GetCurrentSourceDirectory());
 
-  mf.AddDefinition("PROJECT_NAME", *prArgs.ProjectName);
+  mf.AddDefinition("PROJECT_NAME", projectName);
 
   mf.AddDefinitionBool("PROJECT_IS_TOP_LEVEL", mf.IsRootMakefile());
 
-  varName = cmStrCat(*prArgs.ProjectName, "_IS_TOP_LEVEL"_s);
+  varName = cmStrCat(projectName, "_IS_TOP_LEVEL"_s);
   nonCacheVarAlreadySet = mf.IsNormalDefinitionSet(varName);
   mf.AddCacheDefinition(varName, mf.IsRootMakefile() ? "ON" : "OFF",
                         "Value Computed by CMake", cmStateEnums::STATIC);
@@ -140,7 +152,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     mf.AddDefinition(varName, mf.IsRootMakefile() ? "ON" : "OFF");
   }
 
-  TopLevelCMakeVarCondSet(mf, "CMAKE_PROJECT_NAME", *prArgs.ProjectName);
+  TopLevelCMakeVarCondSet(mf, "CMAKE_PROJECT_NAME", projectName);
 
   std::set<cm::string_view> seenKeywords;
   for (cm::string_view keyword : parsedKeywords) {
@@ -192,6 +204,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
   std::string version_string;
   std::array<std::string, MAX_VERSION_COMPONENTS> version_components;
 
+  bool has_version = prArgs.Version.has_value();
   if (prArgs.Version) {
     if (!vx.find(*prArgs.Version)) {
       std::string e =
@@ -243,7 +256,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     }
 
     if (cmSystemTools::VersionCompareGreater(*prArgs.CompatVersion,
-                                             *prArgs.Version)) {
+                                             version_string)) {
       mf.IssueMessage(MessageType::FATAL_ERROR,
                       "COMPAT_VERSION must be less than or equal to VERSION");
       cmSystemTools::SetFatalErrorOccurred();
@@ -253,21 +266,48 @@ bool cmProjectCommand(std::vector<std::string> const& args,
 
   auto createVariables = [&](cm::string_view var, std::string const& val) {
     mf.AddDefinition(cmStrCat("PROJECT_"_s, var), val);
-    mf.AddDefinition(cmStrCat(*prArgs.ProjectName, "_"_s, var), val);
+    mf.AddDefinition(cmStrCat(projectName, "_"_s, var), val);
     TopLevelCMakeVarCondSet(mf, cmStrCat("CMAKE_PROJECT_"_s, var), val);
   };
 
-  createVariables("VERSION"_s, version_string);
-  createVariables("VERSION_MAJOR"_s, version_components[0]);
-  createVariables("VERSION_MINOR"_s, version_components[1]);
-  createVariables("VERSION_PATCH"_s, version_components[2]);
-  createVariables("VERSION_TWEAK"_s, version_components[3]);
+  // Note, this intentionally doesn't touch cache variables as the legacy
+  // behavior did not modify cache
+  auto checkAndClearVariables = [&](cm::string_view var) {
+    std::vector<std::string> vv = { "PROJECT_", cmStrCat(projectName, "_") };
+    if (mf.IsRootMakefile()) {
+      vv.push_back("CMAKE_PROJECT_");
+    }
+    for (std::string const& prefix : vv) {
+      std::string def = cmStrCat(prefix, var);
+      if (!mf.GetDefinition(def).IsEmpty()) {
+        mf.AddDefinition(def, "");
+      }
+    }
+  };
+
+  // TODO: We should treat VERSION the same as all other project variables, but
+  // setting it to empty string unconditionally causes various behavior
+  // changes. It needs a policy. For now, maintain the old behavior and add a
+  // policy in a future release.
+
+  if (has_version) {
+    createVariables("VERSION"_s, version_string);
+    createVariables("VERSION_MAJOR"_s, version_components[0]);
+    createVariables("VERSION_MINOR"_s, version_components[1]);
+    createVariables("VERSION_PATCH"_s, version_components[2]);
+    createVariables("VERSION_TWEAK"_s, version_components[3]);
+  } else {
+    checkAndClearVariables("VERSION"_s);
+    checkAndClearVariables("VERSION_MAJOR"_s);
+    checkAndClearVariables("VERSION_MINOR"_s);
+    checkAndClearVariables("VERSION_PATCH"_s);
+    checkAndClearVariables("VERSION_TWEAK"_s);
+  }
+
+  createVariables("COMPAT_VERSION"_s, prArgs.CompatVersion.value_or(""));
+  createVariables("SPDX_LICENSE"_s, prArgs.License.value_or(""));
   createVariables("DESCRIPTION"_s, prArgs.Description.value_or(""));
   createVariables("HOMEPAGE_URL"_s, prArgs.HomepageURL.value_or(""));
-
-  if (enableCompatVersion) {
-    createVariables("COMPAT_VERSION"_s, prArgs.CompatVersion.value_or(""));
-  }
 
   if (unparsedArgs.empty() && !prArgs.Languages) {
     // if no language is specified do c and c++
@@ -285,8 +325,8 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  if (!IncludeByVariable(
-        status, "CMAKE_PROJECT_" + *prArgs.ProjectName + "_INCLUDE")) {
+  if (!IncludeByVariable(status,
+                         "CMAKE_PROJECT_" + projectName + "_INCLUDE")) {
     return false;
   }
 

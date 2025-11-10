@@ -300,9 +300,7 @@ cmVisualStudio10TargetGenerator::cmVisualStudio10TargetGenerator(
          &this->NsightTegraVersion[0], &this->NsightTegraVersion[1],
          &this->NsightTegraVersion[2], &this->NsightTegraVersion[3]);
   this->MSTools = !this->NsightTegra && !this->Android;
-  this->DefaultArtifactDir =
-    cmStrCat(this->LocalGenerator->GetCurrentBinaryDirectory(), '/',
-             this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget));
+  this->DefaultArtifactDir = this->GeneratorTarget->GetSupportDirectory();
   this->InSourceBuild = (this->Makefile->GetCurrentSourceDirectory() ==
                          this->Makefile->GetCurrentBinaryDirectory());
   this->ClassifyAllConfigSources();
@@ -434,6 +432,17 @@ void cmVisualStudio10TargetGenerator::Generate()
     }
     if (!this->ComputeLibOptions()) {
       return;
+    }
+    for (std::string const& config : this->Configurations) {
+      // Default character set if not populated above.
+      this->CharSet.emplace(
+        config,
+        (this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT") ||
+         this->GlobalGenerator->TargetsWindowsPhone() ||
+         this->GlobalGenerator->TargetsWindowsStore() ||
+         this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_EXTENSIONS"))
+          ? MsvcCharSet::Unicode
+          : MsvcCharSet::MultiByte);
     }
   }
   std::string path =
@@ -1538,15 +1547,11 @@ void cmVisualStudio10TargetGenerator::WriteMSToolConfigurationValues(
   }
 
   if ((this->GeneratorTarget->GetType() <= cmStateEnums::OBJECT_LIBRARY &&
-       this->ClOptions[config]->UsingUnicode()) ||
-      this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_COMPONENT") ||
-      this->GlobalGenerator->TargetsWindowsPhone() ||
-      this->GlobalGenerator->TargetsWindowsStore() ||
-      this->GeneratorTarget->GetPropertyAsBool("VS_WINRT_EXTENSIONS")) {
+       this->CharSet[config] == MsvcCharSet::Unicode)) {
     e1.Element("CharacterSet", "Unicode");
   } else if (this->GeneratorTarget->GetType() <=
                cmStateEnums::OBJECT_LIBRARY &&
-             this->ClOptions[config]->UsingSBCS()) {
+             this->CharSet[config] == MsvcCharSet::SingleByte) {
     e1.Element("CharacterSet", "NotSet");
   } else {
     e1.Element("CharacterSet", "MultiByte");
@@ -2723,6 +2728,23 @@ void cmVisualStudio10TargetGenerator::WriteAllSources(Elem& e0)
         this->WriteExcludeFromBuild(e2, exclude_configs);
       }
 
+      std::string customObjectName;
+      if (this->GlobalGenerator->UseShortObjectNames()) {
+        customObjectName =
+          this->LocalGenerator->GetShortObjectFileName(*si.Source);
+      } else {
+        customObjectName =
+          this->LocalGenerator->GetCustomObjectFileName(*si.Source);
+      }
+      if (!customObjectName.empty()) {
+        std::string outputName = "ObjectFileName";
+        if (si.Source->GetLanguage() == "CUDA"_s) {
+          outputName = "CompileOut";
+        }
+        e2.Element(outputName,
+                   cmStrCat("$(IntDir)", customObjectName, ".obj"));
+      }
+
       this->FinishWritingSource(e2, toolSettings);
     } else if (fs && fs->GetType() == "CXX_MODULES"_s) {
       this->GeneratorTarget->Makefile->IssueMessage(
@@ -3080,9 +3102,20 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
   for (std::string const& config : this->Configurations) {
     std::string const cond = this->CalcCondition(config);
 
+    std::string fullIntermediateDir =
+      cmStrCat(this->GeneratorTarget->GetSupportDirectory(), '/', config, '/');
+    cmSystemTools::MakeDirectory(fullIntermediateDir);
+    std::string intermediateDir =
+      this->LocalGenerator->MaybeRelativeToCurBinDir(fullIntermediateDir);
+    ConvertToWindowsSlash(intermediateDir);
+
     if (ttype >= cmStateEnums::UTILITY) {
-      e1.WritePlatformConfigTag(
-        "IntDir", cond, R"($(Platform)\$(Configuration)\$(ProjectName)\)");
+      if (this->GlobalGenerator->UseShortObjectNames()) {
+        e1.WritePlatformConfigTag("IntDir", cond, intermediateDir);
+      } else {
+        e1.WritePlatformConfigTag(
+          "IntDir", cond, R"($(Platform)\$(Configuration)\$(ProjectName)\)");
+      }
     } else {
       if (ttype == cmStateEnums::SHARED_LIBRARY ||
           ttype == cmStateEnums::MODULE_LIBRARY ||
@@ -3094,9 +3127,6 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
         }
       }
 
-      std::string intermediateDir = cmStrCat(
-        this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget), '/',
-        config, '/');
       std::string outDir;
       std::string targetNameFull;
       if (ttype == cmStateEnums::OBJECT_LIBRARY) {
@@ -3106,7 +3136,6 @@ void cmVisualStudio10TargetGenerator::WritePathAndIncrementalLinkOptions(
         outDir = cmStrCat(this->GeneratorTarget->GetDirectory(config), '/');
         targetNameFull = this->GeneratorTarget->GetFullName(config);
       }
-      ConvertToWindowsSlash(intermediateDir);
       ConvertToWindowsSlash(outDir);
 
       e1.WritePlatformConfigTag("OutDir", cond, outDir);
@@ -3450,7 +3479,7 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
       if (configName == this->Configurations[0]) {
         std::string message =
           cmStrCat("For the target \"", this->GeneratorTarget->GetName(),
-                   "\" the /clr compiler flag was added manually. ",
+                   "\" the /clr compiler flag was added manually. "
                    "Set usage of C++/CLI by setting COMMON_LANGUAGE_RUNTIME "
                    "target property.");
         this->Makefile->IssueMessage(MessageType::WARNING, message);
@@ -3555,6 +3584,19 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
       flagsC, this->GeneratorTarget, cmBuildStep::Compile, "C", configName);
     this->LocalGenerator->AddCompileOptions(flagsC, this->GeneratorTarget, "C",
                                             configName);
+
+    // Modules/Compiler/Clang-C.cmake has a special case for clang-cl versions
+    // that do not have a -std:c23 flag to pass the standard through to the
+    // underlying clang directly.  Unfortunately that flag applies to all
+    // sources in a single .vcxproj file, so if we have CXX sources too then
+    // we cannot use it.  Map it back to -std:clatest, even though that might
+    // enable a different C level, so it does not apply to CXX sources.
+    static std::string const kClangStdC23 = "-clang:-std=c23";
+    std::string::size_type p = flagsC.find(kClangStdC23);
+    if (p != std::string::npos) {
+      flagsC.replace(p, kClangStdC23.size(), "-std:clatest");
+    }
+
     Options optC(this->LocalGenerator, Options::Compiler,
                  gg->GetClFlagTable());
     optC.Parse(flagsC);
@@ -3570,6 +3612,8 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
         this->GeneratorTarget->GetExportMacro()) {
     clOptions.AddDefine(*exportMacro);
   }
+  // No need to add the SharedLibraryCompileDefs define here:
+  // it is added by VisualStudio itself
 
   if (this->MSTools) {
     // If we have the VS_WINRT_COMPONENT set then force Compile as WinRT
@@ -3592,6 +3636,10 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
         this->TargetCompileAsWinRT = true;
       }
     }
+  }
+
+  if (cm::optional<MsvcCharSet> charSet = clOptions.GetCharSet()) {
+    this->CharSet.emplace(configName, *charSet);
   }
 
   if (this->ProjectType != VsProjectType::csproj &&
@@ -3634,17 +3682,37 @@ bool cmVisualStudio10TargetGenerator::ComputeClOptions(
     if (!clOptions.HasFlag("BasicRuntimeChecks")) {
       clOptions.AddFlag("BasicRuntimeChecks", "Default");
     }
+    if (!clOptions.HasFlag("BufferSecurityCheck")) {
+      clOptions.AddFlag("BufferSecurityCheck", "");
+    }
+    if (!clOptions.HasFlag("CallingConvention")) {
+      clOptions.AddFlag("CallingConvention", "");
+    }
+    // We cannot use the `Default` value, because it is incompatible with
+    // VS2019 & first releases of VS2022
+    if (!clOptions.HasFlag("FloatingPointModel")) {
+      clOptions.AddFlag("FloatingPointModel", "");
+    }
+    if (!clOptions.HasFlag("ForceConformanceInForLoopScope")) {
+      clOptions.AddFlag("ForceConformanceInForLoopScope", "");
+    }
     if (!clOptions.HasFlag("MinimalRebuild")) {
       clOptions.AddFlag("MinimalRebuild", "");
     }
     if (!clOptions.HasFlag("Optimization")) {
       clOptions.AddFlag("Optimization", "");
     }
+    if (!clOptions.HasFlag("RemoveUnreferencedCodeData")) {
+      clOptions.AddFlag("RemoveUnreferencedCodeData", "");
+    }
     if (!clOptions.HasFlag("RuntimeLibrary")) {
       clOptions.AddFlag("RuntimeLibrary", "");
     }
     if (!clOptions.HasFlag("SupportJustMyCode")) {
       clOptions.AddFlag("SupportJustMyCode", "");
+    }
+    if (!clOptions.HasFlag("TreatWChar_tAsBuiltInType")) {
+      clOptions.AddFlag("TreatWChar_tAsBuiltInType", "");
     }
   }
 
@@ -3697,7 +3765,7 @@ void cmVisualStudio10TargetGenerator::WriteClOptions(
 
     // Specify the compiler program database file if configured.
     std::string pdb = this->GeneratorTarget->GetCompilePDBPath(configName);
-    if (!pdb.empty()) {
+    if (!pdb.empty() && !cmHasSuffix(pdb, '/') && !cmHasSuffix(pdb, '\\')) {
       if (this->GlobalGenerator->IsCudaEnabled()) {
         // CUDA does not quote paths with spaces correctly when forwarding
         // this to the host compiler.  Use a relative path to avoid spaces.
@@ -3935,6 +4003,8 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
         this->GeneratorTarget->GetExportMacro()) {
     cudaOptions.AddDefine(*exportMacro);
   }
+  // No need to add the SharedLibraryCompileDefs define here:
+  // it is added by VisualStudio itself
 
   // Get includes for this target
   cudaOptions.AddIncludes(this->GetIncludes(configName, "CUDA"));
@@ -3949,6 +4019,10 @@ bool cmVisualStudio10TargetGenerator::ComputeCudaOptions(
     cudaOptions.AddFlag("CudaRuntime", "Shared");
   } else if (cudaRuntime == "NONE"_s) {
     cudaOptions.AddFlag("CudaRuntime", "None");
+  }
+
+  if (cm::optional<MsvcCharSet> charSet = cudaOptions.GetCharSet()) {
+    this->CharSet.emplace(configName, *charSet);
   }
 
   if (this->ProjectType == VsProjectType::vcxproj && this->MSTools) {
@@ -4543,32 +4617,35 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
   }
 
   if (this->MSTools) {
-    if (this->GeneratorTarget->IsWin32Executable(config)) {
-      if (this->GlobalGenerator->TargetsWindowsCE()) {
-        linkOptions.AddFlag("SubSystem", "WindowsCE");
-        if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
-          if (this->ClOptions[config]->UsingUnicode()) {
-            linkOptions.AddFlag("EntryPointSymbol", "wWinMainCRTStartup");
-          } else {
-            linkOptions.AddFlag("EntryPointSymbol", "WinMainCRTStartup");
+    if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+      // Specify an entry point for executables.
+      if (this->GeneratorTarget->IsWin32Executable(config)) {
+        if (this->GlobalGenerator->TargetsWindowsCE()) {
+          linkOptions.AddFlag("SubSystem", "WindowsCE");
+          if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+            if (this->CharSet[config] == MsvcCharSet::Unicode) {
+              linkOptions.AddFlag("EntryPointSymbol", "wWinMainCRTStartup");
+            } else {
+              linkOptions.AddFlag("EntryPointSymbol", "WinMainCRTStartup");
+            }
           }
+        } else {
+          linkOptions.AddFlag("SubSystem", "Windows");
         }
       } else {
-        linkOptions.AddFlag("SubSystem", "Windows");
+        if (this->GlobalGenerator->TargetsWindowsCE()) {
+          linkOptions.AddFlag("SubSystem", "WindowsCE");
+          if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
+            if (this->CharSet[config] == MsvcCharSet::Unicode) {
+              linkOptions.AddFlag("EntryPointSymbol", "mainWCRTStartup");
+            } else {
+              linkOptions.AddFlag("EntryPointSymbol", "mainACRTStartup");
+            }
+          }
+        } else {
+          linkOptions.AddFlag("SubSystem", "Console");
+        };
       }
-    } else {
-      if (this->GlobalGenerator->TargetsWindowsCE()) {
-        linkOptions.AddFlag("SubSystem", "WindowsCE");
-        if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
-          if (this->ClOptions[config]->UsingUnicode()) {
-            linkOptions.AddFlag("EntryPointSymbol", "mainWCRTStartup");
-          } else {
-            linkOptions.AddFlag("EntryPointSymbol", "mainACRTStartup");
-          }
-        }
-      } else {
-        linkOptions.AddFlag("SubSystem", "Console");
-      };
     }
 
     if (cmValue stackVal = this->Makefile->GetDefinition(
@@ -4650,6 +4727,26 @@ bool cmVisualStudio10TargetGenerator::ComputeLinkOptions(
       if (strcmp(debug, "DebugFastLink") == 0) {
         linkOptions.AddFlag("GenerateDebugInformation", "Debug");
       }
+    }
+  }
+
+  if (this->ProjectType == VsProjectType::vcxproj && this->MSTools) {
+    // Suppress MSBuild default settings for which the project
+    // specifies no flags.
+    if (!linkOptions.HasFlag("DataExecutionPrevention")) {
+      linkOptions.AddFlag("DataExecutionPrevention", "");
+    }
+    if (!linkOptions.HasFlag("ImageHasSafeExceptionHandlers")) {
+      linkOptions.AddFlag("ImageHasSafeExceptionHandlers", "");
+    }
+    if (!linkOptions.HasFlag("LinkErrorReporting")) {
+      linkOptions.AddFlag("LinkErrorReporting", "");
+    }
+    if (!linkOptions.HasFlag("RandomizedBaseAddress")) {
+      linkOptions.AddFlag("RandomizedBaseAddress", "");
+    }
+    if (!linkOptions.HasFlag("SubSystem")) {
+      linkOptions.AddFlag("SubSystem", "");
     }
   }
 
@@ -5255,8 +5352,8 @@ void cmVisualStudio10TargetGenerator::WriteWinRTPackageCertificateKeyFile(
         !(this->GlobalGenerator->TargetsWindowsPhone() &&
           this->GlobalGenerator->GetSystemVersion() == "8.0"_s)) {
       // Move the manifest to a project directory to avoid clashes
-      std::string artifactDir =
-        this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+      std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+        this->GeneratorTarget->GetSupportDirectory());
       ConvertToWindowsSlash(artifactDir);
       Elem e1(e0, "PropertyGroup");
       e1.Element("AppxPackageArtifactsDir", cmStrCat(artifactDir, '\\'));
@@ -5507,8 +5604,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWP80(Elem& e1)
   // folders
   std::string manifestFile = cmStrCat(
     this->LocalGenerator->GetCurrentBinaryDirectory(), "/WMAppManifest.xml");
-  std::string artifactDir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+  std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->GeneratorTarget->GetSupportDirectory());
   ConvertToWindowsSlash(artifactDir);
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string const& targetNameXML = cmVS10EscapeXML(GetTargetOutputName());
@@ -5571,7 +5668,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWP80(Elem& e1)
   this->AddedFiles.push_back(smallLogo);
 
   std::string logo = cmStrCat(this->DefaultArtifactDir, "/Logo.png");
-  cmSystemTools::CopyAFile(cmStrCat(templateFolder, "/Logo.png"), logo, false);
+  cmSystemTools::CopyAFile(cmStrCat(templateFolder, "/Logo.png"), logo,
+                           cmSystemTools::CopyWhen::OnlyIfDifferent);
   ConvertToWindowsSlash(logo);
   Elem(e1, "Image").Attribute("Include", logo);
   this->AddedFiles.push_back(logo);
@@ -5589,8 +5687,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWP81(Elem& e1)
 {
   std::string manifestFile =
     cmStrCat(this->DefaultArtifactDir, "/package.appxManifest");
-  std::string artifactDir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+  std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->GeneratorTarget->GetSupportDirectory());
   ConvertToWindowsSlash(artifactDir);
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string const& targetNameXML = cmVS10EscapeXML(GetTargetOutputName());
@@ -5651,8 +5749,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS80(Elem& e1)
 {
   std::string manifestFile =
     cmStrCat(this->DefaultArtifactDir, "/package.appxManifest");
-  std::string artifactDir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+  std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->GeneratorTarget->GetSupportDirectory());
   ConvertToWindowsSlash(artifactDir);
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string const& targetNameXML = cmVS10EscapeXML(GetTargetOutputName());
@@ -5705,8 +5803,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS81(Elem& e1)
 {
   std::string manifestFile =
     cmStrCat(this->DefaultArtifactDir, "/package.appxManifest");
-  std::string artifactDir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+  std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->GeneratorTarget->GetSupportDirectory());
   ConvertToWindowsSlash(artifactDir);
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string const& targetNameXML = cmVS10EscapeXML(GetTargetOutputName());
@@ -5764,8 +5862,8 @@ void cmVisualStudio10TargetGenerator::WriteMissingFilesWS10_0(Elem& e1)
 {
   std::string manifestFile =
     cmStrCat(this->DefaultArtifactDir, "/package.appxManifest");
-  std::string artifactDir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
+  std::string artifactDir = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->GeneratorTarget->GetSupportDirectory());
   ConvertToWindowsSlash(artifactDir);
   std::string artifactDirXML = cmVS10EscapeXML(artifactDir);
   std::string const& targetNameXML = cmVS10EscapeXML(GetTargetOutputName());
@@ -5851,7 +5949,8 @@ void cmVisualStudio10TargetGenerator::WriteCommonMissingFiles(
   this->AddedFiles.push_back(smallLogo44);
 
   std::string logo = cmStrCat(this->DefaultArtifactDir, "/Logo.png");
-  cmSystemTools::CopyAFile(cmStrCat(templateFolder, "/Logo.png"), logo, false);
+  cmSystemTools::CopyAFile(cmStrCat(templateFolder, "/Logo.png"), logo,
+                           cmSystemTools::CopyWhen::OnlyIfDifferent);
   ConvertToWindowsSlash(logo);
   Elem(e1, "Image").Attribute("Include", logo);
   this->AddedFiles.push_back(logo);

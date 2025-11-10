@@ -58,7 +58,7 @@ Modules
 -------
 
 * The :module:`CMakeDependentOption` module :command:`cmake_dependent_option`
-  macro now supports full :ref:`Condition Syntax`.
+  command now supports full :ref:`Condition Syntax`.
   See policy :policy:`CMP0127`.
 
 * The :module:`FetchContent` module now passes through the
@@ -75,7 +75,7 @@ Modules
 
 * The :module:`FindMatlab` module now provides imported targets.
 
-* The :module:`FindPkgConfig` module gained a :variable:`PKG_CONFIG_ARGN`
+* The :module:`FindPkgConfig` module gained a ``PKG_CONFIG_ARGN``
   variable to specify arguments to ``pkg-config`` calls.
 
 * The :module:`GoogleTest` module :command:`gtest_discover_tests`

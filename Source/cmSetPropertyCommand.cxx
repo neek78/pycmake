@@ -634,7 +634,13 @@ bool HandleTargetMode(cmExecutionStatus& status,
       status.SetError("can not be used on an ALIAS target.");
       return false;
     }
+
     if (cmTarget* target = status.GetMakefile().FindTargetToUse(name)) {
+      if (target->IsSymbolic()) {
+        status.SetError("can not be used on a SYMBOLIC target.");
+        return false;
+      }
+
       // Handle the current target.
       if (!HandleTarget(target, status.GetMakefile(), propertyName,
                         propertyValue, appendAsString, appendMode, remove)) {
@@ -799,7 +805,7 @@ bool HandleCacheMode(cmExecutionStatus& status,
   } else if (propertyName == "TYPE") {
     if (!cmState::IsCacheEntryType(propertyValue)) {
       status.SetError(
-        cmStrCat("given invalid CACHE entry TYPE \"", propertyValue, "\""));
+        cmStrCat("given invalid CACHE entry TYPE \"", propertyValue, '"'));
       return false;
     }
   } else if (propertyName != "HELPSTRING" && propertyName != "STRINGS" &&

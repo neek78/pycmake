@@ -39,3 +39,16 @@ endblock()
 
 run_cmake(GetAbs)
 run_cmake(NoSystem)
+
+foreach(case
+    Opt
+    Root
+    Usr
+    UsrLocal
+    )
+  run_cmake_with_options(ExplicitDefaults-${case}
+    -DCMAKE_INSTALL_BINDIR=bin
+    -DCMAKE_INSTALL_INCLUDEDIR=include
+    -DCMAKE_INSTALL_LIBDIR=lib
+  )
+endforeach()

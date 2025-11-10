@@ -81,9 +81,9 @@ public:
     std::string const& makeProgram, std::string const& projectName,
     std::string const& projectDir, std::vector<std::string> const& targetNames,
     std::string const& config, int jobs, bool verbose,
-    cmBuildOptions const& buildOptions = cmBuildOptions(),
-    std::vector<std::string> const& makeOptions =
-      std::vector<std::string>()) override;
+    cmBuildOptions buildOptions = cmBuildOptions(),
+    std::vector<std::string> const& makeOptions = std::vector<std::string>(),
+    BuildTryCompile isInTryCompile = BuildTryCompile::No) override;
 
   /** Append the subdirectory for the given configuration.  */
   void AppendDirectoryForConfig(std::string const& prefix,
@@ -115,6 +115,8 @@ public:
   bool UseEffectivePlatformName(cmMakefile* mf) const override;
 
   bool ShouldStripResourcePath(cmMakefile*) const override;
+
+  bool SupportsCustomObjectNames() const override { return false; }
 
   /**
    * Used to determine if this generator supports DEPFILE option.
@@ -192,7 +194,7 @@ private:
   cmXCodeObject* CreateObject(cmXCodeObject::PBXType ptype,
                               cm::string_view key = {});
   cmXCodeObject* CreateObject(cmXCodeObject::Type type);
-  cmXCodeObject* CreateString(std::string const& s);
+  cmXCodeObject* CreateString(cm::string_view s);
   cmXCodeObject* CreateObjectReference(cmXCodeObject*);
   cmXCodeObject* CreateFlatClone(cmXCodeObject*);
   cmXCodeObject* CreateXCodeTarget(cmGeneratorTarget* gtgt,
@@ -201,7 +203,7 @@ private:
   void ForceLinkerLanguage(cmGeneratorTarget* gtgt);
   char const* GetTargetLinkFlagsVar(cmGeneratorTarget const* target) const;
   char const* GetTargetFileType(cmGeneratorTarget* target);
-  char const* GetTargetProductType(cmGeneratorTarget* target);
+  cm::string_view GetTargetProductType(cmGeneratorTarget* target);
   std::string AddConfigurations(cmXCodeObject* target,
                                 cmGeneratorTarget* gtgt);
   void AppendOrAddBuildSetting(cmXCodeObject* settings, char const* attr,
@@ -307,8 +309,7 @@ private:
   std::string LookupFlags(std::string const& varNamePrefix,
                           std::string const& varNameLang,
                           std::string const& varNameSuffix,
-                          cmGeneratorTarget const* gt,
-                          std::string const& default_flags);
+                          cmGeneratorTarget const* gt);
 
   class Factory;
   class BuildObjectListOrString;
@@ -335,6 +336,7 @@ protected:
   BuildSystem XcodeBuildSystem = BuildSystem::One;
 
 private:
+  std::string GetAppleSpecificPlatformName();
   std::string const& GetXcodeBuildCommand();
   std::string FindXcodeBuildCommand();
   std::string XcodeBuildCommand;

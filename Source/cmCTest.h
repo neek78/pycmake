@@ -436,7 +436,6 @@ public:
   std::vector<std::string> GetCommandLineHttpHeaders() const;
 
   cmInstrumentation& GetInstrumentation();
-  bool GetUseVerboseInstrumentation() const;
 
 private:
   int GenerateNotesFile(cmake* cm, std::string const& files);
@@ -454,11 +453,6 @@ private:
 
   /** set command line arguments read from a test preset */
   bool SetArgsFromPreset(std::string const& presetName, bool listPresets);
-
-#if !defined(_WIN32)
-  /** returns true iff the console supports progress output */
-  static bool ConsoleIsNotDumb();
-#endif
 
   /** returns true iff the console supports progress output */
   static bool ProgressOutputSupportedByConsole();

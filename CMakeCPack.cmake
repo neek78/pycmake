@@ -11,7 +11,7 @@ if(NOT DEFINED CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)
 endif()
 
 if(CMake_INSTALL_DEPENDENCIES)
-  include(${CMake_SOURCE_DIR}/Modules/InstallRequiredSystemLibraries.cmake)
+  include(InstallRequiredSystemLibraries)
 endif()
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LICENSE.txt")
@@ -52,7 +52,7 @@ if(NOT DEFINED CPACK_SYSTEM_NAME)
 endif()
 
 # Command for configure IFW script templates
-include(${CMake_SOURCE_DIR}/Modules/CPackIFWConfigureFile.cmake)
+include(CPackIFWConfigureFile)
 
 # Advanced IFW configuration
 set(_cpifwrc CPACK_IFW_COMPONENT_GROUP_CMAKE_)
@@ -177,7 +177,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     endif()
   endif()
   install(FILES "${CMake_SOURCE_DIR}/Source/QtIFW/cmake.org.html"
-    DESTINATION "${CMAKE_DOC_DIR}"
+    DESTINATION "${CMake_INSTALL_DOC_DIR}"
   )
 endif()
 
@@ -220,7 +220,7 @@ endif()
 set(CPACK_PACKAGE_CONTACT "cmake+development@discourse.cmake.org")
 
 if(UNIX)
-  set(CPACK_STRIP_FILES "${CMAKE_BIN_DIR}/ccmake;${CMAKE_BIN_DIR}/cmake;${CMAKE_BIN_DIR}/cpack;${CMAKE_BIN_DIR}/ctest")
+  set(CPACK_STRIP_FILES "${CMake_INSTALL_BIN_DIR}/ccmake;${CMake_INSTALL_BIN_DIR}/cmake;${CMake_INSTALL_BIN_DIR}/cpack;${CMake_INSTALL_BIN_DIR}/ctest")
   set(CPACK_SOURCE_STRIP_FILES "")
   set(CPACK_PACKAGE_EXECUTABLES "ccmake" "CMake")
 endif()

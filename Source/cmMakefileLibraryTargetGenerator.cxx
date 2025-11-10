@@ -176,7 +176,8 @@ void cmMakefileLibraryTargetGenerator::WriteSharedLibraryRules(bool relink)
   }
 
   std::string extraFlags;
-  this->GetTargetLinkFlags(extraFlags, linkLanguage);
+  this->LocalGenerator->AppendTargetCreationLinkFlags(
+    extraFlags, this->GeneratorTarget, linkLanguage);
   this->LocalGenerator->AddConfigVariableFlags(
     extraFlags, "CMAKE_SHARED_LINKER_FLAGS", this->GeneratorTarget,
     cmBuildStep::Link, linkLanguage, this->GetConfigName());
@@ -188,10 +189,12 @@ void cmMakefileLibraryTargetGenerator::WriteSharedLibraryRules(bool relink)
 
   this->LocalGenerator->AppendModuleDefinitionFlag(
     extraFlags, this->GeneratorTarget, linkLineComputer.get(),
-    this->GetConfigName());
+    this->GetConfigName(), linkLanguage);
 
   this->UseLWYU = this->LocalGenerator->AppendLWYUFlags(
     extraFlags, this->GeneratorTarget, linkLanguage);
+
+  this->GetTargetLinkFlags(extraFlags, linkLanguage);
 
   this->WriteLibraryRules(linkRuleVar, extraFlags, relink);
 }
@@ -212,7 +215,8 @@ void cmMakefileLibraryTargetGenerator::WriteModuleLibraryRules(bool relink)
     cmStrCat("CMAKE_", linkLanguage, "_CREATE_SHARED_MODULE");
 
   std::string extraFlags;
-  this->GetTargetLinkFlags(extraFlags, linkLanguage);
+  this->LocalGenerator->AppendTargetCreationLinkFlags(
+    extraFlags, this->GeneratorTarget, linkLanguage);
   this->LocalGenerator->AddConfigVariableFlags(
     extraFlags, "CMAKE_MODULE_LINKER_FLAGS", this->GeneratorTarget,
     cmBuildStep::Link, linkLanguage, this->GetConfigName());
@@ -224,10 +228,12 @@ void cmMakefileLibraryTargetGenerator::WriteModuleLibraryRules(bool relink)
 
   this->LocalGenerator->AppendModuleDefinitionFlag(
     extraFlags, this->GeneratorTarget, linkLineComputer.get(),
-    this->GetConfigName());
+    this->GetConfigName(), linkLanguage);
 
   this->UseLWYU = this->LocalGenerator->AppendLWYUFlags(
     extraFlags, this->GeneratorTarget, linkLanguage);
+
+  this->GetTargetLinkFlags(extraFlags, linkLanguage);
 
   this->WriteLibraryRules(linkRuleVar, extraFlags, relink);
 }
@@ -240,10 +246,12 @@ void cmMakefileLibraryTargetGenerator::WriteFrameworkRules(bool relink)
     cmStrCat("CMAKE_", linkLanguage, "_CREATE_MACOSX_FRAMEWORK");
 
   std::string extraFlags;
-  this->GetTargetLinkFlags(extraFlags, linkLanguage);
+  this->LocalGenerator->AppendTargetCreationLinkFlags(
+    extraFlags, this->GeneratorTarget, linkLanguage);
   this->LocalGenerator->AddConfigVariableFlags(
     extraFlags, "CMAKE_MACOSX_FRAMEWORK_LINKER_FLAGS", this->GeneratorTarget,
     cmBuildStep::Link, linkLanguage, this->GetConfigName());
+  this->GetTargetLinkFlags(extraFlags, linkLanguage);
 
   this->WriteLibraryRules(linkRuleVar, extraFlags, relink);
 }
@@ -358,6 +366,12 @@ void cmMakefileLibraryTargetGenerator::WriteNvidiaDeviceLibraryRules(
       this->LocalGenerator->MaybeRelativeToCurBinDir(objectDir),
       cmOutputConverter::SHELL);
 
+    std::string targetSupportDir =
+      this->GeneratorTarget->GetCMFSupportDirectory();
+    targetSupportDir = this->LocalGenerator->ConvertToOutputFormat(
+      this->LocalGenerator->MaybeRelativeToTopBinDir(targetSupportDir),
+      cmOutputConverter::SHELL);
+
     std::string target = this->LocalGenerator->ConvertToOutputFormat(
       this->LocalGenerator->MaybeRelativeToCurBinDir(targetOutput),
       cmOutputConverter::SHELL);
@@ -370,6 +384,7 @@ void cmMakefileLibraryTargetGenerator::WriteNvidiaDeviceLibraryRules(
 
     vars.Objects = buildObjs.c_str();
     vars.ObjectDir = objectDir.c_str();
+    vars.TargetSupportDir = targetSupportDir.c_str();
     vars.Target = target.c_str();
     vars.LinkLibraries = linkLibs.c_str();
     vars.ObjectsQuoted = buildObjs.c_str();
@@ -386,8 +401,7 @@ void cmMakefileLibraryTargetGenerator::WriteNvidiaDeviceLibraryRules(
     }
 
     auto rulePlaceholderExpander =
-      this->LocalGenerator->CreateRulePlaceholderExpander(
-        cmBuildStep::Link, this->GeneratorTarget, linkLanguage);
+      this->LocalGenerator->CreateRulePlaceholderExpander(cmBuildStep::Link);
 
     // Construct the main link rule and expand placeholders.
     rulePlaceholderExpander->SetTargetImpLib(targetOutput);
@@ -712,8 +726,7 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
 
   // Expand the rule variables.
   auto rulePlaceholderExpander =
-    this->LocalGenerator->CreateRulePlaceholderExpander(
-      cmBuildStep::Link, this->GeneratorTarget, linkLanguage);
+    this->LocalGenerator->CreateRulePlaceholderExpander(cmBuildStep::Link);
   bool useWatcomQuote =
     this->Makefile->IsOn(linkRuleVar + "_USE_WATCOM_QUOTE");
   cmList real_link_commands;
@@ -781,8 +794,6 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
     vars.CMTargetName = this->GeneratorTarget->GetName().c_str();
     vars.CMTargetType =
       cmState::GetTargetTypeName(this->GeneratorTarget->GetType()).c_str();
-    vars.CMTargetLabels =
-      this->GeneratorTarget->GetTargetLabelsString().c_str();
     vars.Language = linkLanguage.c_str();
     vars.Linker = linker.c_str();
     vars.AIXExports = aixExports.c_str();
@@ -794,6 +805,14 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules(
       cmOutputConverter::SHELL);
 
     vars.ObjectDir = objectDir.c_str();
+    std::string targetSupportDir =
+      this->GeneratorTarget->GetCMFSupportDirectory();
+
+    targetSupportDir = this->LocalGenerator->ConvertToOutputFormat(
+      this->LocalGenerator->MaybeRelativeToTopBinDir(targetSupportDir),
+      cmOutputConverter::SHELL);
+
+    vars.TargetSupportDir = targetSupportDir.c_str();
     std::string target = this->LocalGenerator->ConvertToOutputFormat(
       this->LocalGenerator->MaybeRelativeToCurBinDir(targetFullPathReal),
       cmOutputConverter::SHELL, useWatcomQuote);

@@ -117,6 +117,9 @@ bool cmExportFileGenerator::PopulateInterfaceProperties(
   this->PopulateInterfaceProperty("INTERFACE_POSITION_INDEPENDENT_CODE",
                                   target, properties);
 
+  this->PopulateInterfaceProperty("SPDX_LICENSE", target, preprocessRule,
+                                  properties);
+
   std::string errorMessage;
   if (!this->PopulateCxxModuleExportProperties(
         target, properties, preprocessRule, includesDestinationDirs,
@@ -212,7 +215,7 @@ void cmExportFileGenerator::AddImportPrefix(std::string& exportDirs) const
   cmGeneratorExpression::Split(exportDirs, entries);
   exportDirs.clear();
   char const* sep = "";
-  cm::string_view const& prefixWithSlash = this->GetImportPrefixWithSlash();
+  cm::string_view const prefixWithSlash = this->GetImportPrefixWithSlash();
   for (std::string const& e : entries) {
     exportDirs += sep;
     sep = ";";

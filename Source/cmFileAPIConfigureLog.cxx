@@ -13,17 +13,17 @@ namespace {
 class ConfigureLog
 {
   cmFileAPI& FileAPI;
-  unsigned long Version;
+  unsigned int Version;
 
   Json::Value DumpPath();
   Json::Value DumpEventKindNames();
 
 public:
-  ConfigureLog(cmFileAPI& fileAPI, unsigned long version);
+  ConfigureLog(cmFileAPI& fileAPI, unsigned int version);
   Json::Value Dump();
 };
 
-ConfigureLog::ConfigureLog(cmFileAPI& fileAPI, unsigned long version)
+ConfigureLog::ConfigureLog(cmFileAPI& fileAPI, unsigned int version)
   : FileAPI(fileAPI)
   , Version(version)
 {
@@ -52,17 +52,17 @@ Json::Value ConfigureLog::DumpEventKindNames()
   // major version of the configureLog object kind is needed.
   Json::Value eventKindNames = Json::arrayValue;
   if (this->Version == 1) {
-    eventKindNames.append("message-v1");     // WriteMessageEvent
-    eventKindNames.append("try_compile-v1"); // WriteTryCompileEvent
-    eventKindNames.append("try_run-v1");     // WriteTryRunEvent
-    eventKindNames.append("find-v1");        // WriteFindBaseEvent
+    eventKindNames.append("message-v1");      // WriteMessageEvent
+    eventKindNames.append("try_compile-v1");  // WriteTryCompileEvent
+    eventKindNames.append("try_run-v1");      // WriteTryRunEvent
+    eventKindNames.append("find-v1");         // WriteFindBaseEvent
+    eventKindNames.append("find_package-v1"); // WriteFindPackageEvent
   }
   return eventKindNames;
 }
 }
 
-Json::Value cmFileAPIConfigureLogDump(cmFileAPI& fileAPI,
-                                      unsigned long version)
+Json::Value cmFileAPIConfigureLogDump(cmFileAPI& fileAPI, unsigned int version)
 {
   ConfigureLog configureLog(fileAPI, version);
   return configureLog.Dump();

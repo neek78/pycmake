@@ -23,6 +23,7 @@
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
 #include "cmFileSet.h"
+#include "cmGenExContext.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorOptions.h"
@@ -165,10 +166,10 @@ void cmMakefileTargetGenerator::GetTargetLinkFlags(
 void cmMakefileTargetGenerator::CreateRuleFile()
 {
   // Create a directory for this target.
-  this->TargetBuildDirectory =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
   this->TargetBuildDirectoryFull =
-    this->LocalGenerator->ConvertToFullPath(this->TargetBuildDirectory);
+    this->GeneratorTarget->GetSupportDirectory();
+  this->TargetBuildDirectory = this->LocalGenerator->MaybeRelativeToCurBinDir(
+    this->TargetBuildDirectoryFull);
   cmSystemTools::MakeDirectory(this->TargetBuildDirectoryFull);
 
   // Construct the rule file name.
@@ -205,6 +206,7 @@ void cmMakefileTargetGenerator::CreateRuleFile()
 
 void cmMakefileTargetGenerator::WriteTargetBuildRules()
 {
+  cm::GenEx::Context context(this->LocalGenerator, this->GetConfigName());
   this->GeneratorTarget->CheckCxxModuleStatus(this->GetConfigName());
 
   // -- Write the custom commands for this target
@@ -362,13 +364,11 @@ void cmMakefileTargetGenerator::WriteTargetBuildRules()
     auto fileEntries = file_set->CompileFileEntries();
     auto directoryEntries = file_set->CompileDirectoryEntries();
     auto directories = file_set->EvaluateDirectoryEntries(
-      directoryEntries, this->LocalGenerator, this->GetConfigName(),
-      this->GeneratorTarget);
+      directoryEntries, context, this->GeneratorTarget);
 
     std::map<std::string, std::vector<std::string>> files;
     for (auto const& entry : fileEntries) {
-      file_set->EvaluateFileEntry(directories, files, entry,
-                                  this->LocalGenerator, this->GetConfigName(),
+      file_set->EvaluateFileEntry(directories, files, entry, context,
                                   this->GeneratorTarget);
     }
 
@@ -655,8 +655,7 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   std::string const& objectName =
     this->GeneratorTarget->GetObjectName(&source);
   std::string const obj =
-    cmStrCat(this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget),
-             '/', objectName);
+    cmStrCat(this->TargetBuildDirectory, '/', objectName);
 
   // Avoid generating duplicate rules.
   if (this->ObjectFiles.find(obj) == this->ObjectFiles.end()) {
@@ -753,7 +752,7 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
 
   // Add language-specific flags.
   std::string const langFlags =
-    cmStrCat("$(", lang, "_FLAGS", filterArch, ")");
+    cmStrCat("$(", lang, "_FLAGS", filterArch, ')');
   this->LocalGenerator->AppendFlags(flags, langFlags);
 
   cmGeneratorExpressionInterpreter genexInterpreter(
@@ -933,7 +932,6 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
   vars.CMTargetName = this->GeneratorTarget->GetName().c_str();
   vars.CMTargetType =
     cmState::GetTargetTypeName(this->GeneratorTarget->GetType()).c_str();
-  vars.CMTargetLabels = this->GeneratorTarget->GetTargetLabelsString().c_str();
   vars.Language = lang.c_str();
   vars.Target = targetOutPathReal.c_str();
   vars.TargetPDB = targetOutPathPDB.c_str();
@@ -947,6 +945,12 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
     this->LocalGenerator->MaybeRelativeToCurBinDir(objectDir),
     cmOutputConverter::SHELL);
   vars.ObjectDir = objectDir.c_str();
+  std::string targetSupportDir =
+    this->GeneratorTarget->GetCMFSupportDirectory();
+  targetSupportDir = this->LocalGenerator->ConvertToOutputFormat(
+    this->LocalGenerator->MaybeRelativeToTopBinDir(targetSupportDir),
+    cmOutputConverter::SHELL);
+  vars.TargetSupportDir = targetSupportDir.c_str();
   std::string objectFileDir = cmSystemTools::GetFilenamePath(obj);
   objectFileDir = this->LocalGenerator->ConvertToOutputFormat(
     this->LocalGenerator->MaybeRelativeToCurBinDir(objectFileDir),
@@ -1008,7 +1012,7 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
             "CUDA_SEPARABLE_COMPILATION")) {
         std::string const& rdcFlag =
           this->Makefile->GetRequiredDefinition("_CMAKE_CUDA_RDC_FLAG");
-        cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, " ");
+        cudaCompileMode = cmStrCat(cudaCompileMode, rdcFlag, ' ');
       }
 
       static std::array<cm::string_view, 4> const compileModes{
@@ -1086,8 +1090,12 @@ void cmMakefileTargetGenerator::WriteObjectRuleFiles(
       compilerLauncher = GetCompilerLauncher(lang, config);
     }
 
-    cmValue const skipCodeCheck = source.GetProperty("SKIP_LINTING");
-    if (!skipCodeCheck.IsOn()) {
+    cmValue const srcSkipCodeCheckVal = source.GetProperty("SKIP_LINTING");
+    bool const skipCodeCheck = srcSkipCodeCheckVal.IsSet()
+      ? srcSkipCodeCheckVal.IsOn()
+      : this->GetGeneratorTarget()->GetPropertyAsBool("SKIP_LINTING");
+
+    if (!skipCodeCheck) {
       std::string const codeCheck = this->GenerateCodeCheckRules(
         source, compilerLauncher, "$(CMAKE_COMMAND)", config, nullptr);
       if (!codeCheck.empty()) {
@@ -1419,26 +1427,28 @@ std::string cmMakefileTargetGenerator::GetClangTidyReplacementsFilePath(
 {
   (void)config;
   auto const& objectName = this->GeneratorTarget->GetObjectName(&source);
-  auto fixesFile = cmSystemTools::CollapseFullPath(cmStrCat(
-    directory, '/',
-    this->GeneratorTarget->GetLocalGenerator()->MaybeRelativeToTopBinDir(
-      cmStrCat(this->GeneratorTarget->GetLocalGenerator()
-                 ->GetCurrentBinaryDirectory(),
-               '/',
-               this->GeneratorTarget->GetLocalGenerator()->GetTargetDirectory(
-                 this->GeneratorTarget),
-               '/', objectName, ".yaml"))));
+  // NOTE: This may be better to use `this->TargetBuildDirectory` instead of
+  // `MaybeRelativeToTopBinDir(this->TargetBuildDirectoryFull)` here. The main
+  // difference is that the current behavior looks odd to relative
+  // `<LANG>_CLANG_TIDY_EXPORT_FIXES_DIR` settings. Each subdirectory has its
+  // own export fixes directory *and* adds its relative-from-root path
+  // underneath it. However, when using an absolute export fixes directory, the
+  // source directory structure is preserved. The main benefit of the former is
+  // shorter paths everywhere versus the status quo of the existing code.
+  cmLocalGenerator* lg = this->GeneratorTarget->GetLocalGenerator();
+  auto fixesFile = cmSystemTools::CollapseFullPath(
+    cmStrCat(directory, '/',
+             lg->CreateSafeObjectFileName(
+               lg->MaybeRelativeToTopBinDir(this->TargetBuildDirectoryFull)),
+             '/', objectName, ".yaml"));
   return fixesFile;
 }
 
 void cmMakefileTargetGenerator::WriteTargetDependRules()
 {
   // must write the targets depend info file
-  std::string dir =
-    this->LocalGenerator->GetTargetDirectory(this->GeneratorTarget);
-  this->InfoFileNameFull = cmStrCat(dir, "/DependInfo.cmake");
   this->InfoFileNameFull =
-    this->LocalGenerator->ConvertToFullPath(this->InfoFileNameFull);
+    cmStrCat(this->TargetBuildDirectoryFull, "/DependInfo.cmake");
   this->InfoFileStream =
     cm::make_unique<cmGeneratedFileStream>(this->InfoFileNameFull);
   if (!this->InfoFileStream) {
@@ -1541,6 +1551,7 @@ void cmMakefileTargetGenerator::WriteTargetDependRules()
   //                          <home-src-dir> <start-src-dir>
   //                          <home-out-dir> <start-out-dir>
   //                          <dep-info> --color=$(COLOR)
+  //                          <target-name>
   //
   // This gives the dependency scanner enough information to recreate
   // the state of our local generator sufficiently for its needs.
@@ -1567,6 +1578,9 @@ void cmMakefileTargetGenerator::WriteTargetDependRules()
   if (this->LocalGenerator->GetColorMakefile()) {
     depCmd << " \"--color=$(COLOR)\"";
   }
+  depCmd << ' '
+         << this->LocalGenerator->ConvertToOutputFormat(
+              this->GeneratorTarget->GetName(), cmOutputConverter::SHELL);
   commands.push_back(depCmd.str());
 
   // Make sure all custom command outputs in this target are built.
@@ -1698,7 +1712,6 @@ void cmMakefileTargetGenerator::WriteDeviceLinkRule(
   vars.CMTargetName = this->GetGeneratorTarget()->GetName().c_str();
   vars.CMTargetType =
     cmState::GetTargetTypeName(this->GetGeneratorTarget()->GetType()).c_str();
-  vars.CMTargetLabels = this->GeneratorTarget->GetTargetLabelsString().c_str();
   vars.Language = "CUDA";
   vars.Object = output.c_str();
   vars.Fatbinary = fatbinaryOutput.c_str();
@@ -1713,8 +1726,8 @@ void cmMakefileTargetGenerator::WriteDeviceLinkRule(
   vars.Flags = flags.c_str();
 
   std::string compileCmd = this->GetLinkRule("CMAKE_CUDA_DEVICE_LINK_COMPILE");
-  auto rulePlaceholderExpander = localGen->CreateRulePlaceholderExpander(
-    cmBuildStep::Link, this->GetGeneratorTarget(), "CUDA");
+  auto rulePlaceholderExpander =
+    localGen->CreateRulePlaceholderExpander(cmBuildStep::Link);
   rulePlaceholderExpander->ExpandRuleVariables(localGen, compileCmd, vars);
 
   commands.emplace_back(compileCmd);

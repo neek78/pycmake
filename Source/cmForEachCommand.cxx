@@ -100,6 +100,9 @@ bool cmForEachFunctionBlocker::ArgumentsMatch(cmListFileFunction const& lff,
 bool cmForEachFunctionBlocker::Replay(
   std::vector<cmListFileFunction> functions, cmExecutionStatus& inStatus)
 {
+  if (this->Args.size() == this->IterationVarsCount) {
+    return true;
+  }
   return this->ZipLists ? this->ReplayZipLists(functions, inStatus)
                         : this->ReplayItems(functions, inStatus);
 }
@@ -357,7 +360,7 @@ bool HandleInMode(std::vector<std::string> const& args,
 
     } else {
       makefile.IssueMessage(MessageType::FATAL_ERROR,
-                            cmStrCat("Unknown argument:\n", "  ", arg, '\n'));
+                            cmStrCat("Unknown argument:\n  ", arg, '\n'));
       return true;
     }
   }

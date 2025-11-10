@@ -44,6 +44,12 @@ public:
   cmStateSnapshot GetCallStackBottom() const;
   cmStateEnums::SnapshotType GetType() const;
 
+  cmStateEnums::SnapshotUnwindType GetUnwindType() const;
+  void SetUnwindType(cmStateEnums::SnapshotUnwindType type);
+
+  cmStateEnums::SnapshotUnwindState GetUnwindState() const;
+  void SetUnwindState(cmStateEnums::SnapshotUnwindState state);
+
   void SetPolicy(cmPolicies::PolicyID id, cmPolicies::PolicyStatus status);
   cmPolicies::PolicyStatus GetPolicy(cmPolicies::PolicyID id,
                                      bool parent_scope = false) const;
@@ -57,6 +63,7 @@ public:
 
   void SetProjectName(std::string const& name);
   std::string GetProjectName() const;
+  bool CheckProjectName(std::string const& name) const;
 
   cmPackageState& GetPackageState(std::string const& packagePath);
 

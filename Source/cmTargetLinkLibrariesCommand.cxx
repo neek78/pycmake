@@ -102,6 +102,11 @@ bool cmTargetLinkLibrariesCommand(std::vector<std::string> const& args,
     return true;
   }
 
+  if (target->IsSymbolic()) {
+    status.SetError("can not be used on a SYMBOLIC target.");
+    return false;
+  }
+
   // Having a UTILITY library on the LHS is a bug.
   if (target->GetType() == cmStateEnums::UTILITY) {
     mf.IssueMessage(
@@ -429,7 +434,7 @@ bool TLL::HandleLibrary(ProcessingState currentProcessingState,
           "Target \"", lib, "\" of type ",
           cmState::GetTargetTypeName(tgt->GetType()),
           " may not be linked into another target. One may link only to "
-          "INTERFACE, OBJECT, STATIC or SHARED libraries, or to ",
+          "INTERFACE, OBJECT, STATIC or SHARED libraries, or to "
           "executables with the ENABLE_EXPORTS property set."));
     }
 

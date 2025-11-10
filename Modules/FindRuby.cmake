@@ -5,64 +5,56 @@
 FindRuby
 --------
 
-This module determines if Ruby is installed and finds the locations of its
-include files and libraries. Ruby 1.8 through 3.4 are supported.
-
-The minimum required version of Ruby can be specified using the
-standard syntax, e.g.
+Finds Ruby installation and the locations of its include files and libraries:
 
 .. code-block:: cmake
 
-  find_package(Ruby 3.2.6 EXACT REQUIRED)
-  # OR
-  find_package(Ruby 3.2)
+  find_package(Ruby [<version>] [...])
 
-Virtual environments, such as RVM or RBENV, are supported.
+Ruby is a general-purpose programming language.  This module supports Ruby
+1.8 through 3.4.  Virtual environments, such as RVM or RBENV, are also
+supported.
 
 Result Variables
 ^^^^^^^^^^^^^^^^
 
-This module will set the following variables in your project:
+This module defines the following variables:
 
 ``Ruby_FOUND``
-  set to true if ruby was found successfully
-``Ruby_EXECUTABLE``
-  full path to the ruby binary
-``Ruby_INCLUDE_DIRS``
-  include dirs to be used when using the ruby library
-``Ruby_LIBRARIES``
-  .. versionadded:: 3.18
-    libraries needed to use ruby from C.
+  .. versionadded:: 3.3
+
+  Boolean indicating whether (the requested version of) ruby was found.
+
 ``Ruby_VERSION``
-  the version of ruby which was found, e.g. "3.2.6"
+  The version of ruby which was found, e.g. ``3.2.6``.
+
 ``Ruby_VERSION_MAJOR``
   Ruby major version.
+
 ``Ruby_VERSION_MINOR``
   Ruby minor version.
+
 ``Ruby_VERSION_PATCH``
   Ruby patch version.
+
+``Ruby_EXECUTABLE``
+  The full path to the ruby binary.
+
+``Ruby_INCLUDE_DIRS``
+  Include dirs to be used when using the ruby library.
+
+``Ruby_LIBRARIES``
+  .. versionadded:: 3.18
+
+  Libraries needed to use ruby from C.
 
 .. versionchanged:: 3.18
   Previous versions of CMake used the ``RUBY_`` prefix for all variables.
 
-.. deprecated:: 4.0
-  The following variables are deprecated.  See policy :policy:`CMP0185`.
-
-  ``RUBY_EXECUTABLE``
-    same as ``Ruby_EXECUTABLE``.
-  ``RUBY_INCLUDE_DIRS``
-    same as ``Ruby_INCLUDE_DIRS``.
-  ``RUBY_INCLUDE_PATH``
-    same as ``Ruby_INCLUDE_DIRS``.
-  ``RUBY_LIBRARY``
-    same as ``Ruby_LIBRARY``.
-  ``RUBY_VERSION``
-    same as ``Ruby_VERSION``.
-  ``RUBY_FOUND``
-    same as ``Ruby_FOUND``.
-
 Hints
 ^^^^^
+
+This module accepts the following variables:
 
 ``Ruby_FIND_VIRTUALENV``
   .. versionadded:: 3.18
@@ -84,6 +76,38 @@ Hints
   ``rbenv``
     Requires that ``rbenv`` is installed in ``~/.rbenv/bin``
     or that the ``RBENV_ROOT`` environment variable is defined.
+
+Deprecated Variables
+^^^^^^^^^^^^^^^^^^^^
+
+The following variables are provided for backward compatibility:
+
+.. deprecated:: 4.0
+  The following variables are deprecated.  See policy :policy:`CMP0185`.
+
+  ``RUBY_FOUND``
+    Same as ``Ruby_FOUND``.
+  ``RUBY_VERSION``
+    Same as ``Ruby_VERSION``.
+  ``RUBY_EXECUTABLE``
+    Same as ``Ruby_EXECUTABLE``.
+  ``RUBY_INCLUDE_DIRS``
+    Same as ``Ruby_INCLUDE_DIRS``.
+  ``RUBY_INCLUDE_PATH``
+    Same as ``Ruby_INCLUDE_DIRS``.
+  ``RUBY_LIBRARY``
+    Same as ``Ruby_LIBRARY``.
+
+Examples
+^^^^^^^^
+
+Finding Ruby and specifying the minimum required version:
+
+.. code-block:: cmake
+
+  find_package(Ruby 3.2.6 EXACT REQUIRED)
+  # or
+  find_package(Ruby 3.2)
 #]=======================================================================]
 
 cmake_policy(GET CMP0185 _Ruby_CMP0185)
@@ -354,10 +378,10 @@ endif ()
 
 if (Ruby_VERSION_MAJOR)
   set(Ruby_VERSION "${Ruby_VERSION_MAJOR}.${Ruby_VERSION_MINOR}.${Ruby_VERSION_PATCH}")
+  set(_Ruby_VERSION_NODOT "${Ruby_VERSION_MAJOR}${Ruby_VERSION_MINOR}${Ruby_VERSION_PATCH}")
+  set(_Ruby_VERSION_NODOT_ZERO_PATCH "${Ruby_VERSION_MAJOR}${Ruby_VERSION_MINOR}0")
   set(_Ruby_VERSION_SHORT "${Ruby_VERSION_MAJOR}.${Ruby_VERSION_MINOR}")
   set(_Ruby_VERSION_SHORT_NODOT "${Ruby_VERSION_MAJOR}${Ruby_VERSION_MINOR}")
-  set(_Ruby_NODOT_VERSION "${Ruby_VERSION_MAJOR}${Ruby_VERSION_MINOR}${Ruby_VERSION_PATCH}")
-  set(_Ruby_NODOT_VERSION_ZERO_PATCH "${Ruby_VERSION_MAJOR}${Ruby_VERSION_MINOR}0")
 endif ()
 
 # FIXME: Currently we require both the interpreter and development components to be found
@@ -385,31 +409,34 @@ if (Ruby_FIND_VERSION VERSION_GREATER_EQUAL "1.9" OR Ruby_VERSION VERSION_GREATE
   set(Ruby_INCLUDE_DIRS ${Ruby_INCLUDE_DIRS} ${Ruby_CONFIG_INCLUDE_DIR})
 endif ()
 
-# Determine the list of possible names for the Ruby shared library
-set(_Ruby_POSSIBLE_LIB_NAMES ruby ruby-static ruby${_Ruby_VERSION_SHORT} ruby${_Ruby_VERSION_SHORT_NODOT} ruby${_Ruby_NODOT_VERSION} ruby-${_Ruby_VERSION_SHORT} ruby-${Ruby_VERSION})
+# Determine the list of possible names for the ruby library
+set(_Ruby_POSSIBLE_LIB_NAMES
+  ruby
+  ruby-static
+  ruby-${Ruby_VERSION}
+  ruby${_Ruby_VERSION_NODOT}
+  ruby${_Ruby_VERSION_NODOT_ZERO_PATCH}
+  ruby-${_Ruby_VERSION_SHORT}
+  ruby${_Ruby_VERSION_SHORT}
+  ruby${_Ruby_VERSION_SHORT_NODOT}
+)
 
 if (WIN32)
-  set(_Ruby_POSSIBLE_MSVC_RUNTIMES "ucrt;msvcrt;vcruntime140;vcruntime140_1")
-  if (MSVC_TOOLSET_VERSION)
-    list(APPEND _Ruby_POSSIBLE_MSVC_RUNTIMES "msvcr${MSVC_TOOLSET_VERSION}")
-  else ()
-    list(APPEND _Ruby_POSSIBLE_MSVC_RUNTIMES "msvcr")
-  endif ()
-
-  set(_Ruby_POSSIBLE_VERSION_SUFFICES "${_Ruby_NODOT_VERSION};${_Ruby_NODOT_VERSION_ZERO_PATCH}")
+  set(_Ruby_POSSIBLE_RUNTIMES "ucrt;msvcrt;vcruntime140;vcruntime140_1;vcruntime${MSVC_TOOLSET_VERSION}")
+  set(_Ruby_POSSIBLE_VERSION_SUFFIXES "${_Ruby_VERSION_NODOT};${_Ruby_VERSION_NODOT_ZERO_PATCH}")
 
   if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(_Ruby_POSSIBLE_ARCH_PREFIXS "libx64-;x64-")
+    set(_Ruby_POSSIBLE_ARCH_PREFIXES "libx64-;x64-")
   else ()
-    set(_Ruby_POSSIBLE_ARCH_PREFIXS "lib")
+    set(_Ruby_POSSIBLE_ARCH_PREFIXES "lib")
   endif ()
 
-  foreach (_Ruby_MSVC_RUNTIME ${_Ruby_POSSIBLE_MSVC_RUNTIMES})
-    foreach (_Ruby_VERSION_SUFFIX ${_Ruby_POSSIBLE_VERSION_SUFFICES})
-      foreach (_Ruby_ARCH_PREFIX ${_Ruby_POSSIBLE_ARCH_PREFIXS})
+  foreach (_Ruby_RUNTIME ${_Ruby_POSSIBLE_RUNTIMES})
+    foreach (_Ruby_VERSION_SUFFIX ${_Ruby_POSSIBLE_VERSION_SUFFIXES})
+      foreach (_Ruby_ARCH_PREFIX ${_Ruby_POSSIBLE_ARCH_PREFIXES})
         list(APPEND _Ruby_POSSIBLE_LIB_NAMES
-             "${_Ruby_ARCH_PREFIX}${_Ruby_MSVC_RUNTIME}-ruby${_Ruby_VERSION_SUFFIX}"
-             "${_Ruby_ARCH_PREFIX}${_Ruby_MSVC_RUNTIME}-ruby${_Ruby_VERSION_SUFFIX}-static")
+             "${_Ruby_ARCH_PREFIX}${_Ruby_RUNTIME}-ruby${_Ruby_VERSION_SUFFIX}"
+             "${_Ruby_ARCH_PREFIX}${_Ruby_RUNTIME}-ruby${_Ruby_VERSION_SUFFIX}-static")
       endforeach ()
     endforeach ()
   endforeach ()

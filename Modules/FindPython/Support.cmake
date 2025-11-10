@@ -24,7 +24,7 @@ if (NOT DEFINED _${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR)
   message (FATAL_ERROR "FindPython: INTERNAL ERROR")
 endif()
 if (_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR EQUAL "3")
-  set(_${_PYTHON_PREFIX}_VERSIONS 3.14 3.13 3.12 3.11 3.10 3.9 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0)
+  set(_${_PYTHON_PREFIX}_VERSIONS 3.15 3.14 3.13 3.12 3.11 3.10 3.9 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0)
 elseif (_${_PYTHON_PREFIX}_REQUIRED_VERSION_MAJOR EQUAL "2")
   set(_${_PYTHON_PREFIX}_VERSIONS 2.7 2.6 2.5 2.4 2.3 2.2 2.1 2.0)
 else()
@@ -537,6 +537,13 @@ function (_PYTHON_GET_CONFIG_VAR _PYTHON_PGCV_VALUE NAME)
     return()
   endif()
 
+  if (NAME STREQUAL "POSTFIX")
+    if (WIN32 AND _${_PYTHON_PREFIX}_LIBRARY_DEBUG MATCHES "_d${CMAKE_IMPORT_LIBRARY_SUFFIX}$")
+      set (${_PYTHON_PGCV_VALUE} "_d" PARENT_SCOPE)
+    endif()
+    return()
+  endif()
+
   if (NAME STREQUAL "SOSABI")
     # assume some default
     if (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR CMAKE_SYSTEM_NAME MATCHES "MSYS|CYGWIN")
@@ -667,23 +674,17 @@ function (_PYTHON_GET_CONFIG_VAR _PYTHON_PGCV_VALUE NAME)
       else()
         string (REGEX REPLACE "^\\.(.+)\\.[^.]+$" "\\1" _values "${_values}")
       endif()
-    elseif (NAME STREQUAL "POSTFIX")
-      if (WIN32 AND _${_PYTHON_PREFIX}_LIBRARY_DEBUG MATCHES "_d${CMAKE_IMPORT_LIBRARY_SUFFIX}$")
-        set (_values "_d")
-      endif()
     elseif (NAME STREQUAL "ABIFLAGS" AND WIN32)
-      # config var ABIFLAGS does not exist, check GIL specific variable
+      # config var ABIFLAGS does not exist for version < 3.14, check GIL specific variable
       execute_process (COMMAND ${_${_PYTHON_PREFIX}_INTERPRETER_LAUNCHER} "${_${_PYTHON_PREFIX}_EXECUTABLE}" -c
-                               "import sys; import sysconfig; sys.stdout.write(str(sysconfig.get_config_var('Py_GIL_DISABLED')))"
+                               "import sys\nimport sysconfig\ntry:\n   sys.stdout.write(sysconfig.get_config_var('ABIFLAGS'))\nexcept Exception:\n   sys.stdout.write('t' if sysconfig.get_config_var('Py_GIL_DISABLED') == 1 else '<none>')"
                      RESULT_VARIABLE _result
                      OUTPUT_VARIABLE _values
                      ERROR_QUIET
                      OUTPUT_STRIP_TRAILING_WHITESPACE)
-      if (result OR NOT _values EQUAL "1")
+      if (_result OR NOT _values)
         # assume ABI is not supported or GIL is set
         set (_values "<none>")
-      else()
-        set (_values "t")
       endif()
     else()
       set (config_flag "${NAME}")
@@ -1477,12 +1478,16 @@ endif()
 
 
 # handle components
+cmake_policy (GET CMP0201 _${_PYTHON_PREFIX}_NUMPY_POLICY)
 if (NOT ${_PYTHON_BASE}_FIND_COMPONENTS)
   set (${_PYTHON_BASE}_FIND_COMPONENTS Interpreter)
   set (${_PYTHON_BASE}_FIND_REQUIRED_Interpreter TRUE)
 endif()
 if ("NumPy" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS)
-  list (APPEND ${_PYTHON_BASE}_FIND_COMPONENTS "Interpreter" "Development.Module")
+  list (APPEND ${_PYTHON_BASE}_FIND_COMPONENTS "Interpreter")
+  if(NOT _${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW")
+    list (APPEND ${_PYTHON_BASE}_FIND_COMPONENTS "Development.Module")
+  endif()
 endif()
 if ("Development" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS)
   list (APPEND ${_PYTHON_BASE}_FIND_COMPONENTS "Development.Module" "Development.Embed")
@@ -1517,13 +1522,13 @@ unset (_${_PYTHON_PREFIX}_FIND_DEVELOPMENT_MODULE_ARTIFACTS)
 unset (_${_PYTHON_PREFIX}_FIND_DEVELOPMENT_SABIMODULE_ARTIFACTS)
 unset (_${_PYTHON_PREFIX}_FIND_DEVELOPMENT_EMBED_ARTIFACTS)
 if ("Development.Module" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS)
-  if (CMAKE_SYSTEM_NAME MATCHES "^(Windows.*|CYGWIN|MSYS)$")
+  if (CMAKE_SYSTEM_NAME MATCHES "^(Windows.*|CYGWIN|MSYS|Android|AIX)$")
     list (APPEND _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_MODULE_ARTIFACTS "LIBRARY")
   endif()
   list (APPEND _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_MODULE_ARTIFACTS "INCLUDE_DIR")
 endif()
 if ("Development.SABIModule" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS)
-  if (CMAKE_SYSTEM_NAME MATCHES "^(Windows.*|CYGWIN|MSYS)$")
+  if (CMAKE_SYSTEM_NAME MATCHES "^(Windows.*|CYGWIN|MSYS|Android)$")
     list (APPEND _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_SABIMODULE_ARTIFACTS "SABI_LIBRARY")
   endif()
   list (APPEND _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_SABIMODULE_ARTIFACTS "INCLUDE_DIR")
@@ -2999,8 +3004,8 @@ if (("Development.Module" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS
                            OUTPUT_VARIABLE __${_PYTHON_PREFIX}_ABIFLAGS
                            ERROR_QUIET
                            OUTPUT_STRIP_TRAILING_WHITESPACE)
-          if (_${_PYTHON_PREFIX}_RESULT)
-            # assume ABI is not supported
+          if (_${_PYTHON_PREFIX}_RESULT OR NOT __${_PYTHON_PREFIX}_ABIFLAGS )
+            # assume ABI is not supported or not used
             set (__${_PYTHON_PREFIX}_ABIFLAGS "<none>")
           endif()
           if (DEFINED _${_PYTHON_PREFIX}_FIND_ABI AND NOT __${_PYTHON_PREFIX}_ABIFLAGS IN_LIST _${_PYTHON_PREFIX}_ABIFLAGS)
@@ -3945,12 +3950,19 @@ if (("Development.Module" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS
       _python_set_development_module_found (SABIModule)
       _python_set_development_module_found (Embed)
     endif()
-    if (DEFINED _${_PYTHON_PREFIX}_FIND_ABI AND
-        (NOT _${_PYTHON_PREFIX}_ABI IN_LIST _${_PYTHON_PREFIX}_ABIFLAGS
-          OR (NOT WIN32 AND NOT _${_PYTHON_PREFIX}_INC_ABI IN_LIST _${_PYTHON_PREFIX}_ABIFLAGS)))
-      set (${_PYTHON_PREFIX}_Development.Module_FOUND FALSE)
-      set (${_PYTHON_PREFIX}_Development.SABIModule_FOUND FALSE)
-      set (${_PYTHON_PREFIX}_Development.Embed_FOUND FALSE)
+    if (DEFINED _${_PYTHON_PREFIX}_FIND_ABI)
+      if ((_${_PYTHON_PREFIX}_LIBRARY_RELEASE OR _${_PYTHON_PREFIX}_SABI_LIBRARY_RELEASE)
+          AND NOT _${_PYTHON_PREFIX}_ABI IN_LIST _${_PYTHON_PREFIX}_ABIFLAGS)
+        set (${_PYTHON_PREFIX}_Development.Module_FOUND FALSE)
+        set (${_PYTHON_PREFIX}_Development.SABIModule_FOUND FALSE)
+        set (${_PYTHON_PREFIX}_Development.Embed_FOUND FALSE)
+      endif()
+      if (_${_PYTHON_PREFIX}_INCLUDE_DIR AND
+          NOT WIN32 AND NOT _${_PYTHON_PREFIX}_INC_ABI IN_LIST _${_PYTHON_PREFIX}_ABIFLAGS)
+        set (${_PYTHON_PREFIX}_Development.Module_FOUND FALSE)
+        set (${_PYTHON_PREFIX}_Development.SABIModule_FOUND FALSE)
+        set (${_PYTHON_PREFIX}_Development.Embed_FOUND FALSE)
+      endif()
     endif()
   endif()
 
@@ -4052,7 +4064,12 @@ if ("NumPy" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_Interp
     set (_${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR "${${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR}" CACHE INTERNAL "")
   elseif (DEFINED _${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR)
     # compute numpy signature. Depends on interpreter and development signatures
-    string (MD5 __${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${_${_PYTHON_PREFIX}_INTERPRETER_SIGNATURE}:${_${_PYTHON_PREFIX}_DEVELOPMENT_MODULE_SIGNATURE}:${_${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR}")
+    set(__${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${_${_PYTHON_PREFIX}_INTERPRETER_SIGNATURE}")
+    if(NOT _${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW")
+      string(APPEND __${_PYTHON_PREFIX}_NUMPY_SIGNATURE ":${_${_PYTHON_PREFIX}_DEVELOPMENT_MODULE_SIGNATURE}")
+    endif()
+    string(APPEND __${_PYTHON_PREFIX}_NUMPY_SIGNATURE ":${_${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR}")
+    string (MD5 __${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${__${_PYTHON_PREFIX}_NUMPY_SIGNATURE}")
     if (NOT __${_PYTHON_PREFIX}_NUMPY_SIGNATURE STREQUAL _${_PYTHON_PREFIX}_NUMPY_SIGNATURE
         OR NOT EXISTS "${_${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR}")
       unset (_${_PYTHON_PREFIX}_NumPy_INCLUDE_DIR CACHE)
@@ -4103,8 +4120,12 @@ if ("NumPy" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_Interp
       unset (${_PYTHON_PREFIX}_NumPy_VERSION)
     endif()
 
-    # final step: set NumPy founded only if Development.Module component is founded as well
-    set(${_PYTHON_PREFIX}_NumPy_FOUND ${${_PYTHON_PREFIX}_Development.Module_FOUND})
+    if(NOT _${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW")
+      # final step: set NumPy founded only if Development.Module component is founded as well
+      set(${_PYTHON_PREFIX}_NumPy_FOUND ${${_PYTHON_PREFIX}_Development.Module_FOUND})
+    else()
+      set (${_PYTHON_PREFIX}_NumPy_FOUND TRUE)
+    endif()
   else()
     set (${_PYTHON_PREFIX}_NumPy_FOUND FALSE)
   endif()
@@ -4119,7 +4140,12 @@ if ("NumPy" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_Interp
     unset (_${_PYTHON_PREFIX}_NumPy_REASON_FAILURE CACHE)
 
     # compute and save numpy signature
-    string (MD5 __${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${_${_PYTHON_PREFIX}_INTERPRETER_SIGNATURE}:${_${_PYTHON_PREFIX}_DEVELOPMENT_MODULE_SIGNATURE}:${${_PYTHON_PREFIX}_NumPyINCLUDE_DIR}")
+    set (__${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${_${_PYTHON_PREFIX}_INTERPRETER_SIGNATURE}")
+    if(NOT _${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW")
+      string (APPEND __${_PYTHON_PREFIX}_NUMPY_SIGNATURE ":${_${_PYTHON_PREFIX}_DEVELOPMENT_MODULE_SIGNATURE}")
+    endif()
+    string (APPEND __${_PYTHON_PREFIX}_NUMPY_SIGNATURE ":${${_PYTHON_PREFIX}_NumPyINCLUDE_DIR}")
+    string (MD5 __${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${__${_PYTHON_PREFIX}_NUMPY_SIGNATURE}")
     set (_${_PYTHON_PREFIX}_NUMPY_SIGNATURE "${__${_PYTHON_PREFIX}_NUMPY_SIGNATURE}" CACHE INTERNAL "")
   else()
     unset (_${_PYTHON_PREFIX}_NUMPY_SIGNATURE CACHE)
@@ -4235,7 +4261,11 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
         set_property (TARGET ${__name}
                       PROPERTY INTERFACE_COMPILE_DEFINITIONS "${${_PYTHON_PREFIX}_DEFINITIONS}")
       endif()
-
+      if(WIN32)
+        # avoid implicit library link (recognized by version 3.14 and upper)
+        set_property (TARGET ${__name}
+                      APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS "Py_NO_LINK_LIB")
+      endif()
 
       if (${_PYTHON_PREFIX}_${_PREFIX}LIBRARY_RELEASE AND ${_PYTHON_PREFIX}_RUNTIME_${_PREFIX}LIBRARY_RELEASE)
         # System manage shared libraries in two parts: import and runtime
@@ -4297,6 +4327,11 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
         set_property (TARGET ${__name}
                       PROPERTY INTERFACE_COMPILE_DEFINITIONS "${${_PYTHON_PREFIX}_DEFINITIONS}")
       endif()
+      if(WIN32)
+        # avoid implicit library link (recognized by version 3.14 and upper)
+        set_property (TARGET ${__name}
+                      APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS "Py_NO_LINK_LIB")
+      endif()
 
       # When available, enforce shared library generation with undefined symbols
       if (APPLE)
@@ -4319,7 +4354,7 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
 
     if (${_PYTHON_PREFIX}_Development.Module_FOUND)
       if ("LIBRARY" IN_LIST _${_PYTHON_PREFIX}_FIND_DEVELOPMENT_MODULE_ARTIFACTS)
-        # On Windows/CYGWIN/MSYS, Python::Module is the same as Python::Python
+        # On Windows/CYGWIN/MSYS/Android/AIX, Python::Module is the same as Python::Python
         # but ALIAS cannot be used because the imported library is not GLOBAL.
         __python_import_library (${_PYTHON_PREFIX}::Module)
       else()
@@ -4447,11 +4482,14 @@ if(_${_PYTHON_PREFIX}_CMAKE_ROLE STREQUAL "PROJECT")
   endif()
 
   if ("NumPy" IN_LIST ${_PYTHON_BASE}_FIND_COMPONENTS AND ${_PYTHON_PREFIX}_NumPy_FOUND
-      AND NOT TARGET ${_PYTHON_PREFIX}::NumPy AND TARGET ${_PYTHON_PREFIX}::Module)
+      AND NOT TARGET ${_PYTHON_PREFIX}::NumPy AND
+      (_${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW" OR TARGET ${_PYTHON_PREFIX}::Module))
     add_library (${_PYTHON_PREFIX}::NumPy INTERFACE IMPORTED)
     set_property (TARGET ${_PYTHON_PREFIX}::NumPy
                   PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${${_PYTHON_PREFIX}_NumPy_INCLUDE_DIRS}")
-    target_link_libraries (${_PYTHON_PREFIX}::NumPy INTERFACE ${_PYTHON_PREFIX}::Module)
+    if(NOT _${_PYTHON_PREFIX}_NUMPY_POLICY STREQUAL "NEW")
+      target_link_libraries (${_PYTHON_PREFIX}::NumPy INTERFACE ${_PYTHON_PREFIX}::Module)
+    endif()
   endif()
 endif()
 

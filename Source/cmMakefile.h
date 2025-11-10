@@ -294,6 +294,7 @@ public:
                        bool immediate, bool system);
 
   void Configure();
+  void ConfigureListFile(const std::string& currentStart);
 
   /**
    * Configure a subdirectory
@@ -390,6 +391,9 @@ public:
                         std::string const& version_max);
   void RecordPolicies(cmPolicies::PolicyMap& pm) const;
   //@}
+
+  /** Update CMAKE_PARENT_LIST_FILE based on CMP0198 policy status.  */
+  void UpdateParentListFileVariable();
 
   /** Helper class to push and pop policies automatically.  */
   class PolicyPushPop
@@ -1031,17 +1035,7 @@ public:
   // searches
   std::deque<std::vector<std::string>> FindPackageRootPathStack;
 
-  class FindPackageStackRAII
-  {
-    cmMakefile* Makefile;
-
-  public:
-    FindPackageStackRAII(cmMakefile* mf, std::string const& pkg);
-    ~FindPackageStackRAII();
-
-    FindPackageStackRAII(FindPackageStackRAII const&) = delete;
-    FindPackageStackRAII& operator=(FindPackageStackRAII const&) = delete;
-  };
+  friend class cmFindPackageStackRAII;
 
   class DebugFindPkgRAII
   {

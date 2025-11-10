@@ -36,6 +36,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/CheckSwift.cmake)
 set(TEST_HOME "${CMake_BINARY_DIR}/Tests/CMakeFiles/TestHome")
 set(TEST_CONFIG_ENV_CODE "# Isolate tests from user-wide configuration.
 set(ENV{CMAKE_CONFIG_DIR} \"${TEST_HOME}/.config/cmake\")\n")
+set(TEST_INSTRUMENTATION_ENV_CODE "# Isolate tests from CTEST_USE_INSTRUMENTATION var
+unset(ENV{CTEST_USE_INSTRUMENTATION})\n")
 file(MAKE_DIRECTORY "${TEST_HOME}/.config/cmake")
 
 # Fake a user home directory to avoid polluting the real one.
@@ -48,6 +50,13 @@ if(DEFINED ENV{HOME} AND NOT DEFINED ENV{CTEST_REAL_HOME})
 endif()
 set(ENV{HOME} \"${TEST_HOME}\")
 ")
+endif()
+
+# Suppress generator deprecation warnings in test suite.
+if(CMAKE_GENERATOR MATCHES "^Visual Studio 14 2015")
+  set(TEST_WARN_VS_CODE "set(ENV{CMAKE_WARN_VS14} OFF)")
+else()
+  set(TEST_WARN_VS_CODE "")
 endif()
 
 # 3.9 or later provides a definitive answer to whether we are multi-config
@@ -104,7 +113,7 @@ if(BUILD_TESTING)
   # some old versions of make simply cannot handle spaces in paths
   if(MAKE_IS_GNU OR
       CMAKE_MAKE_PROGRAM MATCHES "nmake|gmake|wmake" OR
-      CMAKE_GENERATOR MATCHES "Visual Studio|Xcode|Borland|Ninja")
+      CMAKE_GENERATOR MATCHES "Visual Studio|Xcode|Borland|Ninja|FASTBuild")
     set(MAKE_SUPPORTS_SPACES 1)
   else()
     set(MAKE_SUPPORTS_SPACES 0)
@@ -194,9 +203,12 @@ if(BUILD_TESTING)
       set(info_vs15 "VS_15_DIR")
       set(info_vs16 "VS_16_DIR")
       set(info_vs17 "VS_17_DIR")
+      set(info_vs18 "VS_18_DIR")
       set(vs_versions)
       if(WIN32)
-        if(NOT CMAKE_VERSION VERSION_LESS 3.21.20210624)
+        if(NOT CMAKE_VERSION VERSION_LESS 4.2)
+          set(vs_versions vs15 vs16 vs17 vs18)
+        elseif(NOT CMAKE_VERSION VERSION_LESS 3.21)
           set(vs_versions vs15 vs16 vs17)
         elseif(NOT CMAKE_VERSION VERSION_LESS 3.14)
           set(vs_versions vs15 vs16)
@@ -419,7 +431,7 @@ if(BUILD_TESTING)
   ADD_TEST_MACRO(PreOrder PreOrder)
   ADD_TEST_MACRO(MissingSourceFile MissingSourceFile)
   set_tests_properties(MissingSourceFile PROPERTIES
-    PASS_REGULAR_EXPRESSION "CMake Error at CMakeLists.txt:3 \\(add_executable\\):[ \r\n]*Cannot find source file:[ \r\n]*DoesNotExist/MissingSourceFile.c")
+    PASS_REGULAR_EXPRESSION "CMake Error at CMakeLists\.txt:3 \\(add_executable\\):[ \r\n]*Cannot find source file:[ \r\n]*DoesNotExist/MissingSourceFile.c")
   if(CMake_TEST_Swift)
     ADD_TEST_MACRO(SwiftOnly SwiftOnly)
     ADD_TEST_MACRO(SwiftMixPCH SwiftMixPCH)
@@ -586,11 +598,11 @@ if(BUILD_TESTING)
   if(NOT DEFINED CMake_TEST_Qt4)
     set(CMake_TEST_Qt4 1)
   endif()
-  if(CMake_TEST_Qt4 AND NOT QT4_FOUND)
+  if(CMake_TEST_Qt4 AND NOT Qt4_FOUND)
     find_package(Qt4 QUIET)
   endif()
 
-  if(CMake_TEST_Qt4 AND QT4_FOUND)
+  if(CMake_TEST_Qt4 AND Qt4_FOUND)
     # test whether the Qt4 which has been found works, on some machines
     # which run nightly builds there were errors like "wrong file format"
     # for libQtCore.so. So first check it works, and only if it does add
@@ -660,8 +672,6 @@ if(BUILD_TESTING)
   add_test(CMakeDoubleProject ${CMAKE_CMAKE_COMMAND} -P
     "${CMake_BINARY_DIR}/Tests/CMakeBuildDoubleProjectTest.cmake")
   list(APPEND TEST_BUILD_DIRS ${CMAKE_BUILD_TEST_BINARY_DIR})
-
-  ADD_TEST_MACRO(Module.CheckTypeSize CheckTypeSize)
 
   set(Module.CheckIPOSupported-C_BUILD_OPTIONS -DCMake_TEST_IPO_WORKS_C=${CMake_TEST_IPO_WORKS_C})
   ADD_TEST_MACRO(Module.CheckIPOSupported-C CheckIPOSupported-C)
@@ -777,7 +787,7 @@ if(BUILD_TESTING)
 
   # test for correct sub-project generation
   # not implemented in Xcode or Ninja
-  if(NOT CMAKE_GENERATOR MATCHES "Xcode|Ninja")
+  if(NOT CMAKE_GENERATOR MATCHES "Xcode|Ninja|FASTBuild")
     # run cmake and configure all of SubProject
     # but only build the independent executable car
     add_test(SubProject ${CMAKE_CTEST_COMMAND}
@@ -1747,50 +1757,6 @@ if(BUILD_TESTING)
     add_installmode_test(SYMLINK_OR_COPY)
   endif()
 
-
-  # do each of the tutorial steps
-  function(add_tutorial_test step_name use_mymath tutorial_arg pass_regex)
-    set(tutorial_test_name Tutorial${step_name})
-    set(tutorial_build_dir "${CMake_BINARY_DIR}/Tests/Tutorial/${step_name}")
-    if(use_mymath)
-      set(tutorial_build_options "")
-    else()
-      set(tutorial_test_name ${tutorial_test_name}_MYMATH)
-      set(tutorial_build_dir "${tutorial_build_dir}_MYMATH")
-      set(tutorial_build_options -DUSE_MYMATH:BOOL=OFF)
-    endif()
-    add_test(${tutorial_test_name} ${CMAKE_CTEST_COMMAND}
-      -C "Release"
-      --build-and-test
-      "${CMake_SOURCE_DIR}/Help/guide/tutorial/${step_name}"
-      ${tutorial_build_dir}_Build
-      ${build_generator_args}
-      --build-project Tutorial
-      --build-options ${tutorial_build_options}
-      --test-command Tutorial ${tutorial_arg})
-    set_tests_properties(${tutorial_test_name} PROPERTIES
-      PASS_REGULAR_EXPRESSION ${pass_regex})
-
-    list(APPEND TEST_BUILD_DIRS "${tutorial_build_dir}_Build")
-  endfunction()
-
-  if(NOT CMake_TEST_EXTERNAL_CMAKE)
-    foreach(STP RANGE 2 12)
-      if(STP EQUAL 8)
-        set(pass_regex ".*using log and exp")
-      else()
-        set(pass_regex "The square root of 25 is 5")
-      endif()
-      add_tutorial_test(Step${STP} TRUE 25 ${pass_regex})
-    endforeach()
-    set(pass_regex "The square root of 25 is 5")
-    add_tutorial_test(Complete TRUE 25 ${pass_regex})
-    foreach(STP RANGE 3 12)
-      add_tutorial_test(Step${STP} FALSE 25 ${pass_regex})
-    endforeach()
-    add_tutorial_test(Complete FALSE 25 ${pass_regex})
-  endif()
-
   function(add_importexport_test export_name import_name)
     set(install_dir
       "${CMake_BINARY_DIR}/Tests/ImportExport/Install${export_name}")
@@ -2148,8 +2114,7 @@ if(BUILD_TESTING)
 
   ADD_TEST_MACRO(CheckCompilerRelatedVariables CheckCompilerRelatedVariables)
 
-  if("${CMAKE_GENERATOR}" MATCHES "Makefile" OR
-     "${CMAKE_GENERATOR}" MATCHES "^Ninja$")
+  if("${CMAKE_GENERATOR}" MATCHES "^Ninja$|Makefile|FASTBuild")
     add_test(MakeClean ${CMAKE_CTEST_COMMAND}
       --build-and-test
       "${CMake_SOURCE_DIR}/Tests/MakeClean"
@@ -2445,6 +2410,9 @@ if(BUILD_TESTING)
   endif()
   if(vs17 AND CMake_TEST_ANDROID_VS17)
     add_test_VSAndroid(vs17 "Visual Studio 17 2022" "ARM")
+  endif()
+  if(vs18 AND CMake_TEST_ANDROID_VS18)
+    add_test_VSAndroid(vs18 "Visual Studio 18 2026" "ARM")
   endif()
 
   if(APPLE)
@@ -3166,7 +3134,7 @@ if(BUILD_TESTING)
         )
     endif()
 
-    if("${CMAKE_GENERATOR}" MATCHES "Makefiles" OR "${CMAKE_GENERATOR}" MATCHES "Ninja")
+    if("${CMAKE_GENERATOR}" MATCHES "Makefiles|Ninja|FASTBuild")
       configure_file("${CMake_SOURCE_DIR}/Tests/CTestTestLaunchers/test.cmake.in"
         "${CMake_BINARY_DIR}/Tests/CTestTestLaunchers/test.cmake" @ONLY ESCAPE_QUOTES)
       add_test(CTestTestLaunchers ${CMAKE_CTEST_COMMAND}
@@ -3314,6 +3282,11 @@ if(BUILD_TESTING)
 
     set(JavaExportImport_BUILD_OPTIONS -DCMake_TEST_NESTED_MAKE_PROGRAM:FILEPATH=${CMake_TEST_EXPLICIT_MAKE_PROGRAM})
     ADD_TEST_MACRO(JavaExportImport JavaExportImport)
+
+    if("${Java_VERSION}" VERSION_GREATER_EQUAL 9)
+      set(JavaModExportImport_BUILD_OPTIONS -DCMake_TEST_NESTED_MAKE_PROGRAM:FILEPATH=${CMake_TEST_EXPLICIT_MAKE_PROGRAM})
+      ADD_TEST_MACRO(JavaModExportImport JavaModExportImport)
+    endif()
 
     get_filename_component(JAVACPATH ${Java_JAVAC_EXECUTABLE} REALPATH)
     get_filename_component(JNIPATH ${JAVACPATH} PATH)
@@ -3496,7 +3469,7 @@ if(BUILD_TESTING)
     --test-command IncludeDirectories)
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/IncludeDirectories")
 
-  if(CMAKE_GENERATOR MATCHES "^((Unix|MSYS) Makefiles|Ninja)$" AND
+  if(CMAKE_GENERATOR MATCHES "^((Unix|MSYS) Makefiles|Ninja|FASTBuild)$" AND
      ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.4)
       OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
       OR (CMAKE_CXX_COMPILER_ID STREQUAL "LCC")

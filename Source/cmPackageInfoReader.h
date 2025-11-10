@@ -39,7 +39,8 @@ class cmPackageInfoReader
 {
 public:
   static std::unique_ptr<cmPackageInfoReader> Read(
-    std::string const& path, cmPackageInfoReader const* parent = nullptr);
+    cmMakefile* makefile, std::string const& path,
+    cmPackageInfoReader const* parent = nullptr);
 
   std::string GetName() const;
   cm::optional<std::string> GetVersion() const;
@@ -91,12 +92,21 @@ private:
                                 Json::Value const& data,
                                 std::string const& package) const;
 
+  void AddTargetConfiguration(cmTarget* target,
+                              cm::string_view configuration) const;
+
   void SetTargetProperties(cmMakefile* makefile, cmTarget* target,
                            Json::Value const& data, std::string const& package,
                            cm::string_view configuration) const;
-  void SetOptionalProperty(cmTarget* target, cm::string_view property,
-                           cm::string_view configuration,
-                           Json::Value const& value) const;
+  void SetImportProperty(cmMakefile* makefile, cmTarget* target,
+                         cm::string_view property,
+                         cm::string_view configuration,
+                         Json::Value const& object,
+                         std::string const& attribute) const;
+  void SetMetaProperty(cmMakefile* makefile, cmTarget* target,
+                       std::string const& property, Json::Value const& object,
+                       std::string const& attribute,
+                       std::string const& defaultValue = {}) const;
 
   std::string ResolvePath(std::string path) const;
 
@@ -106,4 +116,5 @@ private:
 
   std::map<std::string, cmTarget*> ComponentTargets;
   std::vector<std::string> DefaultConfigurations;
+  std::string DefaultLicense;
 };

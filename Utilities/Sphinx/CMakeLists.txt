@@ -3,7 +3,7 @@
 
 if(NOT CMake_SOURCE_DIR)
   set(CMakeHelp_STANDALONE 1)
-  cmake_minimum_required(VERSION 3.13...3.31 FATAL_ERROR)
+  cmake_minimum_required(VERSION 3.13...4.0 FATAL_ERROR)
   get_filename_component(tmp "${CMAKE_CURRENT_SOURCE_DIR}" PATH)
   get_filename_component(CMake_SOURCE_DIR "${tmp}" PATH)
   include(${CMake_SOURCE_DIR}/Modules/CTestUseLaunchers.cmake)
@@ -27,6 +27,7 @@ option(SPHINX_LINKCHECK "Check external links mentioned in documentation" OFF)
 option(SPHINX_QTHELP "Build Qt help with Sphinx" OFF)
 option(SPHINX_LATEXPDF "Build PDF help with Sphinx using LaTeX" OFF)
 option(SPHINX_TEXT "Build text help with Sphinx (not installed)" OFF)
+option(SPHINX_INCLUDE_IN_ALL "Build Sphinx documentation by default" ON)
 find_program(SPHINX_EXECUTABLE
   NAMES sphinx-build
   DOC "Sphinx Documentation Builder (sphinx-doc.org)"
@@ -61,6 +62,12 @@ if(CMake_SPHINX_CMAKE_ORG)
   set(conf_baseurl "https://cmake.org/cmake/help/latest")
 else()
   set(conf_baseurl "")
+endif()
+
+if(CMake_SPHINX_CMAKE_ORG)
+  set(conf_cmakeorg "True")
+else()
+  set(conf_cmakeorg "False")
 endif()
 
 set(conf_docs "${CMake_SOURCE_DIR}/Help")
@@ -254,7 +261,11 @@ foreach(format IN LISTS doc_formats)
   endif()
 endforeach()
 
-add_custom_target(documentation ALL DEPENDS ${doc_format_outputs})
+if (SPHINX_INCLUDE_IN_ALL)
+  set(add_documentation_to_all ALL)
+endif()
+
+add_custom_target(documentation ${add_documentation_to_all} DEPENDS ${doc_format_outputs})
 
 if(CMake_SPHINX_DEPEND_ON_EXECUTABLES)
   foreach(t IN ITEMS cmake ccmake cmake-gui cpack ctest)
@@ -272,7 +283,7 @@ endif()
 if(SPHINX_INFO)
   CMake_OPTIONAL_COMPONENT(sphinx-info)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/texinfo/cmake.info
-          DESTINATION ${CMAKE_INFO_DIR}
+          DESTINATION ${CMake_INSTALL_INFO_DIR}
           ${COMPONENT}
           )
 endif()
@@ -295,7 +306,7 @@ if(SPHINX_MAN)
       if(NOT skip)
         CMake_OPTIONAL_COMPONENT(sphinx-man)
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/man/${name}.${sec}
-                DESTINATION ${CMAKE_MAN_DIR}/man${sec}
+                DESTINATION ${CMake_INSTALL_MAN_DIR}/man${sec}
                 ${COMPONENT})
       endif()
       unset(skip)
@@ -306,7 +317,7 @@ endif()
 if(SPHINX_HTML)
   CMake_OPTIONAL_COMPONENT(sphinx-html)
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
-          DESTINATION ${CMAKE_DOC_DIR}
+          DESTINATION ${CMake_INSTALL_DOC_DIR}
           ${COMPONENT}
           PATTERN .buildinfo EXCLUDE
           )
@@ -315,7 +326,7 @@ endif()
 if(SPHINX_SINGLEHTML)
   CMake_OPTIONAL_COMPONENT(sphinx-singlehtml)
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/singlehtml
-          DESTINATION ${CMAKE_DOC_DIR}
+          DESTINATION ${CMake_INSTALL_DOC_DIR}
           ${COMPONENT}
           PATTERN .buildinfo EXCLUDE
           )
@@ -324,13 +335,13 @@ endif()
 if(SPHINX_QTHELP)
   CMake_OPTIONAL_COMPONENT(sphinx-qthelp)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/qthelp/CMake.qch
-          DESTINATION ${CMAKE_DOC_DIR} ${COMPONENT}
+          DESTINATION ${CMake_INSTALL_DOC_DIR} ${COMPONENT}
           )
 endif()
 
 if(SPHINX_LATEXPDF)
   CMake_OPTIONAL_COMPONENT(sphinx-latexpdf)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/latexpdf/latex/CMake.pdf
-          DESTINATION ${CMAKE_DOC_DIR} ${COMPONENT}
+          DESTINATION ${CMake_INSTALL_DOC_DIR} ${COMPONENT}
           )
 endif()

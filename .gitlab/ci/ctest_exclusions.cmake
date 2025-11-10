@@ -27,6 +27,27 @@ if ("$ENV{CMAKE_CONFIGURATION}" MATCHES "_jom")
     )
 endif()
 
+if ("$ENV{CMAKE_CONFIGURATION}" MATCHES "_valgrind")
+  list(APPEND test_exclusions
+    # Tests that timeout under valgrind.
+    "^RunCMake.NinjaMultiConfig$"
+    "^RunCMake.Autogen_Qt6_1$"
+    "^RunCMake.GoogleTest$"
+    "^RunCMake.CXXModules$"
+    "^RunCMake.CommandLine$"
+
+    # Too spurious under Valgrind.
+    "^RunCMake.testUVProcessChain$"
+    )
+endif()
+
+if ("$ENV{CMAKE_CONFIGURATION}" MATCHES "_xcode")
+  list(APPEND test_exclusions
+    # FIXME(#27358): Qt6Autogen.RerunMocOnAddFile fails in Xcode.
+    "^Qt6Autogen.RerunMocOnAddFile$"
+    )
+endif()
+
 string(REPLACE ";" "|" test_exclusions "${test_exclusions}")
 if (test_exclusions)
   set(test_exclusions "(${test_exclusions})")

@@ -145,6 +145,7 @@ Properties on Targets
    /prop_tgt/AUTOMOC_COMPILER_PREDEFINES
    /prop_tgt/AUTOMOC_DEPEND_FILTERS
    /prop_tgt/AUTOMOC_EXECUTABLE
+   /prop_tgt/AUTOMOC_INCLUDE_DIRECTORIES
    /prop_tgt/AUTOMOC_MACRO_NAMES
    /prop_tgt/AUTOMOC_MOC_OPTIONS
    /prop_tgt/AUTOMOC_PATH_PREFIX
@@ -225,6 +226,8 @@ Properties on Targets
    /prop_tgt/EXPORT_NAME
    /prop_tgt/EXPORT_NO_SYSTEM
    /prop_tgt/EXPORT_PROPERTIES
+   /prop_tgt/FASTBUILD_CACHING
+   /prop_tgt/FASTBUILD_DISTRIBUTION
    /prop_tgt/FOLDER
    /prop_tgt/Fortran_BUILDING_INTRINSIC_MODULES
    /prop_tgt/Fortran_FORMAT
@@ -281,6 +284,8 @@ Properties on Targets
    /prop_tgt/IMPORT_SUFFIX
    /prop_tgt/INCLUDE_DIRECTORIES
    /prop_tgt/INSTALL_NAME_DIR
+   /prop_tgt/INSTALL_OBJECT_NAME_STRATEGY
+   /prop_tgt/INSTALL_OBJECT_ONLY_USE_DESTINATION
    /prop_tgt/INSTALL_REMOVE_ENVIRONMENT_RPATH
    /prop_tgt/INSTALL_RPATH
    /prop_tgt/INSTALL_RPATH_USE_LINK_PATH
@@ -328,6 +333,7 @@ Properties on Targets
    /prop_tgt/LIBRARY_OUTPUT_DIRECTORY_CONFIG
    /prop_tgt/LIBRARY_OUTPUT_NAME
    /prop_tgt/LIBRARY_OUTPUT_NAME_CONFIG
+   /prop_tgt/SPDX_LICENSE
    /prop_tgt/LINK_DEPENDS
    /prop_tgt/LINK_DEPENDS_NO_SHARED
    /prop_tgt/LINK_DIRECTORIES
@@ -398,6 +404,7 @@ Properties on Targets
    /prop_tgt/RUNTIME_OUTPUT_NAME
    /prop_tgt/RUNTIME_OUTPUT_NAME_CONFIG
    /prop_tgt/SKIP_BUILD_RPATH
+   /prop_tgt/SKIP_LINTING
    /prop_tgt/SOURCE_DIR
    /prop_tgt/SOURCES
    /prop_tgt/SOVERSION
@@ -410,6 +417,7 @@ Properties on Targets
    /prop_tgt/Swift_LANGUAGE_VERSION
    /prop_tgt/Swift_MODULE_DIRECTORY
    /prop_tgt/Swift_MODULE_NAME
+   /prop_tgt/SYMBOLIC
    /prop_tgt/SYSTEM
    /prop_tgt/TEST_LAUNCHER
    /prop_tgt/TRANSITIVE_COMPILE_PROPERTIES
@@ -419,6 +427,7 @@ Properties on Targets
    /prop_tgt/UNITY_BUILD_BATCH_SIZE
    /prop_tgt/UNITY_BUILD_CODE_AFTER_INCLUDE
    /prop_tgt/UNITY_BUILD_CODE_BEFORE_INCLUDE
+   /prop_tgt/UNITY_BUILD_FILENAME_PREFIX
    /prop_tgt/UNITY_BUILD_MODE
    /prop_tgt/UNITY_BUILD_RELOCATABLE
    /prop_tgt/UNITY_BUILD_UNIQUE_ID
@@ -571,13 +580,16 @@ Properties on Source Files
    /prop_sf/GENERATED
    /prop_sf/HEADER_FILE_ONLY
    /prop_sf/INCLUDE_DIRECTORIES
+   /prop_sf/INSTALL_OBJECT_NAME
    /prop_sf/KEEP_EXTENSION
    /prop_sf/LABELS
    /prop_sf/LANGUAGE
    /prop_sf/LOCATION
    /prop_sf/MACOSX_PACKAGE_LOCATION
    /prop_sf/OBJECT_DEPENDS
+   /prop_sf/OBJECT_NAME
    /prop_sf/OBJECT_OUTPUTS
+   /prop_sf/JOB_POOL_COMPILE
    /prop_sf/SKIP_AUTOGEN
    /prop_sf/SKIP_AUTOMOC
    /prop_sf/SKIP_AUTORCC

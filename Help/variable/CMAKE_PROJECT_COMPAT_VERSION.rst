@@ -1,6 +1,8 @@
 CMAKE_PROJECT_COMPAT_VERSION
 ----------------------------
 
+.. versionadded:: 4.1
+
 .. note::
 
   Experimental. Gated by ``CMAKE_EXPERIMENTAL_EXPORT_PACKAGE_INFO``.
@@ -27,7 +29,7 @@ And ``sub/CMakeLists.txt`` with the following contents:
 .. code-block:: cmake
 
   project(SubProj VERSION 2.0 COMPAT_VERSION 1.0)
-  message("CMAKE_PROJECT_VERSION = ${CMAKE_PROJECT_VERSION}")
+  message("CMAKE_PROJECT_COMPAT_VERSION = ${CMAKE_PROJECT_COMPAT_VERSION}")
 
 The most recently seen :command:`project` command from the top level
 CMakeLists.txt would be ``project(Second ...)``, so this will print::

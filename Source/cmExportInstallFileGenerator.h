@@ -75,7 +75,7 @@ protected:
 
   std::string GetInstallPrefix() const
   {
-    cm::string_view const& prefixWithSlash = this->GetImportPrefixWithSlash();
+    cm::string_view const prefixWithSlash = this->GetImportPrefixWithSlash();
     return std::string(prefixWithSlash.data(), prefixWithSlash.length() - 1);
   }
   virtual char GetConfigFileNameSeparator() const = 0;
@@ -159,6 +159,10 @@ private:
     cmGeneratorExpression::PreprocessContext preprocessRule,
     ImportPropertyMap& properties, cmTargetExport const& te,
     std::string& includesDestinationDirs);
+  void PopulateSystemIncludeDirectoriesInterface(
+    cmGeneratorTarget const* target,
+    cmGeneratorExpression::PreprocessContext preprocessRule,
+    ImportPropertyMap& properties);
   void PopulateSourcesInterface(
     cmGeneratorTarget const* target,
     cmGeneratorExpression::PreprocessContext preprocessRule,

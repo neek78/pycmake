@@ -29,6 +29,18 @@ enum SnapshotType
   VariableScopeType
 };
 
+enum SnapshotUnwindType
+{
+  NO_UNWIND,
+  CAN_UNWIND
+};
+
+enum SnapshotUnwindState
+{
+  NOT_UNWINDING,
+  UNWINDING
+};
+
 // There are multiple overlapping ranges represented here. Be aware that adding
 // a value to this enumeration may cause failures in numerous places which
 // assume details about the ordering.
@@ -86,6 +98,11 @@ enum class ScriptedCommandType
   Command // "from load_command" - probably never used but need it for api completeness
 };
 
+enum class IntermediateDirKind
+{
+  ObjectFiles,
+  QtAutogenMetadata,
+};
 }
 
 namespace cmTraceEnums {

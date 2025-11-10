@@ -580,7 +580,42 @@ class cmMakefile;
          "install prefix '/'.",                                               \
          4, 1, 0, WARN)                                                       \
   SELECT(POLICY, CMP194, "MSVC is not an assembler for language ASM.", 4, 1,  \
-         0, WARN)
+         0, WARN)                                                             \
+  SELECT(                                                                     \
+    POLICY, CMP0195,                                                          \
+    "Swift modules in build trees use the Swift module directory structure.", \
+    4, 1, 0, WARN)                                                            \
+  SELECT(POLICY, CMP0196,                                                     \
+         "The CMakeDetermineVSServicePack module is removed.", 4, 1, 0, WARN) \
+  SELECT(POLICY, CMP0197,                                                     \
+         "MSVC link -machine: flag is not in CMAKE_*_LINKER_FLAGS.", 4, 1, 0, \
+         WARN)                                                                \
+  SELECT(POLICY, CMP0198,                                                     \
+         "CMAKE_PARENT_LIST_FILE is not defined in CMakeLists.txt.", 4, 2, 0, \
+         WARN)                                                                \
+  SELECT(                                                                     \
+    POLICY, CMP0199,                                                          \
+    "$<CONFIG:cfgs> only matches the configuration of the consumed target.",  \
+    4, 2, 0, WARN)                                                            \
+  SELECT(POLICY, CMP0200,                                                     \
+         "Location and configuration selection for imported targets is more " \
+         "consistent.",                                                       \
+         4, 2, 0, WARN)                                                       \
+  SELECT(POLICY, CMP0201,                                                     \
+         "Python::NumPy does not depend on Python::Development.Module.", 4,   \
+         2, 0, WARN)                                                          \
+  SELECT(POLICY, CMP0202,                                                     \
+         "PDB file names always include their target's per-config POSTFIX.",  \
+         4, 2, 0, WARN)                                                       \
+  SELECT(POLICY, CMP0203,                                                     \
+         "_WINDLL is defined for shared libraries targeting the MSVC ABI.",   \
+         4, 2, 0, WARN)                                                       \
+  SELECT(POLICY, CMP0204,                                                     \
+         "A character set is always defined when targeting the MSVC ABI.", 4, \
+         2, 0, WARN)                                                          \
+  SELECT(POLICY, CMP0205,                                                     \
+         "file(CREATE_LINK) with COPY_ON_ERROR copies directory content.", 4, \
+         3, 0, WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -627,7 +662,13 @@ class cmMakefile;
   F(CMP0162)                                                                  \
   F(CMP0179)                                                                  \
   F(CMP0181)                                                                  \
-  F(CMP0182)
+  F(CMP0182)                                                                  \
+  F(CMP0195)                                                                  \
+  F(CMP0199)                                                                  \
+  F(CMP0200)                                                                  \
+  F(CMP0202)                                                                  \
+  F(CMP0203)                                                                  \
+  F(CMP0204)
 
 #define CM_FOR_EACH_CUSTOM_COMMAND_POLICY(F)                                  \
   F(CMP0116)                                                                  \

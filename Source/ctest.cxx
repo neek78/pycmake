@@ -9,11 +9,11 @@
 #include "cmsys/Encoding.hxx"
 
 #include "cmCTest.h"
-#include "cmConsoleBuf.h"
 #include "cmDocumentation.h"
 #include "cmDocumentationEntry.h"
 #include "cmInstrumentation.h"
 #include "cmInstrumentationQuery.h"
+#include "cmStdIoConsole.h"
 #include "cmSystemTools.h"
 
 #include "CTest/cmCTestLaunch.h"
@@ -166,11 +166,7 @@ cmDocumentationEntry const cmDocumentationOptions[] = {
 // this is a test driver program for cmCTest.
 int main(int argc, char const* const* argv)
 {
-  cmSystemTools::EnsureStdPipes();
-
-  // Replace streambuf so we can output Unicode to console
-  cmConsoleBuf consoleBuf;
-  consoleBuf.SetUTF8Pipes();
+  cm::StdIo::Console console;
 
   cmsys::Encoding::CommandLineArguments encoding_args =
     cmsys::Encoding::CommandLineArguments::Main(argc, argv);
@@ -198,8 +194,8 @@ int main(int argc, char const* const* argv)
   // Dispatch 'ctest --collect-instrumentation' once given PID finishes
   if (argc == 4 &&
       strcmp(argv[1], "--wait-and-collect-instrumentation") == 0) {
-    return cmInstrumentation(argv[2]).CollectTimingAfterBuild(
-      std::stoi(argv[3]));
+    return cmInstrumentation(argv[2], cmInstrumentation::LoadQueriesAfter::No)
+      .CollectTimingAfterBuild(std::stoi(argv[3]));
   }
 
   // Dispatch 'ctest --collect-instrumentation' mode directly.
