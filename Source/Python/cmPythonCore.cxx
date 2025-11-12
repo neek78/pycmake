@@ -126,11 +126,13 @@ void cmPythonCore::buildRootModule()
     RootModule = py::module_::import(GetModuleName().c_str());
 
     // bind in c++ code
-    py::module_ builtin = RootModule.def_submodule(PYTHON_BUILTIN_MOD.c_str(), "interface to c++ code");
+    py::module_ builtin = RootModule.def_submodule(
+            PYTHON_BUILTIN_MOD.c_str(), "interface to c++ code");
     BindBuiltinModule(builtin);
 
     // submodule for client code to load into
-    py::module_ client = RootModule.def_submodule(PYTHON_CLIENT_MOD.c_str(), "location of client code");
+    py::module_ client = RootModule.def_submodule(
+            PYTHON_CLIENT_MOD.c_str(), "location of client code");
 }
 
 void cmPythonCore::ipython()
