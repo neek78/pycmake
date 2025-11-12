@@ -592,7 +592,7 @@ bool cmMakefile::ExecuteCommand(cmListFileFunction const& lff,
         }
       }
       if (this->GetCMakeInstance()->HasScriptModeExitCode() &&
-          this->GetCMakeInstance()->GetWorkingMode() == cmake::SCRIPT_MODE) {
+          this->GetCMakeInstance()->RoleSupportsExitCode()) {
         // pass-through the exit code from inner cmake_language(EXIT) ,
         // possibly from include() or similar command...
         status.SetExitCode(this->GetCMakeInstance()->GetScriptModeExitCode());
@@ -3323,8 +3323,7 @@ int cmMakefile::TryCompile(std::string const& srcdir,
   // make sure the same generator is used
   // use this program as the cmake to be run, it should not
   // be run that way but the cmake object requires a valid path
-  cmake cm(cmake::RoleProject, cmState::Project,
-           cmState::ProjectKind::TryCompile);
+  cmake cm(cmState::Role::Project, cmState::TryCompile::Yes);
   auto gg = cm.CreateGlobalGenerator(this->GetGlobalGenerator()->GetName());
   if (!gg) {
     this->IssueMessage(MessageType::INTERNAL_ERROR,
@@ -3466,8 +3465,8 @@ cmState* cmMakefile::GetState() const
 void cmMakefile::DisplayStatus(std::string const& message, float s) const
 {
   cmake* cm = this->GetCMakeInstance();
-  if (cm->GetWorkingMode() == cmake::FIND_PACKAGE_MODE) {
-    // don't output any STATUS message in FIND_PACKAGE_MODE, since they will
+  if (cm->GetState()->GetRole() == cmState::Role::FindPackage) {
+    // don't output any STATUS message in --find-package mode, since they will
     // directly be fed to the compiler, which will be confused.
     return;
   }
@@ -4193,7 +4192,9 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
   this->StateSnapshot.SetPolicy(id, status);
 
   // Handle CMAKE_PARENT_LIST_FILE for CMP0198 policy changes
-  if (id == cmPolicies::CMP0198) {
+  if (id == cmPolicies::CMP0198 &&
+      this->GetCMakeInstance()->GetState()->GetRole() ==
+        cmState::Role::Project) {
     this->UpdateParentListFileVariable();
   }
 

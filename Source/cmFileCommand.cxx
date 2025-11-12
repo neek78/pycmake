@@ -693,7 +693,6 @@ bool HandleGlobImpl(std::vector<std::string> const& args, bool recurse,
   std::vector<std::string> files;
   bool configureDepends = false;
   bool warnConfigureLate = false;
-  cmake::WorkingMode const workingMode = cm->GetWorkingMode();
   while (i != args.end()) {
     if (*i == "LIST_DIRECTORIES") {
       ++i; // skip LIST_DIRECTORIES
@@ -744,7 +743,7 @@ bool HandleGlobImpl(std::vector<std::string> const& args, bool recurse,
           "CONFIGURE_DEPENDS flag was given after a glob expression was "
           "already evaluated.");
       }
-      if (workingMode != cmake::NORMAL_MODE) {
+      if (cm->GetState()->GetRole() != cmState::Role::Project) {
         status.GetMakefile().IssueMessage(
           MessageType::FATAL_ERROR,
           "CONFIGURE_DEPENDS is invalid for script and find package modes.");
@@ -3368,7 +3367,7 @@ bool HandleGetRuntimeDependenciesCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  if (status.GetMakefile().GetState()->GetMode() == cmState::Project) {
+  if (status.GetMakefile().GetState()->GetRole() == cmState::Role::Project) {
     status.GetMakefile().IssueMessage(
       MessageType::AUTHOR_WARNING,
       "You have used file(GET_RUNTIME_DEPENDENCIES)"

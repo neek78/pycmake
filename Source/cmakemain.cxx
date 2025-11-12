@@ -48,10 +48,6 @@
 #include "cmsys/Encoding.hxx"
 #include "cmsys/RegularExpression.hxx"
 
-#ifdef CMake_ENABLE_PYTHON
-#include "Python/cmPythonCore.h"
-#endif
-
 namespace {
 #ifndef CMAKE_BOOTSTRAP
 cmDocumentationEntry const cmDocumentationName = {
@@ -75,7 +71,7 @@ cmDocumentationEntry const cmDocumentationUsageNote = {
   "Run 'cmake --help' for more information."
 };
 
-cmDocumentationEntry const cmDocumentationOptions[36] = {
+cmDocumentationEntry const cmDocumentationOptions[35] = {
   { "--preset <preset>,--preset=<preset>", "Specify a configure preset." },
   { "--list-presets[=<type>]", "List available presets." },
   { "--workflow [<options>]", "Run a workflow preset." },
@@ -98,7 +94,6 @@ cmDocumentationEntry const cmDocumentationOptions[36] = {
     "Generate graphviz of dependencies, see CMakeGraphVizOptions.cmake for "
     "more." },
   { "--system-information [file]", "Dump information about this system." },
-  { "--python-information", "Dump information about python compiled into this cmake." },
   { "--print-config-dir",
     "Print CMake config directory for user-wide FileAPI queries." },
   { "--log-level=<ERROR|WARNING|NOTICE|STATUS|VERBOSE|DEBUG|TRACE>",
@@ -226,9 +221,7 @@ int do_cmake(int ac, char const* const* av)
   doc.addCMakeStandardDocSections();
   if (doc.CheckOptions(ac, av, "--")) {
     // Construct and print requested documentation.
-    cmake hcm(cmake::RoleInternal, cmState::Help);
-    hcm.SetHomeDirectory("");
-    hcm.SetHomeOutputDirectory("");
+    cmake hcm(cmState::Role::Help);
     hcm.AddCMakePaths();
 
     // the command line args are processed here so that you can do
@@ -261,14 +254,13 @@ int do_cmake(int ac, char const* const* av)
 
   bool wizard_mode = false;
   bool sysinfo = false;
-  bool pythoninfo = false;
   bool list_cached = false;
   bool list_all_cached = false;
   bool list_help = false;
   // (Regex) Filter on the cached variable(s) to print.
   std::string filter_var_name;
   bool view_only = false;
-  cmake::WorkingMode workingMode = cmake::NORMAL_MODE;
+  cmState::Role role = cmState::Role::Project;
   std::vector<std::string> parsedArgs;
 
   using CommandArgument =
@@ -288,8 +280,6 @@ int do_cmake(int ac, char const* const* av)
       } },
     CommandArgument{ "--system-information", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(sysinfo) },
-    CommandArgument{ "--python-information", CommandArgument::Values::Zero,
-                     CommandArgument::setToTrue(pythoninfo) },
     CommandArgument{ "-N", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(view_only) },
     CommandArgument{ "-LAH", CommandArgument::Values::Zero,
@@ -316,20 +306,20 @@ int do_cmake(int ac, char const* const* av)
                      CommandArgument::Values::One,
                      CommandArgument::RequiresSeparator::No,
                      [&](std::string const& value) -> bool {
-                       workingMode = cmake::SCRIPT_MODE;
+                       role = cmState::Role::Script;
                        parsedArgs.emplace_back("-P");
                        parsedArgs.push_back(value);
                        return true;
                      } },
     CommandArgument{ "--find-package", CommandArgument::Values::Zero,
                      [&](std::string const&) -> bool {
-                       workingMode = cmake::FIND_PACKAGE_MODE;
+                       role = cmState::Role::FindPackage;
                        parsedArgs.emplace_back("--find-package");
                        return true;
                      } },
     CommandArgument{ "--list-presets", CommandArgument::Values::ZeroOrOne,
                      [&](std::string const& value) -> bool {
-                       workingMode = cmake::HELP_MODE;
+                       role = cmState::Role::Help;
                        parsedArgs.emplace_back("--list-presets");
                        parsedArgs.emplace_back(value);
                        return true;
@@ -346,7 +336,7 @@ int do_cmake(int ac, char const* const* av)
 
     // Only in script mode do we stop parsing instead
     // of preferring the last mode flag provided
-    if (arg == "--" && workingMode == cmake::SCRIPT_MODE) {
+    if (arg == "--" && role == cmState::Role::Script) {
       parsedArgs = inputArgs;
       break;
     }
@@ -369,46 +359,11 @@ int do_cmake(int ac, char const* const* av)
   }
 
   if (sysinfo) {
-    cmake cm(cmake::RoleProject, cmState::Project);
-    cm.SetHomeDirectory("");
-    cm.SetHomeOutputDirectory("");
+    cmake cm(cmState::Role::Project);
     int ret = cm.GetSystemInformation(parsedArgs);
     return ret;
   }
-
-  if (pythoninfo) {
-#ifdef CMake_ENABLE_PYTHON
-    // only one core can exist at a time (as it holds the python scoped_interpreter
-    // so make sure this occurs before the creation of cmake below)
-    cmPythonCore core;
-    return core.PrintPythonInfo(std::wcout) ? 0 : 1;
-#else
-    std::cerr << "no python support compiled into this cmake.\n";
-    return 1;
-#endif
-  }
-
-  cmake::Role const role =
-    workingMode == cmake::SCRIPT_MODE ? cmake::RoleScript : cmake::RoleProject;
-  cmState::Mode mode = cmState::Unknown;
-  switch (workingMode) {
-    case cmake::NORMAL_MODE:
-    case cmake::HELP_MODE:
-      mode = cmState::Project;
-      break;
-    case cmake::SCRIPT_MODE:
-      mode = cmState::Script;
-      break;
-    case cmake::FIND_PACKAGE_MODE:
-      mode = cmState::FindPackage;
-      break;
-  }
-  auto const failurePolicy = workingMode == cmake::NORMAL_MODE
-    ? cmake::CommandFailureAction::EXIT_CODE
-    : cmake::CommandFailureAction::FATAL_ERROR;
-  cmake cm(role, mode);
-  cm.SetHomeDirectory("");
-  cm.SetHomeOutputDirectory("");
+  cmake cm(role);
   cmSystemTools::SetMessageCallback(
     [&cm](std::string const& msg, cmMessageMetadata const& md) {
       cmakemainMessageCallback(msg, md, &cm);
@@ -416,7 +371,6 @@ int do_cmake(int ac, char const* const* av)
   cm.SetProgressCallback([&cm](std::string const& msg, float prog) {
     cmakemainProgressCallback(msg, prog, &cm);
   });
-  cm.SetWorkingMode(workingMode, failurePolicy);
 
   int res = cm.Run(parsedArgs, view_only);
   if (list_cached || list_all_cached) {
@@ -706,7 +660,7 @@ int do_build(int ac, char const* const* av)
     return 1;
   }
 
-  cmake cm(cmake::RoleInternal, cmState::Project);
+  cmake cm(cmState::Role::Internal);
   cmSystemTools::SetMessageCallback(
     [&cm](std::string const& msg, cmMessageMetadata const& md) {
       cmakemainMessageCallback(msg, md, &cm);
@@ -988,7 +942,7 @@ int do_install(int ac, char const* const* av)
     } else {
       for (auto const& script : handler.GetScripts()) {
         std::vector<std::string> cmd = script.command;
-        cmake cm(cmake::RoleScript, cmState::Script);
+        cmake cm(cmState::Role::Script);
         cmSystemTools::SetMessageCallback(
           [&cm](std::string const& msg, cmMessageMetadata const& md) {
             cmakemainMessageCallback(msg, md, &cm);
@@ -996,11 +950,7 @@ int do_install(int ac, char const* const* av)
         cm.SetProgressCallback([&cm](std::string const& msg, float prog) {
           cmakemainProgressCallback(msg, prog, &cm);
         });
-        cm.SetHomeDirectory("");
-        cm.SetHomeOutputDirectory("");
         cm.SetDebugOutputOn(verbose);
-        cm.SetWorkingMode(cmake::SCRIPT_MODE,
-                          cmake::CommandFailureAction::FATAL_ERROR);
         ret_ = int(bool(cm.Run(cmd)));
       }
     }
@@ -1093,7 +1043,7 @@ int do_workflow(int ac, char const* const* av)
     return 1;
   }
 
-  cmake cm(cmake::RoleInternal, cmState::Project);
+  cmake cm(cmState::Role::Internal);
   cmSystemTools::SetMessageCallback(
     [&cm](std::string const& msg, cmMessageMetadata const& md) {
       cmakemainMessageCallback(msg, md, &cm);
@@ -1137,7 +1087,7 @@ int do_open(int ac, char const* const* av)
     return 1;
   }
 
-  cmake cm(cmake::RoleInternal, cmState::Unknown);
+  cmake cm(cmState::Role::Internal);
   cmSystemTools::SetMessageCallback(
     [&cm](std::string const& msg, cmMessageMetadata const& md) {
       cmakemainMessageCallback(msg, md, &cm);

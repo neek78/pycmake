@@ -48,24 +48,24 @@ class cmState
   friend class cmStateSnapshot;
 
 public:
-  enum Mode
+  enum class Role
   {
-    Unknown,
+    Internal,
     Project,
     Script,
     FindPackage,
     CTest,
     CPack,
-    Help
+    Help,
   };
 
-  enum class ProjectKind
+  enum class TryCompile
   {
-    Normal,
-    TryCompile,
+    No,
+    Yes,
   };
 
-  cmState(Mode mode, ProjectKind projectKind = ProjectKind::Normal);
+  cmState(Role role, TryCompile isTryCompile = TryCompile::No);
   ~cmState();
 
   cmState(cmState const&) = delete;
@@ -239,12 +239,14 @@ public:
   unsigned int GetCacheMajorVersion() const;
   unsigned int GetCacheMinorVersion() const;
 
-  Mode GetMode() const;
-  std::string GetModeString() const;
+  void SetRoleToProjectForCMakeBuildVsReconfigure();
+  void SetRoleToHelpForListPresets();
+  Role GetRole() const;
+  std::string GetRoleString() const;
 
-  static std::string ModeToString(Mode mode);
+  static std::string RoleToString(Role role);
 
-  ProjectKind GetProjectKind() const;
+  TryCompile GetIsTryCompile() const;
 
   void ClearDependencyProvider() { this->DependencyProvider.reset(); }
   void SetDependencyProvider(cmDependencyProvider provider)
@@ -319,8 +321,8 @@ private:
   bool Ninja = false;
   bool NinjaMulti = false;
   bool FastbuildMake = false;
-  Mode StateMode = Unknown;
-  ProjectKind StateProjectKind = ProjectKind::Normal;
+  Role StateRole = Role::Internal;
+  TryCompile IsTryCompile = TryCompile::No;
   cm::optional<cmDependencyProvider> DependencyProvider;
   bool ProcessingTopLevelIncludes = false;
 
