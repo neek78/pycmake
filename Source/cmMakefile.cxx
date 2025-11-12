@@ -1614,6 +1614,16 @@ void cmMakefile::Configure()
     this->StateSnapshot.GetDirectory().GetCurrentBinary(), "/CMakeFiles");
   cmSystemTools::MakeDirectory(filesDir);
 
+#ifdef CMake_ENABLE_PYTHON 
+  if (IsPython) {
+    ConfigurePythonScript(currentSrc, PYTHON_SCRIPT_NAME);
+  } else {
+    ConfigureListFile(currentStart);
+  }
+#else
+  ConfigureListFile(currentStart);
+#endif
+
   // In the top-most directory, cmake_minimum_required() may not have been
   // called yet, so ApplyPolicyVersion() may not have handled the default
   // policy value.  Check them here.
@@ -1627,16 +1637,6 @@ void cmMakefile::Configure()
       }
     }
   }
-
-#ifdef CMake_ENABLE_PYTHON 
-  if (IsPython) {
-    ConfigurePythonScript(currentSrc, PYTHON_SCRIPT_NAME);
-  } else {
-    ConfigureListFile(currentStart);
-  }
-#else
-  ConfigureListFile(currentStart);
-#endif
 
   // Set CMAKE_PARENT_LIST_FILE for CMakeLists.txt based on CMP0198 policy
   this->UpdateParentListFileVariable();
