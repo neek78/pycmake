@@ -867,8 +867,6 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
                              std::string const& filenametoread,
                              DeferCommands* defer)
 {
-  auto current = UpdateListVars(filenametoread);
-
   // add this list file to the list of dependencies
   this->ListFiles.push_back(filenametoread);
 
@@ -892,46 +890,6 @@ void cmMakefile::RunListFile(cmListFile const& listFile,
     }
   }
 
-  RunDeferredCommands(defer, filenametoread);
-  RestoreListVars(current);
-}
-
-cmMakefile::CurrentFiles cmMakefile::UpdateListVars(std::string const& filenametoread)
-{
-  CurrentFiles ret;
-
-  // add this list file to the list of dependencies
-  this->ListFiles.push_back(filenametoread);
-
-  ret.currentParentFile =
-    this->GetSafeDefinition("CMAKE_PARENT_LIST_FILE");
-  ret.currentFile = this->GetSafeDefinition("CMAKE_CURRENT_LIST_FILE");
-
-  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", filenametoread);
-  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
-                      cmSystemTools::GetFilenamePath(filenametoread));
-
-  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
-
-  return ret;
-}
-
-void cmMakefile::RestoreListVars(const CurrentFiles& current)
-{
-  this->AddDefinition("CMAKE_PARENT_LIST_FILE", current.currentParentFile);
-  this->AddDefinition("CMAKE_CURRENT_LIST_FILE", current.currentFile);
-  this->AddDefinition("CMAKE_CURRENT_LIST_DIR",
-                      cmSystemTools::GetFilenamePath(current.currentFile));
-  this->MarkVariableAsUsed("CMAKE_PARENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_FILE");
-  this->MarkVariableAsUsed("CMAKE_CURRENT_LIST_DIR");
-}
-
-void cmMakefile::RunDeferredCommands(DeferCommands* defer,
-                             std::string const& filenametoread)
-{
   // Run any deferred commands.
   if (defer) {
     // Add a backtrace level indicating calls are deferred.
@@ -1587,19 +1545,8 @@ private:
 
 void cmMakefile::Configure()
 {
-  const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
-  const std::string listStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrc);
-  const std::string pythonStart = cmStrCat(currentSrc, "/", PYTHON_SCRIPT_NAME);
-
-  std::string currentStart = listStart;
-
-  if (!cmSystemTools::FileExists(listStart, true)) {
-    // try python
-    currentStart = pythonStart;
-    IsPython = true;
-  }
-
-  assert(cmSystemTools::FileExists(currentStart, true));
+  std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(
+    this->StateSnapshot.GetDirectory().GetCurrentSource());
 
   // Add the bottom of all backtraces within this directory.
   // We will never pop this scope because it should be available
@@ -1614,15 +1561,7 @@ void cmMakefile::Configure()
     this->StateSnapshot.GetDirectory().GetCurrentBinary(), "/CMakeFiles");
   cmSystemTools::MakeDirectory(filesDir);
 
-#ifdef CMake_ENABLE_PYTHON 
-  if (IsPython) {
-    ConfigurePythonScript(currentSrc, PYTHON_SCRIPT_NAME);
-  } else {
-    ConfigureListFile(currentStart);
-  }
-#else
-  ConfigureListFile(currentStart);
-#endif
+  assert(cmSystemTools::FileExists(currentStart, true));
 
   // In the top-most directory, cmake_minimum_required() may not have been
   // called yet, so ApplyPolicyVersion() may not have handled the default
@@ -1641,25 +1580,6 @@ void cmMakefile::Configure()
   // Set CMAKE_PARENT_LIST_FILE for CMakeLists.txt based on CMP0198 policy
   this->UpdateParentListFileVariable();
 
-  if (cmSystemTools::GetFatalErrorOccurred()) {
-    scope.Quiet();
-  }
-
-  // at the end handle any old style subdirs
-  std::vector<cmMakefile*> subdirs = this->UnConfiguredDirectories;
-
-  // for each subdir recurse
-  auto sdi = subdirs.begin();
-  for (; sdi != subdirs.end(); ++sdi) {
-    (*sdi)->StateSnapshot.InitializeFromParent_ForSubdirsCommand();
-    this->ConfigureSubDirectory(*sdi);
-  }
-
-  this->AddCMakeDependFilesFromUser();
-}
-
-void cmMakefile::ConfigureListFile(const std::string& currentStart)
-{
 #ifdef CMake_ENABLE_DEBUGGER
   if (this->GetCMakeInstance()->GetDebugAdapter()) {
     this->GetCMakeInstance()->GetDebugAdapter()->OnBeginFileParse(
@@ -1765,6 +1685,21 @@ void cmMakefile::ConfigureListFile(const std::string& currentStart)
   this->Defer = cm::make_unique<DeferCommands>();
   this->RunListFile(listFile, currentStart, this->Defer.get());
   this->Defer.reset();
+  if (cmSystemTools::GetFatalErrorOccurred()) {
+    scope.Quiet();
+  }
+
+  // at the end handle any old style subdirs
+  std::vector<cmMakefile*> subdirs = this->UnConfiguredDirectories;
+
+  // for each subdir recurse
+  auto sdi = subdirs.begin();
+  for (; sdi != subdirs.end(); ++sdi) {
+    (*sdi)->StateSnapshot.InitializeFromParent_ForSubdirsCommand();
+    this->ConfigureSubDirectory(*sdi);
+  }
+
+  this->AddCMakeDependFilesFromUser();
 }
 
 void cmMakefile::ConfigureSubDirectory(cmMakefile* mf)
@@ -4377,10 +4312,10 @@ bool cmMakefile::GetDebugFindPkgMode() const
   return this->DebugFindPkg;
 }
 
-#ifdef CMake_ENABLE_PYTHON 
-void cmMakefile::ConfigurePythonScript(const std::string& modPath, 
+#ifdef CMake_ENABLE_PYTHON
+void cmMakefile::ConfigurePythonScript(const std::string& modPath,
         const std::string& modName)
-{  
+{
   if(!GetCMakeInstance()->IsPythonAvailable()) {
       // python failed to init - we need to fatal here as we can't exec our script
       cmSystemTools::SetFatalErrorOccurred();
@@ -4407,7 +4342,7 @@ void cmMakefile::ConfigurePythonScript(const std::string& modPath,
   RestoreListVars(current);
 }
 
-void cmMakefile::RunPythonScript(const std::string& modPath, 
+void cmMakefile::RunPythonScript(const std::string& modPath,
         const std::string& modName)
 {
   cmPythonScript pythonScript(*this, modPath, modName);
@@ -4422,3 +4357,4 @@ void cmMakefile::RunPythonScript(const std::string& modPath,
 }
 
 #endif
+
