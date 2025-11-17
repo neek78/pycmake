@@ -4359,19 +4359,6 @@ bool cmMakefile::GetDebugFindPkgMode() const
 }
 
 #ifdef CMake_ENABLE_PYTHON
-void cmMakefile::RunDeferredCommands(DeferCommands* defer,
-                             std::string const& filenametoread)
-{
-}
-
-void cmMakefile::RestoreListVars(const CurrentFiles& current)
-{
-}
-
-cmMakefile::CurrentFiles cmMakefile::UpdateListVars(std::string const& filenametoread)
-{
-}
-
 void cmMakefile::ConfigurePythonScript(const std::string& modPath,
         const std::string& modName)
 {
@@ -4388,17 +4375,12 @@ void cmMakefile::ConfigurePythonScript(const std::string& modPath,
   assert(!this->Defer);
 
   std::string fullPath = modPath + "/" + modName;
-  CurrentFiles current = UpdateListVars(fullPath);
 
   this->Defer = cm::make_unique<DeferCommands>();
 
   RunPythonScript(modPath, modName);
 
-  RunDeferredCommands(this->Defer.get(), fullPath);
-
   this->Defer.reset();
-
-  RestoreListVars(current);
 }
 
 void cmMakefile::RunPythonScript(const std::string& modPath,

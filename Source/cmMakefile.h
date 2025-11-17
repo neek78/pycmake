@@ -1255,17 +1255,6 @@ private:
   void ConfigurePythonScript(const std::string& modPath, const std::string& modName);
   void RunPythonScript(const std::string& modPath, const std::string& modName);
 
-  void RunDeferredCommands(DeferCommands* defer, std::string const& filenametoread);
-
-  struct CurrentFiles
-  {
-    std::string currentParentFile;
-    std::string currentFile;
-  };
-
-  CurrentFiles UpdateListVars(std::string const& filenametoread);
-  void RestoreListVars(const CurrentFiles& current);
-
 public:
   bool GetIsPython() const { return IsPython; }
     
