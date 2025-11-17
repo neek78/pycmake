@@ -2269,14 +2269,20 @@ void cmake::SetGlobalGenerator(std::unique_ptr<cmGlobalGenerator> gg)
 
 int cmake::DoPreConfigureChecks()
 {
+  static std::string fnList = "/CMakeLists.txt";
+  static std::string fnPy = "/" + PYTHON_SCRIPT_NAME;
+
   // Make sure the Source directory contains a CMakeLists.txt file.
-  std::string srcList =
-    cmStrCat(this->GetHomeDirectory(), '/', this->CMakeListName);
-  if (!cmSystemTools::FileExists(srcList)) {
+  std::string srcDir = this->GetHomeDirectory();
+  std::string srcList = cmStrCat(srcDir, fnList);
+  std::string srcPy = cmStrCat(srcDir, fnPy);
+
+  if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
     std::ostringstream err;
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not appear to contain " << this->CMakeListName << ".\n";
+          << "\" does not appear to contain " << this->CMakeListName << " or "
+          << PYTHON_SCRIPT_NAME << ".\n";
     } else if (cmSystemTools::FileExists(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
           << "\" is a file, not a directory.\n";
@@ -2290,14 +2296,18 @@ int cmake::DoPreConfigureChecks()
     return -2;
   }
 
+  //FIXME: do this property§
   // do a sanity check on some values
   if (cmValue dir =
         this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY")) {
     std::string cacheStart = cmStrCat(*dir, '/', this->CMakeListName);
-    if (!cmSystemTools::SameFile(cacheStart, srcList)) {
+    std::string cachePy = cmStrCat(*dir, '/', fnPy);
+
+    if (!cmSystemTools::SameFile(cacheStart, srcList) &&
+        !cmSystemTools::SameFile(cachePy, srcPy)) {
       std::string message =
         cmStrCat("The source \"", srcList, "\" does not match the source \"",
-                 cacheStart,
+                 cacheStart, "\" or \"", cachePy,
                  "\" used to generate cache.  Re-run cmake with a different "
                  "source directory.");
       cmSystemTools::Error(message);
