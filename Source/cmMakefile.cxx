@@ -1759,7 +1759,9 @@ void cmMakefile::ConfigureSubDirectory(cmMakefile* mf)
 
   std::string currentStartFile =
     this->GetCMakeInstance()->GetCMakeListFile(currentStart);
-  if (!cmSystemTools::FileExists(currentStartFile, true)) {
+  std::string const pyStartFile = currentStart + "/" + PYTHON_SCRIPT_NAME;
+  if (!cmSystemTools::FileExists(currentStartFile, true) &&
+      !cmSystemTools::FileExists(pyStartFile, true)) {
     this->IssueMessage(MessageType::FATAL_ERROR,
                        cmStrCat("The source directory\n  ", currentStart,
                                 "\n"

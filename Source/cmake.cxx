@@ -2269,13 +2269,13 @@ void cmake::SetGlobalGenerator(std::unique_ptr<cmGlobalGenerator> gg)
 
 int cmake::DoPreConfigureChecks()
 {
-  static std::string fnList = "/CMakeLists.txt";
-  static std::string fnPy = "/" + PYTHON_SCRIPT_NAME;
+  static std::string fnList = "CMakeLists.txt";
+  static std::string fnPy = PYTHON_SCRIPT_NAME;
 
   // Make sure the Source directory contains a CMakeLists.txt file.
   std::string srcDir = this->GetHomeDirectory();
-  std::string srcList = cmStrCat(srcDir, fnList);
-  std::string srcPy = cmStrCat(srcDir, fnPy);
+  std::string srcList = cmStrCat(srcDir, "/", fnList);
+  std::string srcPy = cmStrCat(srcDir, "/", fnPy);
 
   if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
     std::ostringstream err;
