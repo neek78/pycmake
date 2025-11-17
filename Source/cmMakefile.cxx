@@ -1581,6 +1581,27 @@ void cmMakefile::Configure()
   // Set CMAKE_PARENT_LIST_FILE for CMakeLists.txt based on CMP0198 policy
   this->UpdateParentListFileVariable();
 
+  ConfigureListFile(currentStart);
+
+  if (cmSystemTools::GetFatalErrorOccurred()) {
+    scope.Quiet();
+  }
+
+  // at the end handle any old style subdirs
+  std::vector<cmMakefile*> subdirs = this->UnConfiguredDirectories;
+
+  // for each subdir recurse
+  auto sdi = subdirs.begin();
+  for (; sdi != subdirs.end(); ++sdi) {
+    (*sdi)->StateSnapshot.InitializeFromParent_ForSubdirsCommand();
+    this->ConfigureSubDirectory(*sdi);
+  }
+
+  this->AddCMakeDependFilesFromUser();
+}
+
+void cmMakefile::ConfigureListFile(const std::string& currentStart)
+{
 #ifdef CMake_ENABLE_DEBUGGER
   if (this->GetCMakeInstance()->GetDebugAdapter()) {
     this->GetCMakeInstance()->GetDebugAdapter()->OnBeginFileParse(
@@ -1686,21 +1707,6 @@ void cmMakefile::Configure()
   this->Defer = cm::make_unique<DeferCommands>();
   this->RunListFile(listFile, currentStart, this->Defer.get());
   this->Defer.reset();
-  if (cmSystemTools::GetFatalErrorOccurred()) {
-    scope.Quiet();
-  }
-
-  // at the end handle any old style subdirs
-  std::vector<cmMakefile*> subdirs = this->UnConfiguredDirectories;
-
-  // for each subdir recurse
-  auto sdi = subdirs.begin();
-  for (; sdi != subdirs.end(); ++sdi) {
-    (*sdi)->StateSnapshot.InitializeFromParent_ForSubdirsCommand();
-    this->ConfigureSubDirectory(*sdi);
-  }
-
-  this->AddCMakeDependFilesFromUser();
 }
 
 void cmMakefile::ConfigureSubDirectory(cmMakefile* mf)
