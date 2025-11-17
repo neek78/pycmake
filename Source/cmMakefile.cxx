@@ -1546,8 +1546,39 @@ private:
 
 void cmMakefile::Configure()
 {
-  std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(
-    this->StateSnapshot.GetDirectory().GetCurrentSource());
+  const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
+  const std::string pythonStart = cmStrCat(currentSrc, "/", PYTHON_SCRIPT_NAME);
+  std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrc);
+
+  if (!cmSystemTools::FileExists(currentStart, true)) {
+    // try python
+    currentStart = pythonStart;
+    IsPython = true;
+  }
+
+#ifndef CMake_ENABLE_PYTHON 
+  if (IsPython) {
+    // Found a python script, but we haven't got python support compiled in
+    std::string err = "Found a python cmake script at " + currentStart +
+        "but this cmake does not have python support compiled in";
+    this->GetCMakeInstance()->IssueMessage( MessageType::FATAL_ERROR, err);
+    cmSystemTools::SetFatalErrorOccurred();
+    return;
+  }
+#else
+  if (IsRootMakefile()) {
+    this->AddDefinitionBool("CMAKE_PYTHON_AVAILABLE", 
+            GetCMakeInstance()->IsPythonAvailable());
+  }
+#endif
+
+  // If Both CMakeLists.txt and python script exist - issue a warning.
+  if (!IsPython && cmSystemTools::FileExists(pythonStart, true)) {
+      auto msg = std::string("Both CMakeLists.txt and ") + PYTHON_SCRIPT_NAME +
+        " exist in directory " + currentSrc + ". " +
+        "The python script will be ignored.";
+      IssueMessage(MessageType::AUTHOR_WARNING, msg);
+  }
 
   // Add the bottom of all backtraces within this directory.
   // We will never pop this scope because it should be available
@@ -1581,7 +1612,15 @@ void cmMakefile::Configure()
   // Set CMAKE_PARENT_LIST_FILE for CMakeLists.txt based on CMP0198 policy
   this->UpdateParentListFileVariable();
 
+#ifdef CMake_ENABLE_PYTHON 
+  if (IsPython) {
+    ConfigurePythonScript(currentSrc, PYTHON_SCRIPT_NAME);
+  } else {
+    ConfigureListFile(currentStart);
+  }
+#else
   ConfigureListFile(currentStart);
+#endif
 
   if (cmSystemTools::GetFatalErrorOccurred()) {
     scope.Quiet();
