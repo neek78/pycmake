@@ -24,13 +24,8 @@
 class cmFastbuildTargetGenerator;
 class cmGeneratorTarget;
 class cmGlobalGeneratorFactory;
-class cmLinkLineComputer;
-class cmLocalGenerator;
 class cmMakefile;
-class cmOutputConverter;
-class cmStateDirectory;
 class cmake;
-enum class cmDepfileFormat;
 struct cmDocumentationEntry;
 
 #define FASTBUILD_DOLLAR_TAG "FASTBUILD_DOLLAR_TAG"
@@ -411,7 +406,7 @@ public:
   {
     return "install/parallel";
   }
-  char const* GetTestTargetName() const override { return "test"; }
+  char const* GetTestTargetName() const override { return "RUN_TESTS"; }
   char const* GetPackageTargetName() const override { return "package"; }
   char const* GetPackageSourceTargetName() const override
   {

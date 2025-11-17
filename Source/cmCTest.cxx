@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <map>
@@ -75,6 +76,8 @@
 #if defined(__BEOS__) || defined(__HAIKU__)
 #  include <be/kernel/OS.h> /* disable_debugger() API. */
 #endif
+
+struct tm;
 
 struct cmCTest::Private
 {
@@ -999,6 +1002,7 @@ bool cmCTest::RunMakeCommand(std::string const& command, std::string& output,
         break;
     }
   } else {
+    chain.Terminate();
     cmCTestLog(this, WARNING, "There was a timeout" << std::endl);
   }
 
@@ -3341,6 +3345,7 @@ bool cmCTest::RunCommand(std::vector<std::string> const& args,
 
   bool result = true;
   if (timedOut) {
+    chain.Terminate();
     char const* error_str = "Process terminated due to timeout\n";
     cmCTestLog(this, ERROR_MESSAGE, error_str << std::endl);
     stdErr->append(error_str, strlen(error_str));

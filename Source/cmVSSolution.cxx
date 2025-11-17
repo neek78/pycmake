@@ -312,6 +312,9 @@ void WriteSlnxProject(cmXMLElement& xmlParent, Solution const& solution,
   cmXMLElement xmlProject(xmlParent, "Project");
   xmlProject.Attribute("Path", project.Path);
   xmlProject.Attribute("Id", cmSystemTools::LowerCase(project.Id));
+  if (project.Name == solution.StartupProject) {
+    xmlProject.Attribute("DefaultStartup", "true");
+  }
   for (Solution::Project const* d : project.BuildDependencies) {
     cmXMLElement(xmlProject, "BuildDependency").Attribute("Project", d->Path);
   }
@@ -319,6 +322,7 @@ void WriteSlnxProject(cmXMLElement& xmlParent, Solution const& solution,
   for (std::size_t i = 0; i < solution.Configs.size(); ++i) {
     if (project.Configs[i].Config != solution.Configs[i]) {
       cmXMLElement(xmlProject, "BuildType")
+        .Attribute("Solution", cmStrCat(solution.Configs[i], "|*"))
         .Attribute("Project", project.Configs[i].Config);
     }
     if (!project.Configs[i].Build) {
