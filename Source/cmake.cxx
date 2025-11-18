@@ -2269,20 +2269,27 @@ void cmake::SetGlobalGenerator(std::unique_ptr<cmGlobalGenerator> gg)
 
 int cmake::DoPreConfigureChecks()
 {
-  static std::string fnList = "CMakeLists.txt";
   static std::string fnPy = PYTHON_SCRIPT_NAME;
+  std::string srcDir = this->GetHomeDirectory();
+  std::string srcPy = cmStrCat(srcDir, "/", fnPy);
+#if 0
+  static std::string fnList = "CMakeLists.txt";
 
   // Make sure the Source directory contains a CMakeLists.txt file.
-  std::string srcDir = this->GetHomeDirectory();
   std::string srcList = cmStrCat(srcDir, "/", fnList);
-  std::string srcPy = cmStrCat(srcDir, "/", fnPy);
+#endif
 
-  if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
+  std::string srcList =
+    cmStrCat(this->GetHomeDirectory(), '/', this->CMakeListName);
+  if (!cmSystemTools::FileExists(srcList)) {
+
+  //if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
     std::ostringstream err;
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not appear to contain " << this->CMakeListName << " or "
-          << PYTHON_SCRIPT_NAME << ".\n";
+          << "\" does not appear to contain " << this->CMakeListName 
+          //<< " or " << PYTHON_SCRIPT_NAME 
+          << ".\n";
     } else if (cmSystemTools::FileExists(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
           << "\" is a file, not a directory.\n";
