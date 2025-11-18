@@ -278,6 +278,7 @@ function(run_cmake test)
       string(APPEND command " ${RunCMake_TEST_RAW_ARGS}")
     endif()
     string(APPEND msg "Command was:\n command> ${command}\n")
+    string(APPEND msg "Working dir was: ${RunCMake_TEST_COMMAND_WORKING_DIRECTORY}\n")
 
     foreach(o IN ITEMS stdout stderr config)
       if(DEFINED expect_${o})
