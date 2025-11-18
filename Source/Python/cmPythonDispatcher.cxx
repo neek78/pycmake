@@ -207,7 +207,7 @@ std::string cmPythonDispatcher::convertSimple(const py::handle& arg, ArgTracker&
         // give a nicer error than the default exception
         std::stringstream ss;
         ss << "could not convert argument " << tracker.GetArgCount() <<
-            " from " << arg.get_type() << 
+            " from " << py::type::of(arg) << 
             " to string in call to cmake function '" << tracker.GetFnName()
             << "' - " << e.what();
         throw py::type_error(ss.str());
