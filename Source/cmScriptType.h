@@ -20,5 +20,7 @@ std::string GetFullScriptPath(const std::string& dir, cmScriptType t);
 
 std::optional<cmScriptType> DetectScriptType(const std::string& dir);
 
+std::optional<cmScriptType> ScriptTypeFromStdFilename(const std::string& fn);
+
 // try and detect a script by name - otherwise return classic CMakeList.txt
 std::string TryDetectScriptType(const std::string& dir);

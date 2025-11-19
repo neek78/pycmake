@@ -1551,9 +1551,9 @@ void cmMakefile::Configure()
 
   IsPython = this->GetCMakeInstance()->GetScriptType() == cmScriptType::Python;
 
-  std::cout << "CURRENTSTART |"<<currentStart << " IsPython " << IsPython<< "\n";
+  // std::cout << "CURRENTSTART |"<<currentStart << " IsPython " << IsPython<< "\n";
 
-  if (!DoPythonPreflightChecks(IsPython)) {
+  if (!DoPythonPreflightChecks(currentStart, IsPython)) {
     // checks failed - error will already be logged
     return;
   }
@@ -4349,7 +4349,7 @@ bool cmMakefile::GetDebugFindPkgMode() const
   return this->DebugFindPkg;
 }
 
-bool cmMakefile::DoPythonPreflightChecks(bool isPython)
+bool cmMakefile::DoPythonPreflightChecks(const std::string& currentStart, bool isPython)
 {
 #ifndef CMake_ENABLE_PYTHON 
   if (isPython) {
@@ -4361,7 +4361,8 @@ bool cmMakefile::DoPythonPreflightChecks(bool isPython)
     return false;
   }
 #else
-  (void)isPython; // avoid compile warnint
+  (void)isPython; // avoid compile warning
+  (void)currentStart;
 #endif
 
   // make python availablility known 

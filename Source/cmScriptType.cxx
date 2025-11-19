@@ -61,3 +61,13 @@ std::string TryDetectScriptType(const std::string& dir)
 
 }
 
+std::optional<cmScriptType> ScriptTypeFromStdFilename(const std::string& fn)
+{
+  if (fn == "CMakeLists.txt") {
+      return cmScriptType::Native;
+  } 
+  if (fn == PYTHON_SCRIPT_NAME) {
+      return cmScriptType::Python;
+  }
+  return {};
+}

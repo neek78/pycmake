@@ -2273,8 +2273,6 @@ int cmake::DoPreConfigureChecks()
   std::string srcList =
     cmStrCat(this->GetHomeDirectory(), '/', this->CMakeListName);
 
-  std::cerr << " XXX listname |" << this->CMakeListName << " | \n";
-
   if (!cmSystemTools::FileExists(srcList)) {
     std::ostringstream err;
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
@@ -2515,6 +2513,7 @@ int cmake::ActualConfigure()
         }
       } else {
         this->CMakeListName = cmlNameCache;
+        stdName = !!ScriptTypeFromStdFilename(cmlNameCache);
       }
   }
 
