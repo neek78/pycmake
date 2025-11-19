@@ -4,7 +4,6 @@
 #include "cmMakefile.h"
 
 #include <pybind11/embed.h>
-#include <iostream>
 
 namespace py = pybind11;
 
@@ -18,9 +17,7 @@ std::string ExpandVar(
     std::string errStr;
 
     // this expands in place - ie output is in value
-    MessageType mtype = makefile.ExpandVariablesInString(errStr, out);
-    std::cerr << "err |" << errStr << "| out |" << out << "| mytype |" 
-        << (int)mtype << "|\n"; 
+    MessageType mtype = makefile.ExpandVariablesInString(errStr, out, strict);
 
     if (mtype != MessageType::LOG) {
         py::str err = "error during variable expansion - "_pys + py::str(errStr);

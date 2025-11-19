@@ -710,7 +710,7 @@ public:
     bool removeEmpty = false, bool replaceAt = false) const;
 
   MessageType ExpandVariablesInString(std::string& errorStr,
-     std::string& source) const;
+     std::string& source, bool strict) const;
   /**
    * Remove any remaining variables in the string. Anything with ${var} or
    * \@var\@ will be removed.
@@ -1231,7 +1231,8 @@ private:
                                           std::string& source,
                                           bool escapeQuotes, bool noEscapes,
                                           bool atOnly, char const* filename,
-                                          long line, bool replaceAt) const;
+                                          long line, bool replaceAt, 
+										  bool strict = false) const;
 
   bool ValidateCustomCommand(cmCustomCommandLines const& commandLines) const;
 

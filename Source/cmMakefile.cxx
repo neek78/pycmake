@@ -2523,10 +2523,10 @@ std::string const& cmMakefile::ExpandVariablesInString(
 }
 
 MessageType cmMakefile::ExpandVariablesInString(std::string& errorStr,
-        std::string& source) const 
+        std::string& source, bool strict) const 
 {
   MessageType mtype = this->ExpandVariablesInStringImpl(errorStr, source,
-            false, false, false, nullptr, -1, false);
+            false, false, false, nullptr, -1, false, strict);
   return mtype;
 
 }
@@ -2644,7 +2644,7 @@ cm::optional<std::string> cmMakefile::DeferGetCall(std::string const& id) const
 MessageType cmMakefile::ExpandVariablesInStringImpl(
   std::string& errorstr, std::string& source, bool escapeQuotes,
   bool noEscapes, bool atOnly, char const* filename, long line,
-  bool replaceAt) const
+  bool replaceAt, bool strict) const
 {
   // This method replaces ${VAR} and @VAR@ where VAR is looked up
   // with GetDefinition(), if not found in the map, nothing is expanded.
@@ -2706,6 +2706,11 @@ MessageType cmMakefile::ExpandVariablesInStringImpl(
             }
           } else {
             this->MaybeWarnUninitialized(lookup, filename);
+
+            errorstr += cmStrCat("unknown variable ", lookup);
+            if (strict) {
+			  mtype = MessageType::WARNING;
+            }
           }
           result.replace(var.loc, result.size() - var.loc, varresult);
           // Start looking from here on out.
@@ -3022,7 +3027,7 @@ bool cmMakefile::IsLoopBlock() const
 }
 
 bool cmMakefile::ExpandArguments(std::vector<cmListFileArgument> const& inArgs,
-                                 std::vector<std::string>& outArgs) const
+                                 std::vector<std::string>& outArgs) const 
 {
   std::string const& filename = this->GetBacktrace().Top().FilePath;
   std::string value;
