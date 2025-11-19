@@ -2522,6 +2522,15 @@ std::string const& cmMakefile::ExpandVariablesInString(
   return source;
 }
 
+MessageType cmMakefile::ExpandVariablesInString(std::string& errorStr,
+        std::string& source) const 
+{
+  MessageType mtype = this->ExpandVariablesInStringImpl(errorStr, source,
+            false, false, false, nullptr, -1, false);
+  return mtype;
+
+}
+
 enum t_domain
 {
   NORMAL,

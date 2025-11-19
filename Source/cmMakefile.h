@@ -703,11 +703,14 @@ public:
    * expanded to match autoconf style expansions.
    */
   std::string const& ExpandVariablesInString(std::string& source) const;
+
   std::string const& ExpandVariablesInString(
     std::string& source, bool escapeQuotes, bool noEscapes,
     bool atOnly = false, char const* filename = nullptr, long line = -1,
     bool removeEmpty = false, bool replaceAt = false) const;
 
+  MessageType ExpandVariablesInString(std::string& errorStr,
+     std::string& source) const;
   /**
    * Remove any remaining variables in the string. Anything with ${var} or
    * \@var\@ will be removed.

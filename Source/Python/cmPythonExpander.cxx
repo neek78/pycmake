@@ -18,19 +18,15 @@ std::string ExpandVar(
     std::string errStr;
 
     // this expands in place - ie output is in value
-    // FIXME: fill file/line
-    // FIXME: reinstate error handling
-#if 0
-    MessageType mtype = makefile.ExpandVariablesInStringNew(errStr, out, false,
-                             false, false, "FILENAME", 0, false, strict);
+    MessageType mtype = makefile.ExpandVariablesInString(errStr, out);
+    std::cerr << "err |" << errStr << "| out |" << out << "| mytype |" 
+        << (int)mtype << "|\n"; 
 
     if (mtype != MessageType::LOG) {
         py::str err = "error during variable expansion - "_pys + py::str(errStr);
         throw py::value_error(err);
     }
-#endif
 
-    makefile.ExpandVariablesInString(out, false, false);
     return out;
 }
 
