@@ -1252,7 +1252,7 @@ private:
   // interfaces added for python support
   bool IsPython = false;  
 
-  bool DoPythonPreflightChecks(const std::string& currentStart, bool isPython);
+  bool DoPythonPreflightChecks(const std::string& currentStart);
   void ConfigurePythonScript(const std::string& modPath, const std::string& modName);
   void RunPythonScript(const std::string& modPath, const std::string& modName);
 

@@ -1546,14 +1546,21 @@ private:
 
 void cmMakefile::Configure()
 {
-  const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
-  const std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrc);
+  const std::string& currentSrcDir = this->StateSnapshot.GetDirectory().GetCurrentSource();
+  std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrcDir);
 
-  IsPython = this->GetCMakeInstance()->GetScriptType() == cmScriptType::Python;
+  if (IsRootMakefile()) {
+    // filetype should already be detected at the root level
+    IsPython = this->GetCMakeInstance()->GetScriptType() == cmScriptType::Python;
+  } else {
+      auto t = DetectScriptType(currentSrcDir);
+      if (t && *t == cmScriptType::Python) {
+          IsPython = true;
+          currentStart = GetFullScriptPath(currentSrcDir, *t);
+      }
+  }
 
-  // std::cout << "CURRENTSTART |"<<currentStart << " IsPython " << IsPython<< "\n";
-
-  if (!DoPythonPreflightChecks(currentStart, IsPython)) {
+  if (!DoPythonPreflightChecks(currentStart)) {
     // checks failed - error will already be logged
     return;
   }
@@ -1602,7 +1609,7 @@ void cmMakefile::Configure()
 
 #ifdef CMake_ENABLE_PYTHON 
   if (IsPython) {
-    ConfigurePythonScript(currentSrc, PYTHON_SCRIPT_NAME);
+    ConfigurePythonScript(currentSrcDir, PYTHON_SCRIPT_NAME);
   } else {
     ConfigureListFile(currentStart);
   }
@@ -4349,10 +4356,10 @@ bool cmMakefile::GetDebugFindPkgMode() const
   return this->DebugFindPkg;
 }
 
-bool cmMakefile::DoPythonPreflightChecks(const std::string& currentStart, bool isPython)
+bool cmMakefile::DoPythonPreflightChecks(const std::string& currentStart)
 {
 #ifndef CMake_ENABLE_PYTHON 
-  if (isPython) {
+  if (IsPython) {
     // Found a python script, but we haven't got python support compiled in
     std::string err = "Found a python cmake script at " + currentStart +
         "but this cmake does not have python support compiled in";
@@ -4361,7 +4368,6 @@ bool cmMakefile::DoPythonPreflightChecks(const std::string& currentStart, bool i
     return false;
   }
 #else
-  (void)isPython; // avoid compile warning
   (void)currentStart;
 #endif
 
