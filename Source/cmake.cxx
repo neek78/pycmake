@@ -4572,7 +4572,6 @@ bool cmake::GetDebugFindPkgOutput(std::string const& pkg) const
 
 void cmake::SetCMakeListName(std::string const& name)
 {
-    assert(false);
   this->CMakeListName = name;
 }
 
