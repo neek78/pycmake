@@ -6,27 +6,45 @@
 #include "cmSystemTools.h"
 #include "Python/cmPythonConstants.h"
 
-std::string GetScriptName(ScriptType t)
+std::string GetScriptName(cmScriptType t)
 {
   switch(t) {
-    case ScriptType::Native:  return "CMakeLists.txt";
-    case ScriptType::Python:  return PYTHON_SCRIPT_NAME;
+    case cmScriptType::Native:  return "CMakeLists.txt";
+    case cmScriptType::Python:  return PYTHON_SCRIPT_NAME;
   };
 }
 
-std::string GetFullScriptPath(const std::string& dir, ScriptType t)
+std::optional<cmScriptType> ScriptTypeFromString(const std::string& str)
+{
+  if (str == "Native") {
+      return cmScriptType::Native;
+  } 
+  if (str == "Python") {
+      return cmScriptType::Python;
+  }
+  return {};
+}
+
+std::string ScriptTypeToString(cmScriptType t)
+{
+  switch(t) {
+    case cmScriptType::Native:  return "Native";
+    case cmScriptType::Python:  return "Python";
+  };
+}
+std::string GetFullScriptPath(const std::string& dir, cmScriptType t)
 {
   return cmStrCat(dir, "/", GetScriptName(t));
 }
 
-std::optional<ScriptType> DetectScriptType(const std::string& dir) 
+std::optional<cmScriptType> DetectScriptType(const std::string& dir) 
 {
-  if (cmSystemTools::FileExists(GetFullScriptPath(dir, ScriptType::Native))) {
-    return ScriptType::Native;
+  if (cmSystemTools::FileExists(GetFullScriptPath(dir, cmScriptType::Native))) {
+    return cmScriptType::Native;
   }
 
-  if (cmSystemTools::FileExists(GetFullScriptPath(dir, ScriptType::Python))) {
-    return ScriptType::Python;
+  if (cmSystemTools::FileExists(GetFullScriptPath(dir, cmScriptType::Python))) {
+    return cmScriptType::Python;
   }
 
   return {};
@@ -42,3 +60,4 @@ std::string TryDetectScriptType(const std::string& dir)
     return "CMakeLists.txt";
 
 }
+

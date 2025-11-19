@@ -73,6 +73,7 @@
 #include "cmStateDirectory.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmScriptType.h"
 #include "cmTarget.h"
 #include "cmTargetLinkLibraryType.h"
 #include "cmUVProcessChain.h"
@@ -2269,21 +2270,12 @@ void cmake::SetGlobalGenerator(std::unique_ptr<cmGlobalGenerator> gg)
 
 int cmake::DoPreConfigureChecks()
 {
-  static std::string fnPy = PYTHON_SCRIPT_NAME;
-  std::string srcDir = this->GetHomeDirectory();
-  std::string srcPy = cmStrCat(srcDir, "/", fnPy);
-#if 0
-  static std::string fnList = "CMakeLists.txt";
-
-  // Make sure the Source directory contains a CMakeLists.txt file.
-  std::string srcList = cmStrCat(srcDir, "/", fnList);
-#endif
-
   std::string srcList =
     cmStrCat(this->GetHomeDirectory(), '/', this->CMakeListName);
-  if (!cmSystemTools::FileExists(srcList)) {
 
-  //if (!cmSystemTools::FileExists(srcList) && !cmSystemTools::FileExists(srcPy)) {
+  std::cerr << " XXX listname |" << this->CMakeListName << " | \n";
+
+  if (!cmSystemTools::FileExists(srcList)) {
     std::ostringstream err;
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
@@ -2303,18 +2295,15 @@ int cmake::DoPreConfigureChecks()
     return -2;
   }
 
-  //FIXME: do this property§
   // do a sanity check on some values
   if (cmValue dir =
         this->State->GetInitializedCacheValue("CMAKE_HOME_DIRECTORY")) {
     std::string cacheStart = cmStrCat(*dir, '/', this->CMakeListName);
-    std::string cachePy = cmStrCat(*dir, '/', fnPy);
 
-    if (!cmSystemTools::SameFile(cacheStart, srcList) &&
-        !cmSystemTools::SameFile(cachePy, srcPy)) {
+    if (!cmSystemTools::SameFile(cacheStart, srcList)) {
       std::string message =
         cmStrCat("The source \"", srcList, "\" does not match the source \"",
-                 cacheStart, "\" or \"", cachePy,
+                 cacheStart,
                  "\" used to generate cache.  Re-run cmake with a different "
                  "source directory.");
       cmSystemTools::Error(message);
@@ -2477,6 +2466,11 @@ int cmake::Configure()
   return ret;
 }
 
+cmScriptType cmake::GetScriptType() const
+{
+  return ScriptType;
+}
+
 int cmake::ActualConfigure()
 {
   // Construct right now our path conversion table before it's too late:
@@ -2487,6 +2481,14 @@ int cmake::ActualConfigure()
 
   std::string cmlNameCache =
     this->State->GetInitializedCacheValue("CMAKE_LIST_FILE_NAME");
+
+  auto type = ScriptTypeFromString(
+    this->State->GetInitializedCacheValue("CMAKE_LIST_FILE_TYPE"));
+
+  if (type) {
+    this->ScriptType = *type;
+  }
+
   if (!cmlNameCache.empty() && !this->CMakeListName.empty() &&
       cmlNameCache != this->CMakeListName) {
     std::string message =
@@ -2497,19 +2499,39 @@ int cmake::ActualConfigure()
     cmSystemTools::Error(message);
     return -2;
   }
+
+  bool stdName = false;
   if (this->CMakeListName.empty()) {
-    this->CMakeListName =
-      cmlNameCache.empty() ? "CMakeLists.txt" : cmlNameCache;
+      if (cmlNameCache.empty()) {
+        // script name not set yet - detect
+        auto t = DetectScriptType(this->GetHomeDirectory());
+        if (t) {
+          ScriptType = *t;
+          this->CMakeListName = GetScriptName(*t);
+          stdName = true;
+        } else {
+          // sigh
+          this->CMakeListName = "CMakeLists.txt";
+        }
+      } else {
+        this->CMakeListName = cmlNameCache;
+      }
   }
-  if (this->CMakeListName != "CMakeLists.txt") {
+
+  if (!stdName) {
     this->IssueMessage(
       MessageType::WARNING,
       "This project has been configured with a project file other than "
       "CMakeLists.txt. This feature is intended for temporary use during "
       "development and not for publication of a final product.");
   }
+
   this->AddCacheEntry("CMAKE_LIST_FILE_NAME", this->CMakeListName,
                       "Name of CMakeLists files to read",
+                      cmStateEnums::INTERNAL);
+
+  this->AddCacheEntry("CMAKE_LIST_FILE_TYPE", ScriptTypeToString(this->ScriptType),
+                      "Language that the script is written in",
                       cmStateEnums::INTERNAL);
 
   int res = this->DoPreConfigureChecks();
@@ -4551,6 +4573,7 @@ bool cmake::GetDebugFindPkgOutput(std::string const& pkg) const
 
 void cmake::SetCMakeListName(std::string const& name)
 {
+    assert(false);
   this->CMakeListName = name;
 }
 
@@ -4591,18 +4614,9 @@ bool cmake::IsPythonAvailable() const
 
 #ifdef CMake_ENABLE_PYTHON
 
-std::string cmake::GetPyScriptFile(const std::string& dir) const
-{
-  std::string pyScript = cmStrCat(dir, '/', this->PythonScriptName);
-  if (this->PythonScriptName.empty() ||
-      !cmSystemTools::FileExists(pyScript, true)) {
-    return cmStrCat(dir, "/", PYTHON_SCRIPT_NAME);
-  }
-  return pyScript;
-}
-
 cmPythonCore* cmake::GetPythonCore()
 {
+  assert(PythonCore);
   return this->PythonCore.get();
 }
 
@@ -4613,6 +4627,8 @@ void cmake::BuildPythonCore()
 
   this->PythonCore = std::make_unique<cmPythonCore>();
   if(!this->PythonCore->init()) {
+     // we don't directly report the failure here. 
+     // However the ptr will be reset, so IsPythonAvailable() will return false
      TeardownPythonCore();
   }
 }

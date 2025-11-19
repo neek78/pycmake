@@ -1547,31 +1547,18 @@ private:
 void cmMakefile::Configure()
 {
   const std::string& currentSrc = this->StateSnapshot.GetDirectory().GetCurrentSource();
-  const std::string pythonStart = cmStrCat(currentSrc, "/", PYTHON_SCRIPT_NAME);
-  std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrc);
+  const std::string currentStart = this->GetCMakeInstance()->GetCMakeListFile(currentSrc);
 
-  if (!cmSystemTools::FileExists(currentStart, true)) {
-    // try python
-    currentStart = pythonStart;
-    IsPython = true;
-  }
+  IsPython = this->GetCMakeInstance()->GetScriptType() == cmScriptType::Python;
 
-#ifndef CMake_ENABLE_PYTHON 
-  if (IsPython) {
-    // Found a python script, but we haven't got python support compiled in
-    std::string err = "Found a python cmake script at " + currentStart +
-        "but this cmake does not have python support compiled in";
-    this->GetCMakeInstance()->IssueMessage( MessageType::FATAL_ERROR, err);
-    cmSystemTools::SetFatalErrorOccurred();
+  std::cout << "CURRENTSTART |"<<currentStart << " IsPython " << IsPython<< "\n";
+
+  if (!DoPythonPreflightChecks(IsPython)) {
+    // checks failed - error will already be logged
     return;
   }
-#else
-  if (IsRootMakefile()) {
-    this->AddDefinitionBool("CMAKE_PYTHON_AVAILABLE", 
-            GetCMakeInstance()->IsPythonAvailable());
-  }
-#endif
 
+#if 0
   // If Both CMakeLists.txt and python script exist - issue a warning.
   if (!IsPython && cmSystemTools::FileExists(pythonStart, true)) {
       auto msg = std::string("Both CMakeLists.txt and ") + PYTHON_SCRIPT_NAME +
@@ -1579,6 +1566,7 @@ void cmMakefile::Configure()
         "The python script will be ignored.";
       IssueMessage(MessageType::AUTHOR_WARNING, msg);
   }
+#endif
 
   // Add the bottom of all backtraces within this directory.
   // We will never pop this scope because it should be available
@@ -1619,6 +1607,7 @@ void cmMakefile::Configure()
     ConfigureListFile(currentStart);
   }
 #else
+  assert(!IsPython);
   ConfigureListFile(currentStart);
 #endif
 
@@ -4358,6 +4347,30 @@ cmMakefile::DebugFindPkgRAII::~DebugFindPkgRAII()
 bool cmMakefile::GetDebugFindPkgMode() const
 {
   return this->DebugFindPkg;
+}
+
+bool cmMakefile::DoPythonPreflightChecks(bool isPython)
+{
+#ifndef CMake_ENABLE_PYTHON 
+  if (isPython) {
+    // Found a python script, but we haven't got python support compiled in
+    std::string err = "Found a python cmake script at " + currentStart +
+        "but this cmake does not have python support compiled in";
+    this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, err);
+    cmSystemTools::SetFatalErrorOccurred();
+    return false;
+  }
+#else
+  (void)isPython; // avoid compile warnint
+#endif
+
+  // make python availablility known 
+  if (IsRootMakefile()) {
+    this->AddDefinitionBool("CMAKE_PYTHON_AVAILABLE", 
+            GetCMakeInstance()->IsPythonAvailable());
+  }
+
+  return true; // no error
 }
 
 #ifdef CMake_ENABLE_PYTHON

@@ -455,6 +455,8 @@ add_library(
   cmSarifLog.h
   cmScriptGenerator.h
   cmScriptGenerator.cxx
+  cmScriptType.cxx
+  cmScriptType.h
   cmSourceFile.cxx
   cmSourceFile.h
   cmSourceFileLocation.cxx

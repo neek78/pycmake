@@ -24,6 +24,7 @@
 #include "cmInstalledFile.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
+#include "cmScriptType.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
@@ -708,7 +709,7 @@ public:
 
   void SetCMakeListName(std::string const& name);
   std::string GetCMakeListFile(std::string const& dir) const;
-  std::string GetPyScriptFile(const std::string& dir) const;
+  cmScriptType GetScriptType() const;
 
 #if !defined(CMAKE_BOOTSTRAP)
   cmMakefileProfilingData& GetProfilingOutput();
@@ -841,7 +842,7 @@ private:
   bool FreshCache = false;
   bool RegenerateDuringBuild = false;
   std::string CMakeListName;
-  std::string PythonScriptName;
+  cmScriptType ScriptType = cmScriptType::Native;
   std::unique_ptr<cmFileTimeCache> FileTimeCache;
   std::string GraphVizFile;
   InstalledFilesMap InstalledFiles;
@@ -924,7 +925,6 @@ public:
 #ifdef CMake_ENABLE_PYTHON
   // Note - might be null if python failed to init
   cmPythonCore* GetPythonCore();
-
 
 protected:
   void BuildPythonCore();
