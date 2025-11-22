@@ -1490,7 +1490,7 @@ void cmake::SetArgs(std::vector<std::string> const& args)
     if (!parsedCorrectly) {
       cmSystemTools::Error("Run 'cmake --help' for all supported options.");
       exit(1);
-    } else if (!matched && cmHasLiteralPrefix(arg, "-")) {
+    } else if (!matched && cmHasPrefix(arg, '-')) {
       possibleUnknownArg = arg;
     } else if (!matched) {
       bool parsedDirectory = this->SetDirectoriesFromFile(arg);
@@ -3975,7 +3975,7 @@ int cmake::Build(int jobs, std::string dir, std::vector<std::string> targets,
       return 1;
     }
 
-    if (!expandedConfigurePreset->BinaryDir.empty()) {
+    if (dir.empty() && !expandedConfigurePreset->BinaryDir.empty()) {
       dir = expandedConfigurePreset->BinaryDir;
     }
 
