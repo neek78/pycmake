@@ -475,6 +475,7 @@ CMAKE_CXX_SOURCES="\
   cmPlistParser \
   cmRulePlaceholderExpander \
   cmRuntimeDependencyArchive \
+  cmScriptType \
   cmScriptGenerator \
   cmSearchPath \
   cmSeparateArgumentsCommand \
