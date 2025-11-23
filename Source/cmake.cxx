@@ -2502,10 +2502,8 @@ int cmake::ActualConfigure()
     return -2;
   }
 
-  bool issueWarn = true;
   if (this->CMakeListName.empty()) {
       if (cmlNameCache.empty()) {
-        issueWarn = false;
         // script name not set yet - detect
         auto t = DetectScriptType(this->GetHomeDirectory());
         if (t) {
@@ -2517,11 +2515,10 @@ int cmake::ActualConfigure()
         }
       } else {
         this->CMakeListName = cmlNameCache;
-        issueWarn = !ScriptTypeFromStdFilename(cmlNameCache);
       }
   }
 
-  if (issueWarn) {
+  if (!ScriptTypeFromStdFilename(this->CMakeListName)) {
     this->IssueMessage(
       MessageType::WARNING,
       "This project has been configured with a project file other than "
