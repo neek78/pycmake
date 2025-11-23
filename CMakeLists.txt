@@ -241,6 +241,7 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
   mark_as_advanced(CMAKE_USE_PYTHON)
 
   if(CMAKE_USE_PYTHON)
+    set(PYBIND11_FINDPYTHON NEW)
     if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
       message(WARNING " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
                       " Use 'git submodule update --init' in your source tree to populate the submodule"
