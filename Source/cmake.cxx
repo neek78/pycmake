@@ -832,13 +832,16 @@ void cmake::ReadListFile(std::vector<std::string> const& args,
     snapshot.GetDirectory().SetCurrentSource(this->GetHomeDirectory());
     snapshot.SetDefaultDefinitions();
     cmMakefile mf(gg, snapshot);
+
     if (this->State->GetRole() == cmState::Role::Script) {
       mf.SetScriptModeFile(cmSystemTools::ToNormalizedPathOnDisk(path));
       mf.SetArgcArgv(args);
     }
+
     if (!cmSystemTools::FileExists(path, true)) {
       cmSystemTools::Error("Not a file: " + path);
     }
+
     if (!mf.ReadListFile(path)) {
       cmSystemTools::Error("Error processing file: " + path);
     }
@@ -2275,6 +2278,7 @@ int cmake::DoPreConfigureChecks()
 
   if (!cmSystemTools::FileExists(srcList)) {
     std::ostringstream err;
+
     if (cmSystemTools::FileIsDirectory(this->GetHomeDirectory())) {
       err << "The source directory \"" << this->GetHomeDirectory()
           << "\" does not appear to contain " << this->CMakeListName 
@@ -2498,26 +2502,26 @@ int cmake::ActualConfigure()
     return -2;
   }
 
-  bool stdName = false;
+  bool issueWarn = true;
   if (this->CMakeListName.empty()) {
       if (cmlNameCache.empty()) {
+        issueWarn = false;
         // script name not set yet - detect
         auto t = DetectScriptType(this->GetHomeDirectory());
         if (t) {
           ScriptType = *t;
           this->CMakeListName = GetScriptName(*t);
-          stdName = true;
         } else {
           // sigh
           this->CMakeListName = "CMakeLists.txt";
         }
       } else {
         this->CMakeListName = cmlNameCache;
-        stdName = !!ScriptTypeFromStdFilename(cmlNameCache);
+        issueWarn = !ScriptTypeFromStdFilename(cmlNameCache);
       }
   }
 
-  if (!stdName) {
+  if (issueWarn) {
     this->IssueMessage(
       MessageType::WARNING,
       "This project has been configured with a project file other than "
@@ -2530,7 +2534,7 @@ int cmake::ActualConfigure()
                       cmStateEnums::INTERNAL);
 
   this->AddCacheEntry("CMAKE_LIST_FILE_TYPE", ScriptTypeToString(this->ScriptType),
-                      "Language that the script is written in",
+                      "Language in which the script is written",
                       cmStateEnums::INTERNAL);
 
   int res = this->DoPreConfigureChecks();
