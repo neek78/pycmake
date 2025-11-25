@@ -6,14 +6,17 @@
 #include "cmStateTypes.h"
 #include "cmScriptType.h"
 
+#include <pybind11/native_enum.h>
+
 namespace py = pybind11;
 
 void BindEnums(pybind11::module_& m)
 {
-    py::enum_<cmScriptType>(m, "ScriptType")
+    py::native_enum<cmScriptType>(m, "ScriptType", "enum.Enum")
         .value("Native", cmScriptType::Native)
         .value("Python", cmScriptType::Python)
-        .export_values();
+        .export_values()
+        .finalize();
 
     py::enum_<cmStateEnums::ScriptedCommandType>(m, "ScriptedCommandType")
         .value("Macro", cmStateEnums::ScriptedCommandType::Macro)
