@@ -6,9 +6,3 @@
 
 void BindEnums(pybind11::module_& m);
 
-enum class CMakeScriptType 
-{
-    CMakeScript,
-    Python
-};
-

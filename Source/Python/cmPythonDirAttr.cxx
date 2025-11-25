@@ -74,11 +74,11 @@ bool cmPythonDirAttr::IsRootSourceDir() const
     return GetMakefile().IsRootMakefile();
 }
 
-CMakeScriptType cmPythonDirAttr::ScriptType() const
+cmScriptType cmPythonDirAttr::ScriptType() const
 {
     return GetMakefile().GetIsPython() ? 
-        CMakeScriptType::Python :
-        CMakeScriptType::CMakeScript;
+        cmScriptType::Python :
+        cmScriptType::Native;
 }
 
 py::dict cmPythonDirAttr::Properties() const

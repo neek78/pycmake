@@ -6,6 +6,8 @@
 #include "cmPythonUtils.h"
 #include "cmPythonEnums.h"
 
+#include "cmScriptType.h"
+
 #include <pybind11/embed.h>
 
 #include <string>
@@ -31,7 +33,7 @@ private:
     pybind11::dict Properties() const;
 
     std::string ProjectName() const;
-    CMakeScriptType ScriptType() const;
+    cmScriptType ScriptType() const;
     std::filesystem::path BuildDir() const;
     std::filesystem::path SourceDir() const;
     std::filesystem::path RelativeSourceDir() const;

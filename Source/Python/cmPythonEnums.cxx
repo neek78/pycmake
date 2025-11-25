@@ -4,14 +4,15 @@
 #include "cmPythonEnums.h"
 #include "cmFileSet.h"
 #include "cmStateTypes.h"
+#include "cmScriptType.h"
 
 namespace py = pybind11;
 
 void BindEnums(pybind11::module_& m)
 {
-    py::enum_<CMakeScriptType>(m, "CMakeScriptType")
-        .value("CMakeScript", CMakeScriptType::CMakeScript)
-        .value("Python", CMakeScriptType::Python)
+    py::enum_<cmScriptType>(m, "ScriptType")
+        .value("Native", cmScriptType::Native)
+        .value("Python", cmScriptType::Python)
         .export_values();
 
     py::enum_<cmStateEnums::ScriptedCommandType>(m, "ScriptedCommandType")
