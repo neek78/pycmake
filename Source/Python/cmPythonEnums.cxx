@@ -12,25 +12,22 @@ namespace py = pybind11;
 
 void BindEnums(pybind11::module_& m)
 {
-    py::native_enum<cmScriptType>(m, "ScriptType", "enum.Enum")
-        .value("Native", cmScriptType::Native)
-        .value("Python", cmScriptType::Python)
-        .export_values()
-        .finalize();
-
     py::native_enum<cmStateEnums::ScriptedCommandType>(m, "ScriptedCommandType", "enum.Enum")
         .value("Macro", cmStateEnums::ScriptedCommandType::Macro)
         .value("Function", cmStateEnums::ScriptedCommandType::Function)
         .value("Python", cmStateEnums::ScriptedCommandType::Python)
         .value("Command", cmStateEnums::ScriptedCommandType::Command)
-        .export_values()
+        .finalize();
+
+    py::native_enum<cmScriptType>(m, "ScriptType", "enum.Enum")
+        .value("Native", cmScriptType::Native)
+        .value("Python", cmScriptType::Python)
         .finalize();
 
     py::native_enum<cmFileSetVisibility>(m, "FileSetVisibility", "enum.Enum")
         .value("PRIVATE", cmFileSetVisibility::Private)
         .value("PUBLIC", cmFileSetVisibility::Public)
         .value("INTERFACE", cmFileSetVisibility::Interface)
-        .export_values()
         .finalize();
 
     py::native_enum<cmStateEnums::CacheEntryType> (m, "CacheEntryType", "enum.Enum")
@@ -42,7 +39,6 @@ void BindEnums(pybind11::module_& m)
         .value("INTERNAL", cmStateEnums::CacheEntryType::INTERNAL)
         .value("STATIC", cmStateEnums::CacheEntryType::STATIC)
         .value("UNINITIALIZED", cmStateEnums::CacheEntryType::UNINITIALIZED)
-        .export_values()
         .finalize();
 
     py::native_enum<cmStateEnums::TargetType>(m, "TargetType", "enum.Enum")
@@ -55,7 +51,6 @@ void BindEnums(pybind11::module_& m)
         .value("GLOBAL_TARGET", cmStateEnums::TargetType::GLOBAL_TARGET)
         .value("INTERFACE_LIBRARY", cmStateEnums::TargetType::INTERFACE_LIBRARY)
         .value("UNKNOWN_LIBRARY", cmStateEnums::TargetType::UNKNOWN_LIBRARY)
-        .export_values()
         .finalize();
-
 }
+
