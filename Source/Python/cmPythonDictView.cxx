@@ -7,17 +7,17 @@ namespace py = pybind11;
 
 void cmPythonDictViewCommon::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonDictViewCommon>(m, "DictViewCommon")
+    auto cls = py::classh<cmPythonDictViewCommon>(m, "DictViewCommon")
         .def("__repr__", &cmPythonDictViewCommon::repr)
         .def("__iter__", &cmPythonDictViewCommon::iter, py::keep_alive<0, 1>())
         .def("__len__", &cmPythonDictViewCommon::size);
 
-    auto keys = py::class_<cmPythonDictViewKeys, cmPythonDictViewCommon>(m, "dict_view_keys")
+    auto keys = py::classh<cmPythonDictViewKeys, cmPythonDictViewCommon>(m, "dict_view_keys")
         .def("__contains__", &cmPythonDictViewKeys::contains);
 
-    auto values = py::class_<cmPythonDictViewValues, cmPythonDictViewCommon>(m, "dict_view_values");
+    auto values = py::classh<cmPythonDictViewValues, cmPythonDictViewCommon>(m, "dict_view_values");
 
-    auto items = py::class_<cmPythonDictViewItems, cmPythonDictViewCommon>(m, "dict_view_items")
+    auto items = py::classh<cmPythonDictViewItems, cmPythonDictViewCommon>(m, "dict_view_items")
         .def("__contains__", &cmPythonDictViewItems::contains);
 }
 

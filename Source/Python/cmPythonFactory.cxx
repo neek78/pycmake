@@ -3,12 +3,10 @@
 
 
 #include "cmPythonFactory.h"
-#include "cmPythonCore.h"
 #include "cmPythonModules.h"
 
 #include "cmVersion.h"
 #include "cmMakefile.h"
-#include "cmMessenger.h"
 
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
@@ -17,7 +15,7 @@ namespace py = pybind11;
 
 void cmPythonFactory::bind(py::module_& m)
 {
-    auto cls = py::class_<cmPythonFactory, std::shared_ptr<cmPythonFactory>>(m, "Factory");
+    auto cls = py::classh<cmPythonFactory>(m, "Factory");
 
     cls.def_property_readonly("global_attr", 
         &cmPythonFactory::global_attr, py::return_value_policy::reference_internal);

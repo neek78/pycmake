@@ -8,7 +8,7 @@ namespace py = pybind11;
 
 void cmPythonGlobalAttr::bind(py::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonGlobalAttr>(m, "GlobalAttr")
+    auto cls = pybind11::classh<cmPythonGlobalAttr>(m, "GlobalAttr")
         .def_property_readonly("test", &cmPythonGlobalAttr::test)
         ;
 }

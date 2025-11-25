@@ -18,7 +18,7 @@ namespace py = pybind11;
 
 void cmPythonCache::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonCache, cmPythonDictInterface>(m, "Cache");
+    auto cls = py::classh<cmPythonCache, cmPythonDictInterface>(m, "Cache");
 
     cls.def("__setitem__", &cmPythonCache::setitem);
     cls.def("__delitem__", &cmPythonCache::delitem);

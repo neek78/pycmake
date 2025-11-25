@@ -18,7 +18,7 @@ namespace py = pybind11;
 
 void cmPythonRaw::bind(pybind11::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonRaw>(m, "Raw");
+    auto cls = pybind11::classh<cmPythonRaw>(m, "Raw");
     auto *c = &cls;
 
     // register all (most) cmake commands as a callback to invokeFunction()

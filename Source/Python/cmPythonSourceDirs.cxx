@@ -13,7 +13,7 @@ namespace py = pybind11;
 
 void cmPythonSourceDirs::bind(pybind11::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonSourceDirs, cmPythonDictInterface>(m, "Directories");
+    auto cls = pybind11::classh<cmPythonSourceDirs, cmPythonDictInterface>(m, "Directories");
 }
 
 cmPythonSourceDirs::cmPythonSourceDirs(cmGlobalGenerator& globalGenerator)

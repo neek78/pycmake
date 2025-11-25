@@ -22,7 +22,7 @@ namespace py = pybind11;
 
 void cmPythonDirAttr::bind(pybind11::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonDirAttr>(m, "DirAttr")
+    auto cls = pybind11::classh<cmPythonDirAttr>(m, "DirAttr")
         .def("__repr__", &cmPythonDirAttr::repr)
         .def_property_readonly("properties", &cmPythonDirAttr::Properties)
         .def_property_readonly("list_files", &cmPythonDirAttr::ListFiles)

@@ -37,7 +37,7 @@ public:
     bool contains(const pybind11::str& key) override;
 
 private:
-    using ClassType = pybind11::class_<cmPythonFunctionLauncher, cmPythonDictInterface>;
+    using ClassType = pybind11::classh<cmPythonFunctionLauncher, cmPythonDictInterface>;
     static ClassType GetClassObject();
 
     static pybind11::dict GetUserFunctions();

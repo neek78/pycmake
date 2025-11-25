@@ -16,7 +16,7 @@ namespace py = pybind11;
 
 void cmPythonCombinedVar::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonCombinedVar, cmPythonDictInterface>(m, "CombinedVar");
+    auto cls = py::classh<cmPythonCombinedVar, cmPythonDictInterface>(m, "CombinedVar");
 
     cls.def("expand", &cmPythonCombinedVar::Expand);
     cls.def("expand_relaxed", &cmPythonCombinedVar::ExpandRelaxed);

@@ -4,7 +4,7 @@ namespace py = pybind11;
 
 void cmPythonViewIter::bind(pybind11::module_& m)
 {
-    py::class_<cmPythonViewIter>(m, "ViewIter")
+    py::classh<cmPythonViewIter>(m, "ViewIter")
         .def("__next__", &cmPythonViewIter::next)
         .def("__iter__", &cmPythonViewIter::iter, py::keep_alive<0, 1>());
 }

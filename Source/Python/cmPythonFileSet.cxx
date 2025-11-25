@@ -16,7 +16,7 @@ namespace py = pybind11;
 
 void cmPythonFileSet::bind(pybind11::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonFileSet>(m, "FileSet")
+    auto cls = pybind11::classh<cmPythonFileSet>(m, "FileSet")
         .def("__str__", &cmPythonFileSet::str)
         .def_property_readonly("name", &cmPythonFileSet::GetName)
         .def_property_readonly("type", &cmPythonFileSet::GetType)

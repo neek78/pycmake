@@ -17,7 +17,7 @@ namespace py = pybind11;
 
 void cmPythonCacheEntry::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonCacheEntry>(m, "CacheEntry");
+    auto cls = py::classh<cmPythonCacheEntry>(m, "CacheEntry");
 
     cls.def("__repr__", &cmPythonCacheEntry::repr);
 

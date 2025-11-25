@@ -24,7 +24,7 @@ const char* USER_FUNCTIONS_LIST = "__userfunctions";
 
 void cmPythonPyFunctions::bind(py::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonPyFunctions, cmPythonDictInterface>(m, "PyFunctions")
+    auto cls = pybind11::classh<cmPythonPyFunctions, cmPythonDictInterface>(m, "PyFunctions")
         .def("add", py::overload_cast<const py::function&>
                (&cmPythonPyFunctions::Add), "add python function")
         .def("add", py::overload_cast<const std::string &, const py::function&>

@@ -24,7 +24,7 @@ public:
   bool GetSeenMinVersionRequiredCommand() const { return SeenMinVersionRequiredCommand; }
 
 private:
-  using ClassType = pybind11::class_<cmPythonRaw>;
+  using ClassType = pybind11::classh<cmPythonRaw>;
 
   template<typename FunctionType>
   pybind11::object invokeFunction(const FunctionType& function, 

@@ -7,7 +7,7 @@ namespace py = pybind11;
 
 void cmPythonSourceFile::bind(pybind11::module_& m)
 {
-    auto cls = pybind11::class_<cmPythonSourceFile>(m, "SourceFile")
+    auto cls = pybind11::classh<cmPythonSourceFile>(m, "SourceFile")
         .def("__str__", &cmPythonSourceFile::str)
         .def_property_readonly("properties", &cmPythonSourceFile::GetProperties)
         .def_property_readonly("compile_options", &cmPythonSourceFile::GetCompileOptions)

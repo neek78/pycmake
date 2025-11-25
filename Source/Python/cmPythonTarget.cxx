@@ -15,7 +15,7 @@ namespace py = pybind11;
 
 void cmPythonTarget::bind(py::module_& m)
 {
-    auto cls = py::class_<cmPythonTarget>(m, "Target")
+    auto cls = py::classh<cmPythonTarget>(m, "Target")
         .def("__str__", &cmPythonTarget::str)
         .def("__eq__", &cmPythonTarget::eq)
         .def_property_readonly("name", &cmPythonTarget::GetName)

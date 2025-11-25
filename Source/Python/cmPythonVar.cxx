@@ -11,7 +11,7 @@ namespace py = pybind11;
 
 void cmPythonVar::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonVar, cmPythonDictInterface>(m, "Var");
+    auto cls = py::classh<cmPythonVar, cmPythonDictInterface>(m, "Var");
 
     cls.def("__setitem__", &cmPythonVar::setitem);
     cls.def("__delitem__", &cmPythonVar::delitem);

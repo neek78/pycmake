@@ -9,7 +9,7 @@ namespace py = pybind11;
 
 void cmPythonDictInterface::bind(pybind11::module_& m)
 {
-    auto cls = py::class_<cmPythonDictInterface>(m, "DictInterface");
+    auto cls = py::classh<cmPythonDictInterface>(m, "DictInterface");
 
     cls.def("keys", &cmPythonDictInterface::keys, py::keep_alive<0, 1>());
     cls.def("values", &cmPythonDictInterface::values, py::keep_alive<0, 1>());
