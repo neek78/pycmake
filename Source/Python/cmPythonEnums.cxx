@@ -18,20 +18,22 @@ void BindEnums(pybind11::module_& m)
         .export_values()
         .finalize();
 
-    py::enum_<cmStateEnums::ScriptedCommandType>(m, "ScriptedCommandType")
+    py::native_enum<cmStateEnums::ScriptedCommandType>(m, "ScriptedCommandType", "enum.Enum")
         .value("Macro", cmStateEnums::ScriptedCommandType::Macro)
         .value("Function", cmStateEnums::ScriptedCommandType::Function)
         .value("Python", cmStateEnums::ScriptedCommandType::Python)
         .value("Command", cmStateEnums::ScriptedCommandType::Command)
-        .export_values();
+        .export_values()
+        .finalize();
 
-    py::enum_<cmFileSetVisibility>(m, "FileSetVisibility")
+    py::native_enum<cmFileSetVisibility>(m, "FileSetVisibility", "enum.Enum")
         .value("PRIVATE", cmFileSetVisibility::Private)
         .value("PUBLIC", cmFileSetVisibility::Public)
         .value("INTERFACE", cmFileSetVisibility::Interface)
-        .export_values();
+        .export_values()
+        .finalize();
 
-    py::enum_<cmStateEnums::CacheEntryType> (m, "CacheEntryType")
+    py::native_enum<cmStateEnums::CacheEntryType> (m, "CacheEntryType", "enum.Enum")
         .value("BOOL", cmStateEnums::CacheEntryType::BOOL)
         .value("PATH", cmStateEnums::CacheEntryType::PATH)
         .value("FILEPATH", cmStateEnums::CacheEntryType::FILEPATH)
@@ -40,9 +42,10 @@ void BindEnums(pybind11::module_& m)
         .value("INTERNAL", cmStateEnums::CacheEntryType::INTERNAL)
         .value("STATIC", cmStateEnums::CacheEntryType::STATIC)
         .value("UNINITIALIZED", cmStateEnums::CacheEntryType::UNINITIALIZED)
-        .export_values();
+        .export_values()
+        .finalize();
 
-    py::enum_<cmStateEnums::TargetType>(m, "TargetType")
+    py::native_enum<cmStateEnums::TargetType>(m, "TargetType", "enum.Enum")
         .value("EXECUTABLE", cmStateEnums::TargetType::EXECUTABLE)
         .value("STATIC_LIBRARY", cmStateEnums::TargetType::STATIC_LIBRARY)
         .value("SHARED_LIBRARY", cmStateEnums::TargetType::SHARED_LIBRARY)
@@ -52,5 +55,7 @@ void BindEnums(pybind11::module_& m)
         .value("GLOBAL_TARGET", cmStateEnums::TargetType::GLOBAL_TARGET)
         .value("INTERFACE_LIBRARY", cmStateEnums::TargetType::INTERFACE_LIBRARY)
         .value("UNKNOWN_LIBRARY", cmStateEnums::TargetType::UNKNOWN_LIBRARY)
-        .export_values();
+        .export_values()
+        .finalize();
+
 }
