@@ -202,7 +202,8 @@ cmMakefile::cmMakefile(cmGlobalGenerator* globalGenerator,
   this->AddSourceGroup("Object Files", "\\.(lo|o|obj)$");
 
   this->ObjectLibrariesSourceGroupIndex = this->SourceGroups.size();
-  this->SourceGroups.emplace_back("Object Libraries", "^MATCH_NO_SOURCES$");
+  this->SourceGroups.emplace_back(
+    cm::make_unique<cmSourceGroup>("Object Libraries", "^MATCH_NO_SOURCES$"));
 #endif
 }
 
@@ -2135,8 +2136,8 @@ namespace {
 
 void cmMakefile::ResolveSourceGroupGenex(cmLocalGenerator* lg)
 {
-  for (cmSourceGroup& sourceGroup : this->SourceGroups) {
-    sourceGroup.ResolveGenex(lg, {});
+  for (auto const& sourceGroup : this->SourceGroups) {
+    sourceGroup->ResolveGenex(lg, {});
   }
 }
 
@@ -2146,10 +2147,10 @@ cmSourceGroup* cmMakefile::GetSourceGroup(
   cmSourceGroup* sg = nullptr;
 
   // first look for source group starting with the same as the one we want
-  for (cmSourceGroup const& srcGroup : this->SourceGroups) {
-    std::string const& sgName = srcGroup.GetName();
+  for (auto const& srcGroup : this->SourceGroups) {
+    std::string const& sgName = srcGroup->GetName();
     if (sgName == name[0]) {
-      sg = const_cast<cmSourceGroup*>(&srcGroup);
+      sg = srcGroup.get();
       break;
     }
   }
@@ -2201,7 +2202,8 @@ void cmMakefile::AddSourceGroup(std::vector<std::string> const& name,
   if (i == -1) {
     // group does not exist nor belong to any existing group
     // add its first component
-    this->SourceGroups.emplace_back(name[0], regex);
+    this->SourceGroups.emplace_back(
+      cm::make_unique<cmSourceGroup>(name[0], regex));
     sg = this->GetSourceGroup(currentName);
     i = 0; // last component found
   }
@@ -2211,7 +2213,8 @@ void cmMakefile::AddSourceGroup(std::vector<std::string> const& name,
   }
   // build the whole source group path
   for (++i; i <= lastElement; ++i) {
-    sg->AddChild(cmSourceGroup(name[i], nullptr, sg->GetFullName().c_str()));
+    sg->AddChild(cm::make_unique<cmSourceGroup>(name[i], nullptr,
+                                                sg->GetFullName().c_str()));
     sg = sg->LookupChild(name[i]);
   }
 
@@ -2234,36 +2237,6 @@ cmSourceGroup* cmMakefile::GetOrCreateSourceGroup(std::string const& name)
   auto p = this->GetDefinition("SOURCE_GROUP_DELIMITER");
   return this->GetOrCreateSourceGroup(
     cmTokenize(name, p ? cm::string_view(*p) : R"(\/)"_s));
-}
-
-/**
- * Find a source group whose regular expression matches the filename
- * part of the given source name.  Search backward through the list of
- * source groups, and take the first matching group found.  This way
- * non-inherited SOURCE_GROUP commands will have precedence over
- * inherited ones.
- */
-cmSourceGroup* cmMakefile::FindSourceGroup(
-  std::string const& source, std::vector<cmSourceGroup>& groups) const
-{
-  // First search for a group that lists the file explicitly.
-  for (auto sg = groups.rbegin(); sg != groups.rend(); ++sg) {
-    cmSourceGroup* result = sg->MatchChildrenFiles(source);
-    if (result) {
-      return result;
-    }
-  }
-
-  // Now search for a group whose regex matches the file.
-  for (auto sg = groups.rbegin(); sg != groups.rend(); ++sg) {
-    cmSourceGroup* result = sg->MatchChildrenRegex(source);
-    if (result) {
-      return result;
-    }
-  }
-
-  // Shouldn't get here, but just in case, return the default group.
-  return groups.data();
 }
 #endif
 
@@ -3228,7 +3201,7 @@ void cmMakefile::AddTargetObject(std::string const& tgtName,
   // file that compiles to it. Needs a policy as it likely affects link
   // language selection if done unconditionally.
 #if !defined(CMAKE_BOOTSTRAP)
-  this->SourceGroups[this->ObjectLibrariesSourceGroupIndex].AddGroupFile(
+  this->SourceGroups[this->ObjectLibrariesSourceGroupIndex]->AddGroupFile(
     sf->ResolveFullPath());
 #endif
 }
