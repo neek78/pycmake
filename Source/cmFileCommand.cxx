@@ -3730,6 +3730,8 @@ bool HandleArchiveCreateCommand(std::vector<std::string> const& args,
     compressionTypeMap = { { "None", cmSystemTools::TarCompressNone },
                            { "BZip2", cmSystemTools::TarCompressBZip2 },
                            { "GZip", cmSystemTools::TarCompressGZip },
+                           { "LZMA", cmSystemTools::TarCompressLZMA },
+                           { "LZMA2", cmSystemTools::TarCompressXZ },
                            { "XZ", cmSystemTools::TarCompressXZ },
                            { "Zstd", cmSystemTools::TarCompressZstd } };
 
