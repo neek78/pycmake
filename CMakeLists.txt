@@ -44,124 +44,7 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
   endif()
 
   set(CMake_BIN_DIR ${CMake_BINARY_DIR}/bin)
-endif()
 
-if(CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL)
-  if(CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL MATCHES "^3|2\\.1$")
-    set(USE_LGPL "${CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL}")
-  else()
-    set(USE_LGPL "2.1")
-  endif()
-else()
-  set(USE_LGPL "")
-endif()
-
-# Use most-recent available language dialects with GNU and Clang
-if(NOT DEFINED CMAKE_C_STANDARD AND NOT CMake_NO_C_STANDARD)
-  include(${CMake_SOURCE_DIR}/Source/Checks/cm_c11_thread_local.cmake)
-  if(NOT CMake_C11_THREAD_LOCAL_BROKEN)
-    set(CMAKE_C_STANDARD 11)
-  else()
-    set(CMAKE_C_STANDARD 99)
-  endif()
-endif()
-if(NOT DEFINED CMAKE_CXX_STANDARD AND NOT CMake_NO_CXX_STANDARD)
-  if(CMAKE_CXX_COMPILER_ID STREQUAL SunPro AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.14)
-    set(CMAKE_CXX_STANDARD 98)
-  else()
-    include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx17_check.cmake)
-    if(NOT CMake_CXX17_BROKEN)
-      set(CMAKE_CXX_STANDARD 17)
-    else()
-      include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx14_check.cmake)
-      if(NOT CMake_CXX14_BROKEN)
-        set(CMAKE_CXX_STANDARD 14)
-      else()
-        set(CMAKE_CXX_STANDARD 11)
-      endif()
-    endif()
-  endif()
-endif()
-if(NOT CMake_TEST_EXTERNAL_CMAKE)
-  # include special compile flags for some compilers
-  include(CompileFlags.cmake)
-
-  # check for available C++ features
-  include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx_features.cmake)
-
-  if(NOT CMake_HAVE_CXX_UNIQUE_PTR)
-    message(FATAL_ERROR "The C++ compiler does not support C++11 (e.g. std::unique_ptr).")
-  endif()
-endif()
-
-# Inform STL library header wrappers whether to use system versions.
-configure_file(Utilities/std/cmSTL.hxx.in Utilities/cmSTL.hxx @ONLY)
-
-# set the internal encoding of CMake to UTF-8
-set(KWSYS_ENCODING_DEFAULT_CODEPAGE CP_UTF8)
-
-# enable parallel install
-set_property(GLOBAL PROPERTY INSTALL_PARALLEL ON)
-
-# option to use COMPONENT with install command
-option(CMake_INSTALL_COMPONENTS "Using components when installing" OFF)
-mark_as_advanced(CMake_INSTALL_COMPONENTS)
-macro(CMake_OPTIONAL_COMPONENT NAME)
-  if(CMake_INSTALL_COMPONENTS)
-    set(COMPONENT COMPONENT ${NAME})
-  else()
-    set(COMPONENT)
-  endif()
-endmacro()
-
-# option to disable installing 3rd-party dependencies
-option(CMake_INSTALL_DEPENDENCIES
-  "Whether to install 3rd-party runtime dependencies" OFF)
-mark_as_advanced(CMake_INSTALL_DEPENDENCIES)
-
-# option to build reference for CMake developers
-option(CMake_BUILD_DEVELOPER_REFERENCE
-  "Build CMake Developer Reference" OFF)
-mark_as_advanced(CMake_BUILD_DEVELOPER_REFERENCE)
-
-# option to build using interprocedural optimizations (IPO/LTO)
-option(CMake_BUILD_LTO "Compile CMake with link-time optimization if supported" OFF)
-if(CMake_BUILD_LTO)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT HAVE_IPO)
-  if(HAVE_IPO)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-  endif()
-endif()
-
-option(CMake_BUILD_PCH "Compile CMake with precompiled headers" OFF)
-
-# Check whether to build support for the debugger mode.
-if(NOT CMake_TEST_EXTERNAL_CMAKE)
-  if(NOT DEFINED CMake_ENABLE_DEBUGGER)
-    # The debugger uses cppdap, which does not compile everywhere.
-    if(CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin|Linux|BSD|DragonFly|CYGWIN|MSYS"
-        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.16)
-        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "XLClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.1)
-        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "LCC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1.23)
-        )
-      set(CMake_ENABLE_DEBUGGER 1)
-    else()
-      set(CMake_ENABLE_DEBUGGER 0)
-    endif()
-  endif()
-else()
-  set(CMake_ENABLE_DEBUGGER 0)
-endif()
-
-if(NOT DEFINED CMake_ENABLE_PYTHON)
-    set(CMake_ENABLE_PYTHON 0)
-endif()
-#-----------------------------------------------------------------------
-# a macro to deal with system libraries, implemented as a macro
-# simply to improve readability of the main script
-#-----------------------------------------------------------------------
-macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
   include(CMakeDependentOption)
 
   # Allow the user to enable/disable all system utility library options by
@@ -249,34 +132,140 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
 
   # Inform utility library header wrappers whether to use system versions.
   configure_file(Utilities/cmThirdParty.h.in Utilities/cmThirdParty.h @ONLY)
+endif()
 
-  option(CMAKE_USE_PYTHON "Enable python scripting in cmake" ON)
-  mark_as_advanced(CMAKE_USE_PYTHON)
+if(CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL)
+  if(CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL MATCHES "^3|2\\.1$")
+    set(USE_LGPL "${CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL}")
+  else()
+    set(USE_LGPL "2.1")
+  endif()
+else()
+  set(USE_LGPL "")
+endif()
 
-  if(CMAKE_USE_PYTHON)
-    set(PYBIND11_FINDPYTHON NEW)
-    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
-      message(WARNING " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
-                      " Use 'git submodule update --init' in your source tree to populate the submodule"
-                      " and re-run CMake.")
+# Use most-recent available language dialects with GNU and Clang
+if(NOT DEFINED CMAKE_C_STANDARD AND NOT CMake_NO_C_STANDARD)
+  include(${CMake_SOURCE_DIR}/Source/Checks/cm_c11_thread_local.cmake)
+  if(NOT CMake_C11_THREAD_LOCAL_BROKEN)
+    set(CMAKE_C_STANDARD 11)
+  else()
+    set(CMAKE_C_STANDARD 99)
+  endif()
+endif()
+if(NOT DEFINED CMAKE_CXX_STANDARD AND NOT CMake_NO_CXX_STANDARD)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL SunPro AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.14)
+    set(CMAKE_CXX_STANDARD 98)
+  else()
+    include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx17_check.cmake)
+    if(NOT CMake_CXX17_BROKEN)
+      set(CMAKE_CXX_STANDARD 17)
     else()
-      add_subdirectory(extern/pybind11)
-
-      if(NOT pybind11_FOUND)
-        # if they asked for Python, but we can't provide it, give a msg
-        message(STATUS "Python support requested, but couldn't find pybind11 or its ilk")
-        set(CMake_ENABLE_PYTHON 0)
+      include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx14_check.cmake)
+      if(NOT CMake_CXX14_BROKEN)
+        set(CMAKE_CXX_STANDARD 14)
       else()
-        message(STATUS "Python support enabled")
-        set(CMake_ENABLE_PYTHON 1)
+        set(CMAKE_CXX_STANDARD 11)
       endif()
     endif()
-  else()
-      message(STATUS "Python support disabled")
   endif()
+endif()
+if(NOT CMake_TEST_EXTERNAL_CMAKE)
+  # include special compile flags for some compilers
+  include(CompileFlags.cmake)
 
-  find_package(GTest)
+  # check for available C++ features
+  include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx_features.cmake)
+
+  if(NOT CMake_HAVE_CXX_UNIQUE_PTR)
+    message(FATAL_ERROR "The C++ compiler does not support C++11 (e.g. std::unique_ptr).")
+  endif()
+endif()
+
+if(CMAKE_USE_PYTHON)
+    set(PYBIND11_FINDPYTHON NEW)
+    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
+        message(WARNING 
+            " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
+            " Use 'git submodule update --init' in your source tree to populate the submodule"
+            " and re-run CMake.")
+    else()
+        add_subdirectory(extern/pybind11)
+
+        if(NOT pybind11_FOUND)
+            # if they asked for Python, but we can't provide it, give a msg
+            message(STATUS "Python support requested, but couldn't find pybind11 or its ilk")
+            set(CMake_ENABLE_PYTHON 0)
+        else()
+            message(STATUS "Python support enabled")
+            set(CMake_ENABLE_PYTHON 1)
+        endif()
+    endif()
+else()
+    message(STATUS "Python support disabled")
+endif()
+
+find_package(GTest)
+
+# Inform STL library header wrappers whether to use system versions.
+configure_file(Utilities/std/cmSTL.hxx.in Utilities/cmSTL.hxx @ONLY)
+
+# set the internal encoding of CMake to UTF-8
+set(KWSYS_ENCODING_DEFAULT_CODEPAGE CP_UTF8)
+
+# enable parallel install
+set_property(GLOBAL PROPERTY INSTALL_PARALLEL ON)
+
+# option to use COMPONENT with install command
+option(CMake_INSTALL_COMPONENTS "Using components when installing" OFF)
+mark_as_advanced(CMake_INSTALL_COMPONENTS)
+macro(CMake_OPTIONAL_COMPONENT NAME)
+  if(CMake_INSTALL_COMPONENTS)
+    set(COMPONENT COMPONENT ${NAME})
+  else()
+    set(COMPONENT)
+  endif()
 endmacro()
+
+# option to disable installing 3rd-party dependencies
+option(CMake_INSTALL_DEPENDENCIES
+  "Whether to install 3rd-party runtime dependencies" OFF)
+mark_as_advanced(CMake_INSTALL_DEPENDENCIES)
+
+# option to build reference for CMake developers
+option(CMake_BUILD_DEVELOPER_REFERENCE
+  "Build CMake Developer Reference" OFF)
+mark_as_advanced(CMake_BUILD_DEVELOPER_REFERENCE)
+
+# option to build using interprocedural optimizations (IPO/LTO)
+option(CMake_BUILD_LTO "Compile CMake with link-time optimization if supported" OFF)
+if(CMake_BUILD_LTO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT HAVE_IPO)
+  if(HAVE_IPO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
+
+option(CMake_BUILD_PCH "Compile CMake with precompiled headers" OFF)
+
+# Check whether to build support for the debugger mode.
+if(NOT CMake_TEST_EXTERNAL_CMAKE)
+  if(NOT DEFINED CMake_ENABLE_DEBUGGER)
+    # The debugger uses cppdap, which does not compile everywhere.
+    if(CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin|Linux|BSD|DragonFly|CYGWIN|MSYS"
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.16)
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "XLClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.1)
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "LCC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1.23)
+        )
+      set(CMake_ENABLE_DEBUGGER 1)
+    else()
+      set(CMake_ENABLE_DEBUGGER 0)
+    endif()
+  endif()
+else()
+  set(CMake_ENABLE_DEBUGGER 0)
+endif()
 
 #-----------------------------------------------------------------------
 # a macro to determine the generator and ctest executable to use
@@ -556,10 +545,6 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
 endif()
 
 add_subdirectory(Tests)
-# pickup python tests
-if(CMake_ENABLE_PYTHON)
-  add_subdirectory(PyModules)
-endif()
 
 if(NOT CMake_TEST_EXTERNAL_CMAKE)
   if(BUILD_TESTING)
@@ -600,17 +585,6 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
                   WORLD_READ WORLD_EXECUTE
     REGEX "Help/(dev|guide)($|/)" EXCLUDE
     )
-
-  if(CMake_ENABLE_PYTHON)
-    install(
-      DIRECTORY PyModules/cmake
-      DESTINATION ${CMAKE_DATA_DIR}/PyModules
-      FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-      DIRECTORY_PERMISSIONS OWNER_READ OWNER_EXECUTE OWNER_WRITE
-                            GROUP_READ GROUP_EXECUTE
-                            WORLD_READ WORLD_EXECUTE
-      )
-  endif()
 
   # Install auxiliary files integrating with other tools.
   add_subdirectory(Auxiliary)

@@ -262,6 +262,54 @@ function(_RUBY_CHECK_RBENV)
   endif ()
 endfunction()
 
+# Check Ruby installed via Homebrew on macOS
+function(_RUBY_CHECK_BREW)
+  # Try to locate brew in common locations and in PATH
+  find_program(_BREW_EXECUTABLE
+          NAMES brew
+          NAMES_PER_DIR
+          PATHS
+          /opt/homebrew/bin      # Apple Silicon default
+          /usr/local/bin         # Intel default
+          ENV PATH
+          NO_CACHE
+  )
+
+  if (NOT _BREW_EXECUTABLE)
+    return()
+  endif ()
+
+  MESSAGE(DEBUG "Found brew at: ${_BREW_EXECUTABLE}")
+
+  # Query Homebrew for the prefix of the 'ruby' formula.
+  # If Ruby is not installed via Homebrew, this will fail.
+  execute_process(
+          COMMAND "${_BREW_EXECUTABLE}" --prefix ruby
+          RESULT_VARIABLE _Ruby_BREW_RESULT
+          OUTPUT_VARIABLE _Ruby_BREW_DIR
+          ERROR_QUIET
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  MESSAGE(DEBUG "Ruby BREW is: ${_Ruby_BREW_DIR}")
+
+  if (NOT _Ruby_BREW_RESULT EQUAL 0 OR _Ruby_BREW_DIR STREQUAL "")
+    # No 'ruby' formula installed in Homebrew
+    return()
+  endif ()
+
+  find_program(Ruby_EXECUTABLE
+          NAMES ${_Ruby_POSSIBLE_EXECUTABLE_NAMES}
+          NAMES_PER_DIR
+          PATHS "${_Ruby_BREW_DIR}/bin"
+          VALIDATOR _RUBY_VALIDATE_INTERPRETER
+          NO_DEFAULT_PATH
+  )
+
+  if (Ruby_EXECUTABLE)
+    set(Ruby_ENV "BREW" CACHE INTERNAL "Ruby environment")
+  endif ()
+endfunction()
+
 # Check system installed Ruby
 function(_RUBY_CHECK_SYSTEM)
   find_program(Ruby_EXECUTABLE
@@ -282,6 +330,11 @@ if (NOT Ruby_EXECUTABLE AND Ruby_FIND_VIRTUALENV MATCHES "^(FIRST|ONLY)$")
   if (NOT Ruby_EXECUTABLE)
     _RUBY_CHECK_RBENV()
   endif ()
+endif ()
+
+# Check for Homebrew Ruby (non-virtualenv, common on MacOS)
+if (NOT Ruby_EXECUTABLE AND NOT Ruby_FIND_VIRTUALENV STREQUAL "ONLY")
+  _RUBY_CHECK_BREW()
 endif ()
 
 # Fallback to system installed Ruby
@@ -323,16 +376,16 @@ if (Ruby_EXECUTABLE AND NOT Ruby_EXECUTABLE STREQUAL "${_Ruby_EXECUTABLE_LAST_QU
   set(Ruby_VERSION_MAJOR ${Ruby_VERSION_MAJOR} CACHE PATH "The Ruby major version" FORCE)
   set(Ruby_VERSION_MINOR ${Ruby_VERSION_MINOR} CACHE PATH "The Ruby minor version" FORCE)
   set(Ruby_VERSION_PATCH ${Ruby_VERSION_PATCH} CACHE PATH "The Ruby patch version" FORCE)
-  set(Ruby_ARCH_DIR ${Ruby_ARCH_DIR} CACHE PATH "The Ruby arch dir" FORCE)
-  set(Ruby_HDR_DIR ${Ruby_HDR_DIR} CACHE PATH "The Ruby header dir (1.9+)" FORCE)
-  set(Ruby_ARCHHDR_DIR ${Ruby_ARCHHDR_DIR} CACHE PATH "The Ruby arch header dir (2.0+)" FORCE)
-  set(_Ruby_POSSIBLE_LIB_DIR ${_Ruby_POSSIBLE_LIB_DIR} CACHE PATH "The Ruby lib dir" FORCE)
-  set(Ruby_RUBY_LIB_DIR ${Ruby_RUBY_LIB_DIR} CACHE PATH "The Ruby ruby-lib dir" FORCE)
-  set(Ruby_SITEARCH_DIR ${Ruby_SITEARCH_DIR} CACHE PATH "The Ruby site arch dir" FORCE)
-  set(Ruby_SITELIB_DIR ${Ruby_SITELIB_DIR} CACHE PATH "The Ruby site lib dir" FORCE)
+  set(Ruby_ARCH_DIR ${Ruby_ARCH_DIR} CACHE INTERNAL "The Ruby arch dir" FORCE)
+  set(Ruby_HDR_DIR ${Ruby_HDR_DIR} CACHE INTERNAL "The Ruby header dir (1.9+)" FORCE)
+  set(Ruby_ARCHHDR_DIR ${Ruby_ARCHHDR_DIR} CACHE INTERNAL "The Ruby arch header dir (2.0+)" FORCE)
+  set(_Ruby_POSSIBLE_LIB_DIR ${_Ruby_POSSIBLE_LIB_DIR} CACHE INTERNAL "The Ruby lib dir" FORCE)
+  set(Ruby_RUBY_LIB_DIR ${Ruby_RUBY_LIB_DIR} CACHE INTERNAL "The Ruby ruby-lib dir" FORCE)
+  set(Ruby_SITEARCH_DIR ${Ruby_SITEARCH_DIR} CACHE INTERNAL "The Ruby site arch dir" FORCE)
+  set(Ruby_SITELIB_DIR ${Ruby_SITELIB_DIR} CACHE INTERNAL "The Ruby site lib dir" FORCE)
   set(Ruby_HAS_VENDOR_RUBY ${Ruby_HAS_VENDOR_RUBY} CACHE BOOL "Vendor Ruby is available" FORCE)
-  set(Ruby_VENDORARCH_DIR ${Ruby_VENDORARCH_DIR} CACHE PATH "The Ruby vendor arch dir" FORCE)
-  set(Ruby_VENDORLIB_DIR ${Ruby_VENDORLIB_DIR} CACHE PATH "The Ruby vendor lib dir" FORCE)
+  set(Ruby_VENDORARCH_DIR ${Ruby_VENDORARCH_DIR} CACHE INTERNAL "The Ruby vendor arch dir" FORCE)
+  set(Ruby_VENDORLIB_DIR ${Ruby_VENDORLIB_DIR} CACHE INTERNAL "The Ruby vendor lib dir" FORCE)
 
   mark_as_advanced(
       Ruby_ARCH_DIR
@@ -386,28 +439,16 @@ endif ()
 
 # FIXME: Currently we require both the interpreter and development components to be found
 # in order to use either.  See issue #20474.
+
 find_path(Ruby_INCLUDE_DIR
-          NAMES ruby.h
-          HINTS
-          ${Ruby_HDR_DIR}
-          ${Ruby_ARCH_DIR}
-          /usr/lib/ruby/${_Ruby_VERSION_SHORT}/i586-linux-gnu/
-)
+        NAMES ruby.h
+        HINTS ${Ruby_HDR_DIR})
 
-set(Ruby_INCLUDE_DIRS ${Ruby_INCLUDE_DIR})
+find_path(Ruby_CONFIG_INCLUDE_DIR
+        NAMES ruby/config.h config.h
+        HINTS ${Ruby_ARCHHDR_DIR})
 
-# if ruby > 1.8 is required or if ruby > 1.8 was found, search for the config.h dir
-if (Ruby_FIND_VERSION VERSION_GREATER_EQUAL "1.9" OR Ruby_VERSION VERSION_GREATER_EQUAL "1.9" OR Ruby_HDR_DIR)
-  find_path(Ruby_CONFIG_INCLUDE_DIR
-            NAMES ruby/config.h config.h
-            HINTS
-            ${Ruby_HDR_DIR}/${Ruby_ARCH}
-            ${Ruby_ARCH_DIR}
-            ${Ruby_ARCHHDR_DIR}
-  )
-
-  set(Ruby_INCLUDE_DIRS ${Ruby_INCLUDE_DIRS} ${Ruby_CONFIG_INCLUDE_DIR})
-endif ()
+set(Ruby_INCLUDE_DIRS ${Ruby_INCLUDE_DIR} ${Ruby_CONFIG_INCLUDE_DIR})
 
 # Determine the list of possible names for the ruby library
 set(_Ruby_POSSIBLE_LIB_NAMES
@@ -442,12 +483,23 @@ if (WIN32)
   endforeach ()
 endif ()
 
-find_library(Ruby_LIBRARY NAMES ${_Ruby_POSSIBLE_LIB_NAMES} HINTS ${_Ruby_POSSIBLE_LIB_DIR})
+# Save CMAKE_FIND_FRAMEWORK
+set(_Ruby_CMAKE_FIND_FRAMEWORK_ORIGINAL ${CMAKE_FIND_FRAMEWORK})
+
+# Avoid finding the ancient Ruby framework included in macOS.
+set(CMAKE_FIND_FRAMEWORK LAST)
+
+find_library(Ruby_LIBRARY
+        NAMES ${_Ruby_POSSIBLE_LIB_NAMES}
+        HINTS ${_Ruby_POSSIBLE_LIB_DIR})
 
 set(_Ruby_REQUIRED_VARS Ruby_EXECUTABLE Ruby_INCLUDE_DIR Ruby_LIBRARY)
 if (_Ruby_VERSION_SHORT_NODOT GREATER 18)
   list(APPEND _Ruby_REQUIRED_VARS Ruby_CONFIG_INCLUDE_DIR)
 endif ()
+
+# Restore CMAKE_FIND_FRAMEWORK
+set(CMAKE_FIND_FRAMEWORK ${_Ruby_CMAKE_FIND_FRAMEWORK_ORIGINAL})
 
 message(DEBUG "--------FindRuby.cmake debug------------")
 message(DEBUG "_Ruby_POSSIBLE_EXECUTABLE_NAMES: ${_Ruby_POSSIBLE_EXECUTABLE_NAMES}")
@@ -462,6 +514,7 @@ message(DEBUG "Ruby_INCLUDE_DIR: ${Ruby_INCLUDE_DIR}")
 message(DEBUG "Ruby_CONFIG_INCLUDE_DIR: ${Ruby_CONFIG_INCLUDE_DIR}")
 message(DEBUG "Ruby_HDR_DIR: ${Ruby_HDR_DIR}")
 message(DEBUG "Ruby_ARCH_DIR: ${Ruby_ARCH_DIR}")
+message(DEBUG "Ruby_ARCHHDR_DIR: ${Ruby_ARCHHDR_DIR}")
 message(DEBUG "--------------------")
 
 include(FindPackageHandleStandardArgs)
