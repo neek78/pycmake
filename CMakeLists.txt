@@ -182,27 +182,30 @@ if(NOT CMake_TEST_EXTERNAL_CMAKE)
   endif()
 endif()
 
-if(CMAKE_USE_PYTHON)
-    set(PYBIND11_FINDPYTHON NEW)
-    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
-        message(WARNING 
-            " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
-            " Use 'git submodule update --init' in your source tree to populate the submodule"
-            " and re-run CMake.")
-    else()
-        add_subdirectory(extern/pybind11)
+option(CMAKE_USE_PYTHON "Enable python scripting in cmake" ON)
+mark_as_advanced(CMAKE_USE_PYTHON)
 
-        if(NOT pybind11_FOUND)
-            # if they asked for Python, but we can't provide it, give a msg
-            message(STATUS "Python support requested, but couldn't find pybind11 or its ilk")
-            set(CMake_ENABLE_PYTHON 0)
-        else()
-            message(STATUS "Python support enabled")
-            set(CMake_ENABLE_PYTHON 1)
-        endif()
+if(CMAKE_USE_PYTHON)
+  set(PYBIND11_FINDPYTHON NEW)
+  if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt)
+    message(WARNING 
+      " extern/pybind11/CMakeLists.txt does not exist, but CMAKE_USE_PYTHON is on.\n"  
+      " Use 'git submodule update --init' in your source tree to populate the submodule"
+      " and re-run CMake.")
+  else()
+    add_subdirectory(extern/pybind11)
+
+    if(NOT pybind11_FOUND)
+      # if they asked for Python, but we can't provide it, give a msg
+      message(STATUS "Python support requested, but couldn't find pybind11 or its ilk")
+      set(CMake_ENABLE_PYTHON 0)
+    else()
+      message(STATUS "Python support enabled")
+      set(CMake_ENABLE_PYTHON 1)
     endif()
+  endif()
 else()
-    message(STATUS "Python support disabled")
+  message(STATUS "Python support disabled")
 endif()
 
 find_package(GTest)
